@@ -1,0 +1,51 @@
+{
+  "summary": "Smoke test complet backend + frontend. Auth (login/me), CRUD clients, products list, orders (avec bon schéma), tours, activities, dashboard KPIs, reports agents, seed demo, AI ask, AI account-insight, AI parse-voice fonctionnent tous. Frontend: login->dashboard OK, sidebar navigation, création client via modal, FAB voice ouvre + envoie prompt à /api/ai/ask. Un bug backend mineur détecté (validation payload orders).",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login -> token JWT + user",
+    "GET /api/auth/me -> user profile (Bearer JWT)",
+    "POST /api/seed/demo -> {ok:true, products:6, clients:5}",
+    "GET /api/dashboard/kpis -> total_ca, chart, top_products",
+    "GET/POST/PUT/DELETE /api/clients -> CRUD complet (assigned_to auto)",
+    "GET /api/products -> liste 6 produits seedés",
+    "POST /api/orders (client_id, client_name, lines[{product_id,product_name,quantity,unit_price}]) -> commande créée, total calculé, activity ajoutée",
+    "POST /api/tours (name, date, client_ids) -> tournée créée",
+    "POST/GET /api/activities -> création + filtre client_id",
+    "GET /api/reports/agents-performance -> tri par CA",
+    "POST /api/ai/ask (Claude Sonnet 5 via emergentintegrations) -> answer + model",
+    "POST /api/ai/account-insight -> analyse structurée",
+    "POST /api/ai/parse-voice intent=client -> JSON strict extrait (name, type, city...)",
+    "Frontend: /login s'affiche, login demo@cellier.fr réussi, toast 'Connexion réussie', redirection /dashboard",
+    "Frontend: Dashboard affiche KPIs (CA 2805,1€, Commandes 5, Actifs 3, VIP 1), chart, top produits, sidebar, bouton FR, Déconnexion",
+    "Frontend: Sidebar navigation vers /clients fonctionne",
+    "Frontend: Création client via modal (form-client-name + submit-client) -> apparaît dans la liste",
+    "Frontend: VoiceFAB ouvre panel, textarea acceptable, bouton Envoyer déclenche appel IA"
+  ],
+  "failed": [
+    {
+      "area": "Backend - POST /api/orders schema",
+      "issue": "Le modèle Order requiert 'client_name' et attend 'lines' (avec product_name + unit_price) et non 'items'. Un appel sans client_name retourne 500 Internal Server Error au lieu d'une 422 lisible.",
+      "evidence": "Log: pydantic ValidationError 'client_name Field required' au ligne server.py:243 create_order. Un payload correct {client_id, client_name, lines:[{product_id, product_name, quantity, unit_price}]} fonctionne.",
+      "priority": "MEDIUM"
+    },
+    {
+      "area": "Backend - POST /api/auth/register",
+      "issue": "Rôle 'agent' rejeté. Seuls 'manager' ou 'commercial' sont acceptés (message d'erreur explicite 422, OK). À vérifier que le frontend Register.jsx propose bien ces deux options uniquement.",
+      "evidence": "422: 'Input should be manager or commercial'",
+      "priority": "LOW"
+    },
+    {
+      "area": "Frontend - Recharts warnings",
+      "issue": "Console warnings répétés: 'width(-1) and height(-1) of chart should be greater than 0' sur le chart 'Évolution du CA'. Le chart s'affiche quand même mais peut avoir des soucis de resize initial.",
+      "evidence": "CONSOLE warning au chargement dashboard. Screenshot montre le chart correctement rendu après stabilisation.",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "OPTIONNEL: Dans /api/orders, calculer/renseigner client_name automatiquement depuis client_id ou valider en amont avec un message clair (422 au lieu de 500). Documenter clairement le schéma attendu (lines vs items).",
+    "OPTIONNEL: Fixer les warnings Recharts (définir aspect ou min height sur ResponsiveContainer)."
+  ],
+  "success_rate": {"backend": "100% (13/13 endpoints avec payload correct)", "frontend": "100% (7/7 smoke checks)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

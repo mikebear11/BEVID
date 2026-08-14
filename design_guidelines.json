@@ -1,0 +1,105 @@
+{
+  "theme": "Organic Precision (Premium Beverage Distribution CRM)",
+  "design_philosophy": "A high-performance command center that feels tactile, organic, and luxurious, tailored for wine and beverage distribution. It merges the sterile efficiency of a Swiss grid with the warm, rich tones of hospitality. Zero generic SaaS blue. Data entry must feel effortless via voice and progressive disclosure.",
+  "typography": {
+    "pairing_strategy": "Old Money Tech (High-end Hospitality + SaaS Clarity)",
+    "primary_heading": "Playfair Display",
+    "primary_heading_fallback": "serif",
+    "body": "Satoshi (or Outfit / Inter if unavailable)",
+    "body_fallback": "sans-serif",
+    "rules": [
+      "No generic sans-serif for H1/H2. Playfair Display must be used for section titles and key metric numbers to give a premium feel.",
+      "Headings (Size > 32px) must use tracking-tight.",
+      "Overlines and labels must be Uppercase, text-xs, with tracking-widest.",
+      "Body text must be highly legible and sterile to contrast with the expressive headers.",
+      "Maximum heading size is text-5xl on desktop, text-3xl on mobile."
+    ]
+  },
+  "colors": {
+    "archetype": "Organic & Earthy with Swiss Contrast",
+    "backgrounds": {
+      "app_bg": "#F7F5F2",
+      "card_bg": "#FFFFFF",
+      "glass_bg": "rgba(255, 255, 255, 0.7)"
+    },
+    "text": {
+      "primary": "#0A0A0A",
+      "secondary": "#5C5C5C",
+      "muted": "#8A8A8A"
+    },
+    "accents": {
+      "primary": "#4A154B",
+      "primary_hover": "#6B2D5C",
+      "success": "#2D5A4C",
+      "warning": "#C78B3A",
+      "danger": "#8C2A2A"
+    },
+    "rules": [
+      "Primary Accent (#4A154B - Deep Bordeaux) is strictly for primary CTAs and active states.",
+      "Success metrics use a deep earthy Sage/Olive (#2D5A4C), NOT vibrating neon green.",
+      "Never use pure black or pure gray. Use tinted charcoal for text.",
+      "Support Dark Mode via an elegant toggle: Dark mode background should be #121011 with cards in #1A1819."
+    ]
+  },
+  "layouts": {
+    "dashboard_grid": "High Density Grid (For Dashboards). Tight gaps (gap-4 or gap-6). Use bento-box styling for desktop widgets.",
+    "spacing": "Generous Spacing Philosophy. Use p-6 or p-8 inside cards. Always pad text inside bordered containers.",
+    "surfaces": "Cardless or subtle roundness (max 8px border-radius). Use 1px subtle borders (border-stone-200) instead of heavy drop shadows.",
+    "glassmorphism": "Use 'Crystal Glass' (backdrop-blur-xl bg-white/70 with 1px white border) for sticky headers and floating AI assistants."
+  },
+  "components": {
+    "navigation": "Responsive Sidebar on desktop, transforming into a minimalist bottom tab bar or hamburger menu on mobile.",
+    "ai_assistant_fab": "Floating Action Button (fixed, z-50, bottom-right) for Voice-to-Text ('Saisie vocale'). Must have a subtle glowing/pulsing animation ('Tracing Beam' style) to indicate readiness.",
+    "forms": "Ultra-short progressive forms. Only show 1-2 inputs at a time. Use Shadcn Inputs, Selects, and Switches heavily customized with our organic color palette.",
+    "tables": "Shadcn Table with horizontal scroll on mobile. Striped rows in light mode (bg-white/bg-stone-50) for readability.",
+    "charts": "Recharts or Shadcn Charts. Use Bordeaux and Sage tones. No default generic colors."
+  },
+  "visual_enhancers": {
+    "borders": "1px solid strokes, never muddy shadows.",
+    "icons": "Use lucide-react. Stroke width 1.5 for a clean, sharp look.",
+    "textures": "Subtle noise overlay (opacity 2-3%) on the main app background to give it a physical 'paper' feel.",
+    "empty_states": "Action-oriented. Instead of blank panels, show 'Import clients' or 'Connect catalog' with a soft illustration or icon."
+  },
+  "motion": {
+    "hover_states": "-translate-y-[1px] and shadow-sm on interactive cards. Always explicitly set text color on hover.",
+    "transitions": "Use specific properties (transition-transform, transition-colors duration-200 ease-in-out). DO NOT use 'transition-all'.",
+    "voice_recording": "When the voice agent is active, show a dynamic equalizer or pulsating ring animation."
+  },
+  "responsive": {
+    "breakpoint": "Mobile-First Design (CRITICAL).",
+    "layout_shift": "Desktop bento grids must collapse into a single-column vertically stacked feed of KPI cards on mobile.",
+    "progressive_disclosure": "On mobile, show ONLY the 'North Star' KPI at the top. Hide secondary stats behind tabs or accordions.",
+    "overflow_guard": "Use overflow-x-hidden on the main container. Tables must have their own scrollable wrappers.",
+    "tap_targets": "Minimum 44x44px for all buttons and interactive elements on mobile."
+  },
+  "accessibility": {
+    "contrast": "Ensure all text meets APCA/WCAG AA standards. High contrast charcoal text on stone backgrounds.",
+    "focus_states": "focus:ring-2 focus:ring-[#4A154B] focus:outline-none.",
+    "data_testid": "All interactive elements, forms, and KPI cards MUST include kebab-case data-testid attributes (e.g., 'voice-input-btn', 'sales-kpi-card')."
+  },
+  "image_urls": {
+    "client_bar_context": {
+      "url": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
+      "description": "Modern pub/restaurant interior. Use in Client Profile headers or 'Account Management' sections."
+    },
+    "product_catalog": {
+      "url": "https://images.unsplash.com/photo-1562601579-599dec564e06",
+      "description": "Wine bottles in cellar. Use for the 'Catalogue Produits' / Inventory preview."
+    },
+    "agent_profile": {
+      "url": "https://images.unsplash.com/photo-1543269664-56d93c1b41a6",
+      "description": "Sales professional using a tablet. Use for the 'Manager Dashboard / Agent Performance' placeholder."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build the UI Mobile-First. Collapse multi-column layouts to single columns on mobile screens.",
+    "Integrate a bilingual toggle (FR/EN) prominently in the header or sidebar.",
+    "The primary feature is 'Voice-to-Text' and 'AI Assistant'. Create a visually distinct floating action button (FAB) for it.",
+    "Never center-align the app container (.App { text-align: center; } is FORBIDDEN). Align forms and data to the left.",
+    "Use Shadcn UI components but heavily customize them. Strip away Vercel-like borders and apply our 'Organic Precision' colors.",
+    "Do not use generic SaaS blue anywhere. Rely on #F7F5F2 for backgrounds and #4A154B for actions.",
+    "Header must have a background (e.g., solid or glassmorphism), no completely transparent headers.",
+    "Provide mocked functionalities for the 1-click reports, routing (geolocation), and AI summary metrics.",
+    "Add data-testid to every button, input, and interactive card."
+  ]
+}
