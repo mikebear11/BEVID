@@ -4,6 +4,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ZT Nature — police d'affichage (dafont) */
+@font-face {
+  font-family: 'ZT Nature';
+  src: url('./assets/fonts/ZTNature-Thin.ttf') format('truetype');
+  font-weight: 300; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'ZT Nature';
+  src: url('./assets/fonts/ZTNature-ThinItalic.ttf') format('truetype');
+  font-weight: 300; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'ZT Nature';
+  src: url('./assets/fonts/ZTNature-Medium.ttf') format('truetype');
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'ZT Nature';
+  src: url('./assets/fonts/ZTNature-MediumItalic.ttf') format('truetype');
+  font-weight: 500; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'ZT Nature';
+  src: url('./assets/fonts/ZTNature-Black.ttf') format('truetype');
+  font-weight: 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'ZT Nature';
+  src: url('./assets/fonts/ZTNature-BlackItalic.ttf') format('truetype');
+  font-weight: 800; font-style: italic; font-display: swap;
+}
+
 :root {
   --bordeaux: #4A154B;
   --bordeaux-hover: #6B2D5C;
@@ -30,7 +62,8 @@ body {
   color: var(--charcoal);
 }
 
-.font-display { font-family: 'Playfair Display', Georgia, serif; letter-spacing: -0.02em; }
+.font-display { font-family: 'ZT Nature', 'Playfair Display', Georgia, serif; letter-spacing: -0.01em; font-weight: 500; }
+.font-display-black { font-family: 'ZT Nature', 'Playfair Display', Georgia, serif; letter-spacing: -0.02em; font-weight: 800; }
 .font-body { font-family: 'Outfit', system-ui, sans-serif; }
 
 .overline { text-transform: uppercase; letter-spacing: 0.15em; font-size: 0.7rem; font-weight: 500; color: var(--muted-text); }
