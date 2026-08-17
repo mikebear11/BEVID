@@ -10,7 +10,10 @@ from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Literal
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-import httpx, stripe
+import httpx, stripe, re, ipaddress
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 from twilio.rest import Client as TwilioClient
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -87,6 +90,9 @@ class Product(BaseModel):
     price: float = 0.0
     stock: int = 0
     unit: str = "bouteille"
+    # Tarification volumétrique (bière surtout)
+    volume_liters: Optional[float] = None   # litres par unité (ex : 0.33 pour 33cl, 30 pour un fût)
+    hecto_tiers: List[dict] = []            # [{ "min_hl": 5, "discount_pct": 3 }, { "min_hl": 10, "discount_pct": 5 }]
     owner_id: str
     created_at: str = Field(default_factory=now_iso)
 
@@ -1278,6 +1284,97 @@ async def drive_list(user=Depends(get_current_user)):
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
+# ==========================================================
+# EMAIL (Emergent-managed Resend) - Guardrails G2/G3 gate
+# ==========================================================
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Cellier")
+EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
+
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host); return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Non-https link/asset: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Bad host: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor host mismatch: {m.group(1)!r} != {real!r} (G3)")
+
+async def send_email(*, to: str, subject: str, html: str, reply_to: str | None = None):
+    if not EMAIL_KEY:
+        raise HTTPException(500, "Email non configuré (EMERGENT_EMAIL_KEY manquant)")
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    if reply_to or EMAIL_REPLY_TO:
+        payload["contact_email"] = reply_to or EMAIL_REPLY_TO
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(f"{EMAIL_BASE_URL}/api/v1/email/send",
+                                     headers={"X-Email-Key": EMAIL_KEY}, json=payload)
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except httpx.HTTPStatusError as e:
+        logging.error(f"Email send failed: {e.response.status_code} {e.response.text}")
+        raise HTTPException(502, "Envoi email échoué")
+    except Exception as e:
+        logging.exception(f"Email send error: {e}")
+        raise HTTPException(500, "Envoi email échoué")
+
 @api_router.post("/orders/{oid}/payment-link")
 async def create_payment_link(oid: str, request: Request, user=Depends(get_current_user)):
     o = await db.orders.find_one({"id": oid}, {"_id": 0})
@@ -2052,6 +2149,8 @@ async def establishment_catalog(eid: str, user=Depends(get_current_user)):
             **p, "unit_price_client": unit_price,
             "habitual_qty": habitual_qty,
             "on_price_list": pm is not None,
+            "volume_liters": p.get("volume_liters"),
+            "hecto_tiers": p.get("hecto_tiers", []),
         }))
     max_discount = 15.0
     if pl_id:
@@ -2505,21 +2604,76 @@ async def admin_reset_password(uid: str, user=Depends(get_current_user)):
 # PASSWORD FORGOT/CHANGE (mode dégradé sans email)
 # ==========================================================
 @api_router.post("/auth/forgot-password")
-async def forgot_password(data: dict):
-    """Sans Resend : crée une demande visible par le manager (mode dégradé)."""
+async def forgot_password(data: dict, request: Request):
+    """Envoi d'un email avec lien de réinitialisation (Emergent Resend)."""
     email = (data.get("email") or "").strip().lower()
     if not email:
         raise HTTPException(422, "Email requis")
     u = await db.users.find_one({"email": email})
+    # Réponse identique pour ne pas divulguer l'existence du compte
     if u:
-        # Dédoublonnage : une seule demande "pending" par utilisateur
-        existing = await db.password_reset_requests.find_one({"user_id": u["id"], "status": "pending"})
-        if not existing:
-            await db.password_reset_requests.insert_one({
-                "id": str(uuid.uuid4()), "user_id": u["id"], "email": email,
-                "status": "pending", "created_at": now_iso(),
-            })
-    return {"ok": True, "message": "Si le compte existe, votre manager sera notifié."}
+        # Token 32 hex, expire dans 60 min, à usage unique
+        import secrets
+        token = secrets.token_urlsafe(32)
+        expiry = (datetime.now(timezone.utc) + timedelta(minutes=60)).isoformat()
+        await db.password_reset_tokens.insert_one({
+            "id": str(uuid.uuid4()), "user_id": u["id"], "email": email,
+            "token": token, "expires_at": expiry, "used": False,
+            "created_at": now_iso(),
+        })
+        # URL frontend
+        frontend = os.environ.get("FRONTEND_URL", "").rstrip("/")
+        reset_url = f"{frontend}/reset-password/{token}"
+        subject = "Réinitialisation de votre mot de passe Cellier"
+        # Template server-side. Pas de <form>/<input>. Liens https absolus, ancre = hôte.
+        safe_url = reset_url
+        html = (
+            '<table role="presentation" width="100%" style="background:#F7F5F2">'
+            '<tr><td style="padding:32px 16px">'
+            '<table role="presentation" width="100%" style="max-width:560px;margin:0 auto;'
+            'background:#fff;border-radius:12px;font-family:Arial,sans-serif;color:#1a1a1a">'
+            '<tr><td style="padding:32px">'
+            f'<h1 style="margin:0 0 16px 0;font-size:22px;color:#4A154B">Cellier</h1>'
+            f'<p style="margin:0 0 12px 0">Bonjour {escape(u.get("name") or "")},</p>'
+            f'<p style="margin:0 0 12px 0">Vous avez demandé la réinitialisation de votre mot de passe. '
+            f'Ouvrez le lien ci-dessous pour en choisir un nouveau. Ce lien expire dans 60 minutes.</p>'
+            f'<p style="margin:24px 0"><a href="{safe_url}" '
+            f'style="background:#4A154B;color:#fff;padding:12px 24px;border-radius:8px;'
+            f'text-decoration:none;font-weight:600">Choisir un nouveau mot de passe</a></p>'
+            f'<p style="margin:12px 0 0 0;font-size:12px;color:#666">'
+            f'Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet email — '
+            f'votre mot de passe actuel reste valide.</p>'
+            f'<p style="margin:24px 0 0 0;font-size:11px;color:#888">'
+            f'Envoyé par Cellier. Nous ne vous demandons jamais votre mot de passe par email.</p>'
+            '</td></tr></table></td></tr></table>'
+        )
+        try:
+            await send_email(to=email, subject=subject, html=html)
+            await audit_log(u["id"], "password_reset_email_sent", {"email": email})
+        except Exception as e:
+            logger.exception("send reset email failed: %s", e)
+            # ne pas révéler l'erreur au caller
+    return {"ok": True, "message": "Si le compte existe, un email vient d'être envoyé."}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(data: dict):
+    token = (data.get("token") or "").strip()
+    new = data.get("new_password", "")
+    if not token or len(new) < 8:
+        raise HTTPException(422, "Token + nouveau mot de passe (8 caractères minimum) requis")
+    doc = await db.password_reset_tokens.find_one({"token": token, "used": False}, {"_id": 0})
+    if not doc:
+        raise HTTPException(400, "Lien invalide ou déjà utilisé")
+    try:
+        exp = datetime.fromisoformat(doc["expires_at"])
+    except Exception:
+        raise HTTPException(400, "Lien invalide")
+    if datetime.now(timezone.utc) > exp:
+        raise HTTPException(400, "Lien expiré — redemandez une réinitialisation")
+    await db.users.update_one({"id": doc["user_id"]}, {"$set": {"password": hash_password(new), "must_reset": False}})
+    await db.password_reset_tokens.update_one({"token": token}, {"$set": {"used": True, "used_at": now_iso()}})
+    await audit_log(doc["user_id"], "password_reset_via_email", {"email": doc.get("email")})
+    return {"ok": True}
 
 @api_router.get("/admin/reset-requests")
 async def list_reset_requests(user=Depends(get_current_user)):
@@ -2626,6 +2780,8 @@ DEFAULT_ORG_SETTINGS = {
     "costs_validated_at": None,
     "costs_validated_by": None,
     "data_hosting_region": "EU",
+    "bad_payer_alert_score_threshold": 30,   # seuil de score composite pour alerte
+    "bad_payer_alert_overdue_amount": 500,   # OU montant en retard cumulé
 }
 
 async def get_org_settings():
@@ -2656,7 +2812,8 @@ async def update_org_settings(data: dict, user=Depends(get_current_user)):
     if user["role"] != "manager":
         raise HTTPException(403, "Manager only")
     allowed = ("credit_thresholds", "geolocation_enabled", "voice_transcript_retention_days",
-               "voice_delete_after_transcription", "default_payment_terms_days")
+               "voice_delete_after_transcription", "default_payment_terms_days",
+               "bad_payer_alert_score_threshold", "bad_payer_alert_overdue_amount")
     updates = {k: data[k] for k in allowed if k in data}
     if updates:
         await db.org_settings.update_one({"id": "global"}, {"$set": updates}, upsert=True)
@@ -2860,6 +3017,84 @@ async def purge_voice(user=Depends(get_current_user)):
     )
     await audit_log(user["id"], "voice_purge", {"days": days, "updated": r.modified_count})
     return {"purged": r.modified_count, "cutoff_days": days}
+
+# ==========================================================
+# BAD PAYER ALERTS (seuil + scan quotidien)
+# ==========================================================
+@api_router.post("/alerts/bad-payers/scan")
+async def scan_bad_payers(user=Depends(get_current_user)):
+    """Détecte les clients qui viennent de franchir le seuil. Idempotent : ne double pas les alertes actives."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    s = await get_org_settings()
+    score_threshold = float(s.get("bad_payer_alert_score_threshold", 30))
+    amt_threshold = float(s.get("bad_payer_alert_overdue_amount", 500))
+    default_terms = s.get("default_payment_terms_days", 30)
+    ests = await db.establishments.find({}, {"_id": 0}).to_list(5000)
+    if not ests:
+        ests = await db.clients.find({}, {"_id": 0}).to_list(5000)
+    new_alerts = 0
+    for e in ests:
+        a = await _client_payment_analysis(e["id"], default_terms)
+        score = 0
+        if a["avg_paid_delay_vs_due"]:
+            score += max(0, a["avg_paid_delay_vs_due"])
+        score += a["overdue_oldest_days"]
+        score += min(50, a["overdue_amount"] / 100)
+        crossed = (score >= score_threshold) or (a["overdue_amount"] >= amt_threshold)
+        if not crossed:
+            # auto-résolution : si le client était en alerte et n'est plus, on ferme
+            await db.bad_payer_alerts.update_many(
+                {"client_id": e["id"], "status": "active"},
+                {"$set": {"status": "resolved", "resolved_at": now_iso()}}
+            )
+            continue
+        # évite doublon d'alerte active
+        existing = await db.bad_payer_alerts.find_one({"client_id": e["id"], "status": "active"}, {"_id": 0})
+        if existing:
+            # met à jour la snapshot
+            await db.bad_payer_alerts.update_one(
+                {"id": existing["id"]},
+                {"$set": {"snapshot": a, "score": round(score, 1), "updated_at": now_iso()}}
+            )
+            continue
+        alert = {
+            "id": str(uuid.uuid4()),
+            "client_id": e["id"],
+            "client_name": e.get("name", "?"),
+            "assigned_to": e.get("assigned_to"),
+            "score": round(score, 1),
+            "snapshot": a,
+            "reason": ("Score" if score >= score_threshold else "Montant") + f" au-dessus du seuil",
+            "status": "active",
+            "created_at": now_iso(),
+        }
+        await db.bad_payer_alerts.insert_one(alert.copy())
+        new_alerts += 1
+        # écho dans la notification bell
+        await db.alerts.insert_one({
+            "id": str(uuid.uuid4()), "target_role": "manager", "kind": "bad_payer",
+            "establishment_id": e["id"], "payload": alert,
+            "severity": "high", "seen": False, "created_at": now_iso(),
+        })
+    await audit_log(user["id"], "bad_payer_scan", {"new": new_alerts})
+    return {"new_alerts": new_alerts}
+
+@api_router.get("/alerts/bad-payers")
+async def list_bad_payer_alerts(user=Depends(get_current_user)):
+    q = {"status": "active"}
+    if user["role"] != "manager":
+        q["assigned_to"] = user["id"]
+    items = await db.bad_payer_alerts.find(q, {"_id": 0}).sort("score", -1).to_list(500)
+    return items
+
+@api_router.post("/alerts/bad-payers/{aid}/dismiss")
+async def dismiss_bad_payer_alert(aid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    await db.bad_payer_alerts.update_one({"id": aid}, {"$set": {"status": "dismissed", "dismissed_at": now_iso(), "dismissed_by": user["id"]}})
+    await audit_log(user["id"], "bad_payer_dismiss", {"alert_id": aid})
+    return {"ok": True}
 
 @api_router.get("/")
 async def root():

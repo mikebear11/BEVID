@@ -27,11 +27,13 @@ import Tournee from "@/pages/Tournee";
 import Etablissement360 from "@/pages/Etablissement360";
 import PublicSignature from "@/pages/PublicSignature";
 import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import ChangePassword from "@/pages/ChangePassword";
 import AdminUsers from "@/pages/AdminUsers";
 import Paiements from "@/pages/Paiements";
 import Confidentialite from "@/pages/Confidentialite";
 import Couts from "@/pages/Couts";
+import MobileOrder from "@/pages/MobileOrder";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -50,6 +52,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
               <Route path="/sign/:token" element={<PublicSignature />} />
               <Route path="/change-password" element={<Protected><ChangePassword /></Protected>} />
               <Route path="/admin/users" element={<Protected><AdminUsers /></Protected>} />
@@ -74,6 +77,7 @@ function App() {
               <Route path="/smart-goals" element={<Protected><SmartGoals /></Protected>} />
               <Route path="/tournee" element={<Protected><Tournee /></Protected>} />
               <Route path="/etab/:id" element={<Protected><Etablissement360 /></Protected>} />
+              <Route path="/etab/:id/commande" element={<Protected><MobileOrder /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

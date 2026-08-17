@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
-import { TrendingDown, TrendingUp, AlertTriangle, RefreshCw } from "lucide-react";
+import { TrendingDown, TrendingUp, AlertTriangle, RefreshCw, Bell } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
 export default function Paiements() {
@@ -11,39 +11,48 @@ export default function Paiements() {
   const { t } = useI18n();
   const [dso, setDso] = useState(null);
   const [bad, setBad] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [recomputing, setRecomputing] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [d, b] = await Promise.all([
+      const [d, b, s, al] = await Promise.all([
         api.get("/payments/dso?months=12"),
         api.get("/payments/bad-payers?limit=20"),
+        api.get("/org/settings"),
+        api.get("/alerts/bad-payers"),
       ]);
-      setDso(d.data); setBad(b.data);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
-    } finally { setLoading(false); }
+      setDso(d.data); setBad(b.data); setSettings(s.data); setAlerts(al.data);
+    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
-  const recompute = async () => {
-    setRecomputing(true);
-    try {
-      const { data } = await api.post("/establishments/recompute-status");
-      toast.success(`${data.updated} statuts recalculés`);
-      load();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
-    } finally { setRecomputing(false); }
+  const runAction = async (fn, msg) => {
+    setBusy(true);
+    try { const r = await fn(); toast.success(msg(r.data)); load(); }
+    catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    finally { setBusy(false); }
   };
+  const recompute = () => runAction(() => api.post("/establishments/recompute-status"), d => `${d.updated} statuts recalculés`);
+  const scan = () => runAction(() => api.post("/alerts/bad-payers/scan"), d => `${d.new_alerts} nouvelle(s) alerte(s)`);
 
-  if (user?.role !== "manager") {
-    return <div className="p-8 text-stone-500">Réservé au manager (données de pilotage).</div>;
-  }
-  if (loading) return <div className="p-8 text-stone-500">{t("loading")}</div>;
+  const saveThresholds = async () => {
+    try {
+      await api.put("/org/settings", {
+        bad_payer_alert_score_threshold: settings.bad_payer_alert_score_threshold,
+        bad_payer_alert_overdue_amount: settings.bad_payer_alert_overdue_amount,
+      });
+      toast.success("Seuils sauvegardés");
+    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+  };
+  const dismiss = async (aid) => { await api.post(`/alerts/bad-payers/${aid}/dismiss`); load(); };
 
+  if (user?.role !== "manager") return <div className="p-8 text-stone-500">Réservé au manager.</div>;
+  if (loading || !settings) return <div className="p-8 text-stone-500">{t("loading")}</div>;
   const trendUp = dso && dso.trend > 0;
 
   return (
@@ -53,33 +62,57 @@ export default function Paiements() {
           <p className="overline">Pilotage</p>
           <h2 className="font-display text-3xl mt-1">{t("payments")}</h2>
         </div>
-        <button onClick={recompute} disabled={recomputing} className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="recompute-btn">
-          <RefreshCw size={16} className={recomputing ? "animate-spin" : ""} /> Recalculer statuts
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={scan} disabled={busy} className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="scan-badpayers-btn"><Bell size={16} className={busy ? "animate-pulse" : ""} /> Scanner alertes</button>
+          <button onClick={recompute} disabled={busy} className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="recompute-btn"><RefreshCw size={16} className={busy ? "animate-spin" : ""} /> Recalculer statuts</button>
+        </div>
       </div>
 
-      {/* KPIs */}
+      {alerts.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4" data-testid="active-alerts-block">
+          <h3 className="font-medium text-red-900 flex items-center gap-2 mb-3"><Bell size={16} /> Alertes actives ({alerts.length})</h3>
+          <div className="space-y-2">
+            {alerts.map(a => (
+              <div key={a.id} className="flex items-center justify-between bg-white rounded-lg p-3" data-testid={`bp-alert-${a.id}`}>
+                <div>
+                  <p className="font-medium text-sm">{a.client_name}</p>
+                  <p className="text-xs text-stone-500">Score {a.score} · Retard {a.snapshot?.overdue_amount?.toFixed(2)} € · Ancienneté {a.snapshot?.overdue_oldest_days}j</p>
+                </div>
+                <button onClick={() => dismiss(a.id)} className="text-xs text-stone-500 hover:text-stone-900 min-h-[44px] px-3" data-testid={`dismiss-${a.id}`}>Écarter</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl p-5 border border-stone-200" data-testid="thresholds-block">
+        <h3 className="font-medium mb-3">Seuils d'alerte mauvais payeurs</h3>
+        <p className="text-xs text-stone-500 mb-4">Un client déclenche une alerte dès qu'il dépasse l'un des seuils. Scan quotidien automatique via cron.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-stone-600">Score composite</label>
+            <input type="number" min={0} value={settings.bad_payer_alert_score_threshold} onChange={e => setSettings({ ...settings, bad_payer_alert_score_threshold: parseInt(e.target.value) || 0 })} className="input-crm mt-1 min-h-[48px]" data-testid="threshold-score" />
+            <p className="text-[11px] text-stone-500 mt-1">Retard moyen + ancienneté + montant/100 (max 50).</p>
+          </div>
+          <div>
+            <label className="text-xs text-stone-600">Montant en retard (€)</label>
+            <input type="number" min={0} value={settings.bad_payer_alert_overdue_amount} onChange={e => setSettings({ ...settings, bad_payer_alert_overdue_amount: parseFloat(e.target.value) || 0 })} className="input-crm mt-1 min-h-[48px]" data-testid="threshold-amount" />
+            <p className="text-[11px] text-stone-500 mt-1">Cumul en retard déclenchant l'alerte.</p>
+          </div>
+        </div>
+        <div className="mt-3 flex justify-end"><button onClick={saveThresholds} className="btn-primary min-h-[44px]" data-testid="save-thresholds">Enregistrer</button></div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-stone-200" data-testid="kpi-dso">
           <p className="overline">{t("dso")}</p>
           <p className="font-display text-4xl mt-1">{dso?.current_dso ?? 0} <span className="text-lg text-stone-500">{t("days")}</span></p>
-          <p className={`text-sm mt-2 flex items-center gap-1 ${trendUp ? "text-red-600" : "text-emerald-600"}`}>
-            {trendUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-            {dso?.trend > 0 ? "+" : ""}{dso?.trend} vs mois précédent
-          </p>
+          <p className={`text-sm mt-2 flex items-center gap-1 ${trendUp ? "text-red-600" : "text-emerald-600"}`}>{trendUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}{dso?.trend > 0 ? "+" : ""}{dso?.trend} vs mois précédent</p>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-stone-200">
-          <p className="overline">Retards actifs</p>
-          <p className="font-display text-4xl mt-1">{bad.length}</p>
-          <p className="text-sm text-stone-500 mt-2">Clients avec au moins 1 retard ou impayé</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-stone-200">
-          <p className="overline">Total montant en retard</p>
-          <p className="font-display text-4xl mt-1">{bad.reduce((s, x) => s + (x.overdue_amount || 0), 0).toFixed(0)} €</p>
-        </div>
+        <div className="bg-white rounded-2xl p-5 border border-stone-200"><p className="overline">Retards actifs</p><p className="font-display text-4xl mt-1">{bad.length}</p><p className="text-sm text-stone-500 mt-2">Clients avec retard</p></div>
+        <div className="bg-white rounded-2xl p-5 border border-stone-200"><p className="overline">Total en retard</p><p className="font-display text-4xl mt-1">{bad.reduce((s, x) => s + (x.overdue_amount || 0), 0).toFixed(0)} €</p></div>
       </div>
 
-      {/* DSO Chart */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200">
         <h3 className="font-medium mb-4">{t("dso_evolution")}</h3>
         <div style={{ width: "100%", height: 260 }}>
@@ -95,48 +128,37 @@ export default function Paiements() {
         </div>
       </div>
 
-      {/* Bad payers ranking */}
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
         <div className="p-5 border-b border-stone-100">
-          <h3 className="font-medium flex items-center gap-2">
-            <AlertTriangle size={18} className="text-amber-600" />
-            {t("bad_payers")} ({bad.length})
-          </h3>
-          <p className="text-xs text-stone-500 mt-1">Score composite : retard moyen + ancienneté + montant en retard</p>
+          <h3 className="font-medium flex items-center gap-2"><AlertTriangle size={18} className="text-amber-600" />{t("bad_payers")} ({bad.length})</h3>
+          <p className="text-xs text-stone-500 mt-1">Score composite : retard moyen + ancienneté + montant.</p>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-stone-50">
-            <tr className="text-left text-stone-500 text-xs">
-              <th className="p-3">Client</th>
-              <th className="p-3">{t("payment_terms")}</th>
-              <th className="p-3">{t("actual_delay")}</th>
-              <th className="p-3">{t("gap")}</th>
-              <th className="p-3">{t("overdue_amount")}</th>
-              <th className="p-3">{t("overdue_age")}</th>
-              <th className="p-3">Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bad.map(b => {
-              const gap = b.avg_paid_delay_vs_due;
-              const gapClass = gap == null ? "text-stone-400" : gap > 15 ? "text-red-600 font-bold" : gap > 0 ? "text-amber-600" : "text-emerald-600";
-              return (
-                <tr key={b.client_id} className="border-t border-stone-100" data-testid={`bad-payer-${b.client_id}`}>
-                  <td className="p-3 font-medium">{b.name}</td>
-                  <td className="p-3 text-stone-600">{b.payment_terms_days}j</td>
-                  <td className="p-3 text-stone-600">{gap == null ? "—" : `${gap > 0 ? "+" : ""}${gap}j`}</td>
-                  <td className={`p-3 ${gapClass}`}>{gap == null ? "—" : `${gap > 0 ? "+" : ""}${gap}j`}</td>
-                  <td className="p-3 font-medium">{b.overdue_amount.toFixed(2)} €</td>
-                  <td className="p-3">{b.overdue_oldest_days}j</td>
-                  <td className="p-3">
-                    <span className="badge badge-vip">{b.score}</span>
-                  </td>
-                </tr>
-              );
-            })}
-            {bad.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-stone-400">Aucun retard — bravo 🎉</td></tr>}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50">
+              <tr className="text-left text-stone-500 text-xs">
+                <th className="p-3">Client</th><th className="p-3">{t("payment_terms")}</th><th className="p-3">{t("actual_delay")}</th><th className="p-3">{t("overdue_amount")}</th><th className="p-3">{t("overdue_age")}</th><th className="p-3">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bad.map(b => {
+                const gap = b.avg_paid_delay_vs_due;
+                const gc = gap == null ? "text-stone-400" : gap > 15 ? "text-red-600 font-bold" : gap > 0 ? "text-amber-600" : "text-emerald-600";
+                return (
+                  <tr key={b.client_id} className="border-t border-stone-100" data-testid={`bad-payer-${b.client_id}`}>
+                    <td className="p-3 font-medium">{b.name}</td>
+                    <td className="p-3 text-stone-600">{b.payment_terms_days}j</td>
+                    <td className={`p-3 ${gc}`}>{gap == null ? "—" : `${gap > 0 ? "+" : ""}${gap}j`}</td>
+                    <td className="p-3 font-medium">{b.overdue_amount.toFixed(2)} €</td>
+                    <td className="p-3">{b.overdue_oldest_days}j</td>
+                    <td className="p-3"><span className="badge badge-vip">{b.score}</span></td>
+                  </tr>
+                );
+              })}
+              {bad.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-400">Aucun retard — bravo 🎉</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

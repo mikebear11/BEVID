@@ -10,15 +10,26 @@ export default function NotificationBell() {
 
   const load = async () => {
     try {
-      const { data } = await api.get("/alerts/follow-ups");
-      const urgent = data.items.filter(a => a.priority === "high");
-      setAlerts(urgent);
-      // Browser notif for new urgent items
+      const [f, bp] = await Promise.all([
+        api.get("/alerts/follow-ups"),
+        api.get("/alerts/bad-payers").catch(() => ({ data: [] })),
+      ]);
+      const urgent = f.data.items.filter(a => a.priority === "high");
+      const badPayerItems = (bp.data || []).map(x => ({
+        client_id: x.client_id,
+        client_name: x.client_name,
+        reason: `Mauvais payeur — score ${x.score}`,
+        priority: "high",
+        kind: "bad_payer",
+      }));
+      const all = [...badPayerItems, ...urgent];
+      setAlerts(all);
       if ("Notification" in window && Notification.permission === "granted") {
-        urgent.forEach(a => {
-          if (!notifiedRef.current.has(a.client_id)) {
-            notifiedRef.current.add(a.client_id);
-            new Notification("Relance urgente · Cellier", { body: `${a.client_name} — ${a.reason}`, icon: "/manifest.json" });
+        all.forEach(a => {
+          const key = `${a.kind || "follow"}-${a.client_id}`;
+          if (!notifiedRef.current.has(key)) {
+            notifiedRef.current.add(key);
+            new Notification("Cellier · Alerte", { body: `${a.client_name} — ${a.reason}`, icon: "/manifest.json" });
           }
         });
       }
