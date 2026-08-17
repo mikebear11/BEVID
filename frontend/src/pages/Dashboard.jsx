@@ -9,6 +9,7 @@ import GoalsWidget from "@/components/GoalsWidget";
 import TeamGoalGauge from "@/components/TeamGoalGauge";
 import SalesWeather from "@/components/SalesWeather";
 import OverdueBanner from "@/components/OverdueBanner";
+import CashflowWidget from "@/components/CashflowWidget";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -87,6 +88,7 @@ export default function Dashboard() {
 
       <TeamGoalGauge />
       <SalesWeather />
+      <CashflowWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <FollowUpsWidget />

@@ -1,0 +1,9 @@
+crons:
+  - name: payment-reminders
+    description: "Envoie relances J+15 et J+30 pour les impayés (WhatsApp/SMS) via Twilio"
+    cron: "0 9 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/payment-reminders"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

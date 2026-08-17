@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import VoiceFAB from "@/components/VoiceFAB";
-import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, Languages, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug } from "lucide-react";
+import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, Languages, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 
 const nav = [
@@ -20,6 +20,7 @@ const nav = [
   { to: "/monthly-review", key: "monthly", icon: Trophy },
   { to: "/agents", key: "agents", icon: UserCog },
   { to: "/connectors", key: "connectors", icon: Plug },
+  { to: "/settings", key: "settings", icon: SettingsIcon },
 ];
 
 export default function Layout({ children }) {

@@ -21,6 +21,7 @@ import MonthlyReview from "@/pages/MonthlyReview";
 import Pipeline from "@/pages/Pipeline";
 import Deals from "@/pages/Deals";
 import Connectors from "@/pages/Connectors";
+import SettingsPage from "@/pages/Settings";
 import PublicSignature from "@/pages/PublicSignature";
 
 function Protected({ children }) {
@@ -54,6 +55,7 @@ function App() {
               <Route path="/pipeline" element={<Protected><Pipeline /></Protected>} />
               <Route path="/deals" element={<Protected><Deals /></Protected>} />
               <Route path="/connectors" element={<Protected><Connectors /></Protected>} />
+              <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

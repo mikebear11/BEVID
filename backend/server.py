@@ -11,6 +11,7 @@ from typing import List, Optional, Literal
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import httpx, stripe
+from twilio.rest import Client as TwilioClient
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1270,30 +1271,37 @@ async def create_payment_link(oid: str, request: Request, user=Depends(get_curre
     if not o:
         raise HTTPException(404, "Commande introuvable")
     origin = os.environ.get("FRONTEND_URL", str(request.base_url).rstrip("/"))
+    # apply escompte if enabled
+    settings = await db.settings.find_one({"user_id": user["id"]}, {"_id": 0}) or {}
+    total = o.get("total", 0)
+    discount_pct = 0
+    if settings.get("discount_enabled"):
+        discount_pct = float(settings.get("discount_pct", 2.0))
+        total = round(total * (1 - discount_pct / 100), 2)
     try:
         session = stripe.checkout.Session.create(
             line_items=[{
                 "price_data": {
                     "currency": "eur",
-                    "product_data": {"name": f"Commande Cellier #{oid[:8]} · {o['client_name']}"},
-                    "unit_amount": int(round(o.get("total", 0) * 100)),
+                    "product_data": {"name": f"Commande Cellier #{oid[:8]}" + (f" (Escompte -{discount_pct}%)" if discount_pct else "") + f" · {o['client_name']}"},
+                    "unit_amount": int(round(total * 100)),
                 },
                 "quantity": 1,
             }],
             mode="payment",
             success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{origin}/payment/cancel",
-            metadata={"order_id": oid, "client_id": o["client_id"]},
+            metadata={"order_id": oid, "client_id": o["client_id"], "discount_pct": str(discount_pct)},
             payment_method_types=["card"],
         )
         await db.payment_transactions.insert_one({
             "session_id": session.id, "order_id": oid, "client_id": o["client_id"],
-            "amount": o.get("total", 0), "currency": "eur",
-            "status": "initiated", "payment_status": "pending",
+            "amount": total, "original_amount": o.get("total", 0), "discount_pct": discount_pct,
+            "currency": "eur", "status": "initiated", "payment_status": "pending",
             "created_at": now_iso(), "updated_at": now_iso(),
         })
         await db.orders.update_one({"id": oid}, {"$set": {"payment_session_id": session.id, "payment_status": "pending"}})
-        return {"checkout_url": session.url, "session_id": session.id, "amount": o.get("total", 0)}
+        return {"checkout_url": session.url, "session_id": session.id, "amount": total, "original_amount": o.get("total", 0), "discount_pct": discount_pct}
     except Exception as e:
         raise HTTPException(500, f"Erreur Stripe: {str(e)}")
 
@@ -1381,6 +1389,174 @@ async def receipt_text(oid: str, user=Depends(get_current_user)):
            f"TOTAL : {o.get('total',0):.2f}€\n\n"
            f"Merci pour votre commande !")
     return {"text": txt, "encoded": txt}
+
+# ---------- SETTINGS (toggles) ----------
+class Settings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    user_id: str
+    reminders_enabled: bool = False
+    reminder_channel: Literal["sms", "whatsapp", "email"] = "whatsapp"
+    discount_enabled: bool = False
+    discount_pct: float = 2.0
+    discount_hours: int = 48
+    updated_at: str = Field(default_factory=now_iso)
+
+@api_router.get("/settings")
+async def get_settings(user=Depends(get_current_user)):
+    s = await db.settings.find_one({"user_id": user["id"]}, {"_id": 0})
+    if not s:
+        s = Settings(user_id=user["id"]).model_dump()
+    return s
+
+@api_router.put("/settings")
+async def update_settings(data: dict, user=Depends(get_current_user)):
+    data["user_id"] = user["id"]
+    data["updated_at"] = now_iso()
+    await db.settings.update_one({"user_id": user["id"]}, {"$set": data}, upsert=True)
+    return await db.settings.find_one({"user_id": user["id"]}, {"_id": 0})
+
+# ---------- TWILIO / WHATSAPP ----------
+TWILIO_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_WA_FROM = os.environ.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
+TWILIO_SMS_FROM = os.environ.get("TWILIO_SMS_FROM", "")
+
+def _twilio():
+    if not TWILIO_SID or not TWILIO_TOKEN:
+        return None
+    return TwilioClient(TWILIO_SID, TWILIO_TOKEN)
+
+async def send_wa(to_phone: str, body: str):
+    tw = _twilio()
+    if not tw:
+        return {"ok": False, "reason": "Twilio non configuré (SID/Token manquants)"}
+    to = to_phone if to_phone.startswith("whatsapp:") else f"whatsapp:{to_phone}"
+    try:
+        msg = tw.messages.create(body=body, from_=TWILIO_WA_FROM, to=to)
+        return {"ok": True, "sid": msg.sid}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
+async def send_sms(to_phone: str, body: str):
+    tw = _twilio()
+    if not tw or not TWILIO_SMS_FROM:
+        return {"ok": False, "reason": "Twilio SMS non configuré"}
+    try:
+        msg = tw.messages.create(body=body, from_=TWILIO_SMS_FROM, to=to_phone)
+        return {"ok": True, "sid": msg.sid}
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
+@api_router.post("/orders/{oid}/send-receipt-whatsapp")
+async def send_receipt_wa(oid: str, user=Depends(get_current_user)):
+    o = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    c = await db.clients.find_one({"id": o["client_id"]}, {"_id": 0}) or {}
+    phone = c.get("phone", "").replace(" ", "")
+    if not phone:
+        raise HTTPException(400, "Numéro client manquant")
+    if not phone.startswith("+"):
+        phone = "+33" + phone.lstrip("0")
+    receipt = await receipt_text(oid, user)
+    r = await send_wa(phone, receipt["text"])
+    if r["ok"]:
+        await db.activities.insert_one(Activity(
+            client_id=o["client_id"], agent_id=user["id"], type="note",
+            content=f"Reçu envoyé sur WhatsApp ({phone})", owner_id=user["id"]
+        ).model_dump())
+    return r
+
+# ---------- CASHFLOW FORECAST ----------
+@api_router.get("/cashflow/forecast")
+async def cashflow(days: int = 60, user=Depends(get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    since = (now - _td(days=days)).isoformat()
+    is_mgr = user["role"] == "manager"
+    q = {"created_at": {"$gte": since}}
+    if not is_mgr:
+        q["agent_id"] = user["id"]
+    orders = await db.orders.find(q, {"_id": 0}).to_list(20000)
+    from collections import defaultdict
+    invoiced = defaultdict(float)
+    collected = defaultdict(float)
+    for o in orders:
+        d = o.get("created_at", "")[:10]
+        invoiced[d] += o.get("total", 0)
+        if o.get("payment_status") == "paid":
+            paid_d = (o.get("paid_at") or o.get("created_at", ""))[:10]
+            collected[paid_d] += o.get("total", 0)
+    # merge days
+    days_set = sorted(set(list(invoiced.keys()) + list(collected.keys())))
+    chart = [{"date": d, "facture": round(invoiced.get(d, 0), 2), "encaisse": round(collected.get(d, 0), 2)} for d in days_set]
+    total_invoiced = sum(invoiced.values())
+    total_collected = sum(collected.values())
+    outstanding = total_invoiced - total_collected
+    # Simple forward projection: avg daily invoicing * 60 days
+    daily_avg = total_invoiced / max(days, 1)
+    forecast_60 = round(daily_avg * 60, 2)
+    return {
+        "chart": chart[-days:],
+        "total_invoiced": round(total_invoiced, 2),
+        "total_collected": round(total_collected, 2),
+        "outstanding": round(outstanding, 2),
+        "forecast_60d": forecast_60,
+    }
+
+# ---------- CRON PAYMENT REMINDERS ----------
+from fastapi import Header
+WEBHOOK_CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET", "")
+
+async def _process_reminders():
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    orders = await db.orders.find({"payment_status": {"$nin": ["paid", "refunded"]}}, {"_id": 0}).to_list(5000)
+    sent = 0
+    for o in orders:
+        try:
+            created = _dt.fromisoformat(o["created_at"].replace("Z", "+00:00"))
+            age = (now - created).days
+        except Exception:
+            continue
+        if age not in (15, 30):
+            continue
+        # find agent's settings
+        s = await db.settings.find_one({"user_id": o["agent_id"]}, {"_id": 0})
+        if not s or not s.get("reminders_enabled"):
+            continue
+        c = await db.clients.find_one({"id": o["client_id"]}, {"_id": 0}) or {}
+        phone = c.get("phone", "").replace(" ", "")
+        if phone and not phone.startswith("+"):
+            phone = "+33" + phone.lstrip("0")
+        tone = "amicale" if age == 15 else "ferme"
+        body = (f"Bonjour {c.get('contact_name','')}, votre commande #{o['id'][:8]} de {o.get('total',0):.2f}€ "
+                f"reste à régler ({age}j). Un lien de paiement rapide est disponible sur demande. Cordialement, Cellier.")
+        channel = s.get("reminder_channel", "whatsapp")
+        if phone:
+            if channel == "whatsapp":
+                r = await send_wa(phone, body)
+            elif channel == "sms":
+                r = await send_sms(phone, body)
+            else:
+                r = {"ok": False, "reason": "email not configured"}
+            if r.get("ok"):
+                sent += 1
+                await db.orders.update_one({"id": o["id"]}, {"$set": {f"reminder_{age}d_sent": now_iso()}})
+    return sent
+
+@api_router.post("/cron/payment-reminders")
+async def cron_reminders(request: Request, authorization: Optional[str] = Header(None)):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    import hmac
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "auth manquant")
+    token = authorization.split(" ", 1)[1]
+    if not hmac.compare_digest(token, WEBHOOK_CRON_SECRET):
+        raise HTTPException(401, "token invalide")
+    import asyncio
+    asyncio.create_task(_process_reminders())
+    return {"status": "queued"}
 
 @api_router.get("/")
 async def root():
