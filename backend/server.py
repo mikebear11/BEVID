@@ -981,6 +981,118 @@ async def update_client_status(cid: str, data: dict, user=Depends(get_current_us
     await db.clients.update_one({"id": cid}, {"$set": {"status": new_status, "updated_at": now_iso()}})
     return {"ok": True}
 
+# ---------- DEALS (Kanban opportunities) ----------
+class Deal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    client_id: str
+    client_name: str
+    amount: float = 0.0
+    probability: int = 50
+    stage: Literal["qualification", "proposition", "negociation", "gagne", "perdu"] = "qualification"
+    expected_close: Optional[str] = None
+    notes: Optional[str] = ""
+    agent_id: str
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+@api_router.get("/deals")
+async def list_deals(user=Depends(get_current_user)):
+    q = {} if user["role"] == "manager" else {"agent_id": user["id"]}
+    return await db.deals.find(q, {"_id": 0}).sort("created_at", -1).to_list(1000)
+
+@api_router.post("/deals")
+async def create_deal(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    data["agent_id"] = data.get("agent_id") or user["id"]
+    c = await db.clients.find_one({"id": data.get("client_id")}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Client introuvable")
+    data["client_name"] = c["name"]
+    d = Deal(**data)
+    await db.deals.insert_one(d.model_dump())
+    return d.model_dump()
+
+@api_router.put("/deals/{did}")
+async def update_deal(did: str, data: dict, user=Depends(get_current_user)):
+    data.pop("id", None); data.pop("_id", None)
+    await db.deals.update_one({"id": did}, {"$set": data})
+    return await db.deals.find_one({"id": did}, {"_id": 0})
+
+@api_router.delete("/deals/{did}")
+async def delete_deal(did: str, user=Depends(get_current_user)):
+    await db.deals.delete_one({"id": did})
+    return {"ok": True}
+
+# ---------- TEAM GOAL ----------
+@api_router.get("/goals/team-progress")
+async def team_progress(user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    prefix = f"{now.year:04d}-{now.month:02d}"
+    goals = await db.goals.find({"year": now.year, "month": now.month}, {"_id": 0}).to_list(500)
+    orders = await db.orders.find({"created_at": {"$regex": f"^{prefix}"}}, {"_id": 0}).to_list(10000)
+    total_target = sum(g.get("target_ca", 0) for g in goals)
+    total_current = sum(o.get("total", 0) for o in orders)
+    return {
+        "period": prefix,
+        "total_target": round(total_target, 2),
+        "total_current": round(total_current, 2),
+        "pct": round((total_current / total_target * 100), 1) if total_target else 0,
+        "team_size": len(goals),
+    }
+
+# ---------- CONNECTORS ----------
+class Connector(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    provider: Literal["easybeer", "vinovendpro", "pennylane", "google_drive", "custom"]
+    name: str
+    status: Literal["connected", "disconnected", "error", "pending"] = "disconnected"
+    config: dict = Field(default_factory=dict)
+    last_sync: Optional[str] = None
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+@api_router.get("/connectors")
+async def list_connectors(user=Depends(get_current_user)):
+    items = await db.connectors.find({"owner_id": user["id"]}, {"_id": 0}).to_list(100)
+    # never leak secrets
+    for c in items:
+        if c.get("config"):
+            c["config"] = {k: ("***" if k in ["api_key", "secret", "token"] else v) for k, v in c["config"].items()}
+    return items
+
+@api_router.post("/connectors")
+async def create_connector(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    c = Connector(**data)
+    await db.connectors.insert_one(c.model_dump())
+    return {"id": c.id, "provider": c.provider, "status": c.status}
+
+@api_router.put("/connectors/{cid}")
+async def update_connector(cid: str, data: dict, user=Depends(get_current_user)):
+    data.pop("id", None); data.pop("_id", None)
+    await db.connectors.update_one({"id": cid}, {"$set": data})
+    return {"ok": True}
+
+@api_router.delete("/connectors/{cid}")
+async def delete_connector(cid: str, user=Depends(get_current_user)):
+    await db.connectors.delete_one({"id": cid})
+    return {"ok": True}
+
+@api_router.post("/connectors/{cid}/test")
+async def test_connector(cid: str, user=Depends(get_current_user)):
+    """Simule un test de connexion. En prod, appelle l'API réelle."""
+    c = await db.connectors.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Connecteur introuvable")
+    # For now, mark connected if config has minimum keys
+    ok = bool(c.get("config", {}).get("api_key") or c.get("config", {}).get("token"))
+    new_status = "connected" if ok else "error"
+    await db.connectors.update_one({"id": cid}, {"$set": {"status": new_status, "last_sync": now_iso()}})
+    return {"status": new_status, "message": "Connexion réussie (mode démo — l'appel API réel nécessite les specs du fournisseur)" if ok else "Credentials manquantes"}
+
 @api_router.get("/")
 async def root():
     return {"service": "CRM Boisson API", "status": "ok"}

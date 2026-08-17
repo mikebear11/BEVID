@@ -19,6 +19,8 @@ import VisitReport from "@/pages/VisitReport";
 import Planning from "@/pages/Planning";
 import MonthlyReview from "@/pages/MonthlyReview";
 import Pipeline from "@/pages/Pipeline";
+import Deals from "@/pages/Deals";
+import Connectors from "@/pages/Connectors";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -48,6 +50,8 @@ function App() {
               <Route path="/planning" element={<Protected><Planning /></Protected>} />
               <Route path="/monthly-review" element={<Protected><MonthlyReview /></Protected>} />
               <Route path="/pipeline" element={<Protected><Pipeline /></Protected>} />
+              <Route path="/deals" element={<Protected><Deals /></Protected>} />
+              <Route path="/connectors" element={<Protected><Connectors /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />
