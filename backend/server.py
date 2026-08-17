@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
@@ -829,6 +829,157 @@ async def list_visits(client_id: Optional[str] = None, user=Depends(get_current_
     q = {"client_id": client_id} if client_id else {}
     items = await db.visits.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
     return items
+
+# ---------- CALENDAR EVENTS ----------
+class CalendarEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    start: str
+    end: Optional[str] = None
+    type: Literal["visite", "reunion", "relance", "tournee", "autre"] = "autre"
+    client_id: Optional[str] = None
+    agent_id: str
+    shared: bool = False
+    notes: Optional[str] = ""
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+@api_router.get("/events")
+async def list_events(user=Depends(get_current_user)):
+    is_mgr = user["role"] == "manager"
+    q = {} if is_mgr else {"$or": [{"agent_id": user["id"]}, {"shared": True}]}
+    items = await db.events.find(q, {"_id": 0}).sort("start", 1).to_list(1000)
+    return items
+
+@api_router.post("/events")
+async def create_event(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    data["agent_id"] = data.get("agent_id") or user["id"]
+    e = CalendarEvent(**data)
+    await db.events.insert_one(e.model_dump())
+    return e.model_dump()
+
+@api_router.put("/events/{eid}")
+async def update_event(eid: str, data: dict, user=Depends(get_current_user)):
+    data.pop("id", None); data.pop("_id", None)
+    await db.events.update_one({"id": eid}, {"$set": data})
+    return await db.events.find_one({"id": eid}, {"_id": 0})
+
+@api_router.delete("/events/{eid}")
+async def delete_event(eid: str, user=Depends(get_current_user)):
+    await db.events.delete_one({"id": eid})
+    return {"ok": True}
+
+# ---------- MONTHLY REVIEW ----------
+@api_router.get("/reports/monthly/{agent_id}")
+async def monthly_review(agent_id: str, year: Optional[int] = None, month: Optional[int] = None, user=Depends(get_current_user)):
+    from datetime import datetime as _dt
+    now = datetime.now(timezone.utc)
+    y = year or now.year
+    m = month or now.month
+    start_prefix = f"{y:04d}-{m:02d}"
+    orders = await db.orders.find({"agent_id": agent_id}, {"_id": 0}).to_list(5000)
+    month_orders = [o for o in orders if (o.get("created_at","")[:7] == start_prefix)]
+    # previous month for comparison
+    pm = m - 1 if m > 1 else 12
+    py = y if m > 1 else y - 1
+    prev_prefix = f"{py:04d}-{pm:02d}"
+    prev_orders = [o for o in orders if o.get("created_at","")[:7] == prev_prefix]
+    ca = sum(o.get("total", 0) for o in month_orders)
+    prev_ca = sum(o.get("total", 0) for o in prev_orders)
+    growth = round(((ca - prev_ca) / prev_ca * 100), 1) if prev_ca else None
+    clients_reached = len({o["client_id"] for o in month_orders})
+    visits = await db.visits.count_documents({"agent_id": agent_id, "created_at": {"$regex": f"^{start_prefix}"}})
+    activities = await db.activities.count_documents({"agent_id": agent_id, "created_at": {"$regex": f"^{start_prefix}"}})
+    new_clients = await db.clients.count_documents({"assigned_to": agent_id, "created_at": {"$regex": f"^{start_prefix}"}})
+    agent = await db.users.find_one({"id": agent_id}, {"_id": 0, "password": 0})
+    return {
+        "agent": agent,
+        "period": start_prefix,
+        "ca": round(ca, 2),
+        "prev_ca": round(prev_ca, 2),
+        "growth_pct": growth,
+        "orders_count": len(month_orders),
+        "avg_basket": round(ca / len(month_orders), 2) if month_orders else 0,
+        "clients_reached": clients_reached,
+        "new_clients": new_clients,
+        "visits": visits,
+        "activities": activities,
+    }
+
+@api_router.post("/reports/monthly/{agent_id}/ai-narrative")
+async def monthly_ai(agent_id: str, data: dict, user=Depends(get_current_user)):
+    review = await monthly_review(agent_id, data.get("year"), data.get("month"), user)
+    ctx = f"BILAN MENSUEL {review['period']} — Agent: {review['agent']['name']}\n"
+    ctx += f"CA: {review['ca']}€ (mois précédent: {review['prev_ca']}€, croissance: {review['growth_pct']}%)\n"
+    ctx += f"Commandes: {review['orders_count']} · Panier moyen: {review['avg_basket']}€\n"
+    ctx += f"Clients atteints: {review['clients_reached']} · Nouveaux: {review['new_clients']}\n"
+    ctx += f"Visites: {review['visits']} · Activités: {review['activities']}"
+    req = AIRequest(
+        prompt="Prépare un compte-rendu de RÉUNION MENSUELLE avec ce commercial. Structure: 1) Verdict global en 1 phrase. 2) Points forts (2-3). 3) Axes d'amélioration (2-3). 4) 3 objectifs SMART pour le mois suivant. Ton bienveillant mais exigeant. Format clair avec titres en gras.",
+        context=ctx, model="claude-sonnet-5"
+    )
+    return await ai_ask(req, user)
+
+# ---------- MONTHLY GOALS ----------
+class MonthlyGoal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    agent_id: str
+    year: int
+    month: int
+    target_ca: float
+    target_orders: int = 0
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+@api_router.get("/goals")
+async def list_goals(user=Depends(get_current_user)):
+    q = {} if user["role"] == "manager" else {"agent_id": user["id"]}
+    items = await db.goals.find(q, {"_id": 0}).sort([("year",-1),("month",-1)]).to_list(500)
+    return items
+
+@api_router.post("/goals")
+async def set_goal(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    existing = await db.goals.find_one({"agent_id": data["agent_id"], "year": data["year"], "month": data["month"]})
+    if existing:
+        await db.goals.update_one({"id": existing["id"]}, {"$set": {"target_ca": data["target_ca"], "target_orders": data.get("target_orders", 0)}})
+        return await db.goals.find_one({"id": existing["id"]}, {"_id": 0})
+    g = MonthlyGoal(**data)
+    await db.goals.insert_one(g.model_dump())
+    return g.model_dump()
+
+@api_router.get("/goals/progress")
+async def goals_progress(user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    prefix = f"{now.year:04d}-{now.month:02d}"
+    goals = await db.goals.find({"year": now.year, "month": now.month}, {"_id": 0}).to_list(500)
+    result = []
+    for g in goals:
+        orders = await db.orders.find({"agent_id": g["agent_id"], "created_at": {"$regex": f"^{prefix}"}}, {"_id": 0}).to_list(5000)
+        current_ca = sum(o.get("total", 0) for o in orders)
+        agent = await db.users.find_one({"id": g["agent_id"]}, {"_id": 0, "password": 0})
+        result.append({
+            "agent_id": g["agent_id"],
+            "agent_name": agent["name"] if agent else "?",
+            "target_ca": g["target_ca"],
+            "current_ca": round(current_ca, 2),
+            "pct": round((current_ca / g["target_ca"] * 100), 1) if g["target_ca"] else 0,
+            "orders": len(orders),
+        })
+    result.sort(key=lambda x: -x["pct"])
+    return result
+
+# ---------- PIPELINE (Kanban) ----------
+@api_router.put("/clients/{cid}/status")
+async def update_client_status(cid: str, data: dict, user=Depends(get_current_user)):
+    new_status = data.get("status")
+    if new_status not in ["prospect", "actif", "vip", "inactif"]:
+        raise HTTPException(400, "Statut invalide")
+    await db.clients.update_one({"id": cid}, {"$set": {"status": new_status, "updated_at": now_iso()}})
+    return {"ok": True}
 
 @api_router.get("/")
 async def root():

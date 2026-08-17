@@ -3,16 +3,20 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import VoiceFAB from "@/components/VoiceFAB";
-import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, Languages, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, Languages, ClipboardCheck, Calendar, Trophy, Columns } from "lucide-react";
+import NotificationBell from "@/components/NotificationBell";
 
 const nav = [
   { to: "/", key: "dashboard", icon: LayoutDashboard },
   { to: "/visit", key: "visit", icon: ClipboardCheck },
+  { to: "/planning", key: "planning", icon: Calendar },
+  { to: "/pipeline", key: "pipeline", icon: Columns },
   { to: "/clients", key: "clients", icon: Users },
   { to: "/products", key: "products", icon: Wine },
   { to: "/orders", key: "orders", icon: ShoppingCart },
   { to: "/tours", key: "tours", icon: RouteIcon },
   { to: "/reports", key: "reports", icon: BarChart3 },
+  { to: "/monthly-review", key: "monthly", icon: Trophy },
   { to: "/agents", key: "agents", icon: UserCog },
 ];
 
@@ -45,7 +49,10 @@ export default function Layout({ children }) {
         <div className="p-3 border-t border-stone-200 space-y-2">
           <div className="flex items-center justify-between text-xs text-stone-500 px-2">
             <span className="truncate">{user?.name}</span>
-            <span className="badge badge-vip">{user?.role}</span>
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <span className="badge badge-vip">{user?.role}</span>
+            </div>
           </div>
           <button onClick={() => setLanguage(lang === "fr" ? "en" : "fr")} data-testid="lang-toggle" className="btn-ghost w-full flex items-center gap-2 text-sm justify-center">
             <Languages size={16} /> {lang.toUpperCase()}
@@ -59,7 +66,8 @@ export default function Layout({ children }) {
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-stone-200 flex items-center justify-between px-4 py-3">
         <h1 className="font-display text-xl text-[#4A154B]">Cellier</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <NotificationBell />
           <button onClick={() => setLanguage(lang === "fr" ? "en" : "fr")} className="text-xs font-medium px-2 py-1 border rounded" data-testid="lang-toggle-mobile">{lang.toUpperCase()}</button>
           <button onClick={logout} data-testid="logout-mobile"><LogOut size={18} /></button>
         </div>

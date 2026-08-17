@@ -16,6 +16,9 @@ import Tours from "@/pages/Tours";
 import Reports from "@/pages/Reports";
 import Agents from "@/pages/Agents";
 import VisitReport from "@/pages/VisitReport";
+import Planning from "@/pages/Planning";
+import MonthlyReview from "@/pages/MonthlyReview";
+import Pipeline from "@/pages/Pipeline";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -42,6 +45,9 @@ function App() {
               <Route path="/reports" element={<Protected><Reports /></Protected>} />
               <Route path="/agents" element={<Protected><Agents /></Protected>} />
               <Route path="/visit" element={<Protected><VisitReport /></Protected>} />
+              <Route path="/planning" element={<Protected><Planning /></Protected>} />
+              <Route path="/monthly-review" element={<Protected><MonthlyReview /></Protected>} />
+              <Route path="/pipeline" element={<Protected><Pipeline /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

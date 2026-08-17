@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, 
 import { TrendingUp, Users, ShoppingCart, Award, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import FollowUpsWidget from "@/components/FollowUpsWidget";
+import GoalsWidget from "@/components/GoalsWidget";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -81,6 +82,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <FollowUpsWidget />
+        <GoalsWidget />
         <div className="card-crm p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display text-xl">Évolution du CA</h3>
