@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { Wine } from "lucide-react";
 
 export default function Login() {
   const { login } = useAuth();
+  const { t, lang, setLanguage, languages } = useI18n();
   const nav = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,11 +17,12 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
-      toast.success("Connexion réussie");
-      nav("/");
+      const u = await login(email, password);
+      if (u.language) setLanguage(u.language);
+      toast.success(t("login") + " ✓");
+      nav(u.must_reset ? "/change-password" : "/");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Échec de connexion");
+      toast.error(err.response?.data?.detail || "Échec");
     } finally { setLoading(false); }
   };
 
@@ -41,23 +44,40 @@ export default function Login() {
       </div>
       <div className="flex-1 flex items-center justify-center p-6">
         <form onSubmit={submit} className="w-full max-w-sm space-y-5" data-testid="login-form">
-          <div>
-            <p className="overline">Bienvenue</p>
-            <h2 className="font-display text-4xl mt-1">Connexion</h2>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="overline">{t("welcome")}</p>
+              <h2 className="font-display text-4xl mt-1">{t("login")}</h2>
+            </div>
+            <select
+              value={lang}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="text-sm border border-stone-300 rounded-lg px-2 py-1.5 bg-white min-h-[44px]"
+              data-testid="login-lang-select"
+            >
+              {languages.map((l) => (
+                <option key={l.code} value={l.code}>{l.flag} {l.label}</option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="text-xs text-stone-600">Email</label>
-            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="input-crm mt-1" data-testid="login-email" />
+            <label className="text-xs text-stone-600">{t("email")}</label>
+            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="login-email" />
           </div>
           <div>
-            <label className="text-xs text-stone-600">Mot de passe</label>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="input-crm mt-1" data-testid="login-password" />
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-stone-600">{t("password")}</label>
+              <Link to="/forgot-password" className="text-xs text-[#4A154B] font-medium hover:underline" data-testid="login-forgot-link">
+                {t("forgot_password")}
+              </Link>
+            </div>
+            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="login-password" />
           </div>
-          <button type="submit" disabled={loading} className="btn-primary w-full" data-testid="login-submit">
-            {loading ? "…" : "Se connecter"}
+          <button type="submit" disabled={loading} className="btn-primary w-full min-h-[48px]" data-testid="login-submit">
+            {loading ? "…" : t("login")}
           </button>
           <p className="text-sm text-stone-500 text-center">
-            Pas de compte ? <Link to="/register" className="text-[#4A154B] font-medium">Créer un compte</Link>
+            <Link to="/register" className="text-[#4A154B] font-medium">{t("register")}</Link>
           </p>
         </form>
       </div>

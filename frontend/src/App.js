@@ -26,6 +26,12 @@ import SmartGoals from "@/pages/SmartGoals";
 import Tournee from "@/pages/Tournee";
 import Etablissement360 from "@/pages/Etablissement360";
 import PublicSignature from "@/pages/PublicSignature";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ChangePassword from "@/pages/ChangePassword";
+import AdminUsers from "@/pages/AdminUsers";
+import Paiements from "@/pages/Paiements";
+import Confidentialite from "@/pages/Confidentialite";
+import Couts from "@/pages/Couts";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -43,7 +49,13 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/sign/:token" element={<PublicSignature />} />
+              <Route path="/change-password" element={<Protected><ChangePassword /></Protected>} />
+              <Route path="/admin/users" element={<Protected><AdminUsers /></Protected>} />
+              <Route path="/admin/couts" element={<Protected><Couts /></Protected>} />
+              <Route path="/paiements" element={<Protected><Paiements /></Protected>} />
+              <Route path="/confidentialite" element={<Protected><Confidentialite /></Protected>} />
               <Route path="/" element={<Protected><Dashboard /></Protected>} />
               <Route path="/clients" element={<Protected><Clients /></Protected>} />
               <Route path="/clients/:id" element={<Protected><ClientDetail /></Protected>} />

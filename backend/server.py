@@ -42,6 +42,7 @@ class UserRegister(BaseModel):
     password: str
     name: str
     role: Literal["manager", "commercial"] = "commercial"
+    language: Literal["fr", "en", "es", "de"] = "fr"
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -53,6 +54,9 @@ class User(BaseModel):
     email: str
     name: str
     role: str = "commercial"
+    language: str = "fr"
+    active: bool = True
+    must_reset: bool = False
     created_at: str = Field(default_factory=now_iso)
 
 class Client(BaseModel):
@@ -135,7 +139,8 @@ def verify_password(pwd: str, hashed: str) -> bool:
     return bcrypt.checkpw(pwd.encode(), hashed.encode())
 
 def create_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=30)}
+    # Session longue (90j) pour éviter les reconnexions terrain
+    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=90)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -154,12 +159,20 @@ async def register(data: UserRegister):
     existing = await db.users.find_one({"email": data.email})
     if existing:
         raise HTTPException(400, "Email déjà utilisé")
-    user = User(email=data.email, name=data.name, role=data.role)
+    user = User(email=data.email, name=data.name, role=data.role, language=data.language)
     doc = user.model_dump()
     doc["password"] = hash_password(data.password)
     await db.users.insert_one(doc)
     token = create_token(user.id)
     return {"token": token, "user": user.model_dump()}
+
+@api_router.put("/auth/language")
+async def update_language(data: dict, user=Depends(get_current_user)):
+    lang = data.get("language", "fr")
+    if lang not in ("fr", "en", "es", "de"):
+        raise HTTPException(422, "Langue non supportée")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"language": lang}})
+    return {"language": lang}
 
 @api_router.post("/auth/login")
 async def login(data: UserLogin):
@@ -1874,6 +1887,9 @@ class Establishment(BaseModel):
     current_credit: float = 0.0
     overdue_amount: float = 0.0
     overdue_days: int = 0
+    payment_terms_days: Optional[int] = None
+    credit_status: Optional[str] = None
+    credit_status_updated_at: Optional[str] = None
     tags: List[str] = []
     notes: Optional[str] = ""
     assigned_to: Optional[str] = None
@@ -2405,6 +2421,10 @@ async def set_cost(pid: str, data: dict, user=Depends(get_current_user)):
 async def top_margin_clients(user=Depends(get_current_user)):
     if user["role"] not in ("manager", "gerant"):
         raise HTTPException(403, "Manager only")
+    # Verrou : marges masquées tant que les coûts ne sont pas validés
+    s = await db.org_settings.find_one({"id": "global"}, {"_id": 0}) or {}
+    if not s.get("costs_validated_at"):
+        raise HTTPException(423, "Coûts de revient non validés — marges désactivées")
     orders = await db.orders.find({}, {"_id": 0}).to_list(20000)
     costs = {c["product_id"]: c["total_cost"] async for c in db.product_costs.find({}, {"_id": 0})}
     from collections import defaultdict
@@ -2423,6 +2443,423 @@ async def top_margin_clients(user=Depends(get_current_user)):
     result = [{"client_id": k, "name": v["name"], "ca": round(v["ca"], 2), "marge": round(v["marge"], 2), "taux_marge_pct": round(v["marge"]/v["ca"]*100, 1) if v["ca"] else 0} for k, v in margin_by_client.items()]
     result.sort(key=lambda x: -x["marge"])
     return {"top10_marge": result[:10], "lignes_marge_negative": neg_lines[:20]}
+
+# ==========================================================
+# ADMIN USER MANAGEMENT (manager crée/gère les commerciaux)
+# ==========================================================
+@api_router.get("/admin/users")
+async def admin_list_users(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    items = await db.users.find({}, {"_id": 0, "password": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+@api_router.post("/admin/users")
+async def admin_create_user(data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    email = (data.get("email") or "").strip().lower()
+    name = (data.get("name") or "").strip()
+    if not email or not name:
+        raise HTTPException(422, "email + name requis")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(400, "Email déjà utilisé")
+    import secrets, string
+    tmp_pwd = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+    role = data.get("role", "commercial")
+    if role not in ("commercial", "manager"):
+        role = "commercial"
+    u = User(email=email, name=name, role=role)
+    doc = u.model_dump()
+    doc["password"] = hash_password(tmp_pwd)
+    doc["must_reset"] = True
+    doc["active"] = True
+    await db.users.insert_one(doc)
+    await audit_log(user["id"], "user_create", {"target_user_id": u.id, "email": email, "role": role})
+    return {"user": u.model_dump(), "temp_password": tmp_pwd}
+
+@api_router.put("/admin/users/{uid}")
+async def admin_update_user(uid: str, data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    updates = {}
+    for k in ("name", "role", "active"):
+        if k in data:
+            updates[k] = data[k]
+    if updates:
+        await db.users.update_one({"id": uid}, {"$set": updates})
+        await audit_log(user["id"], "user_update", {"target_user_id": uid, "fields": list(updates.keys())})
+    return await db.users.find_one({"id": uid}, {"_id": 0, "password": 0})
+
+@api_router.post("/admin/users/{uid}/reset-password")
+async def admin_reset_password(uid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    import secrets, string
+    tmp_pwd = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+    await db.users.update_one({"id": uid}, {"$set": {"password": hash_password(tmp_pwd), "must_reset": True}})
+    await audit_log(user["id"], "password_reset_admin", {"target_user_id": uid})
+    return {"temp_password": tmp_pwd}
+
+# ==========================================================
+# PASSWORD FORGOT/CHANGE (mode dégradé sans email)
+# ==========================================================
+@api_router.post("/auth/forgot-password")
+async def forgot_password(data: dict):
+    """Sans Resend : crée une demande visible par le manager (mode dégradé)."""
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(422, "Email requis")
+    u = await db.users.find_one({"email": email})
+    if u:
+        # Dédoublonnage : une seule demande "pending" par utilisateur
+        existing = await db.password_reset_requests.find_one({"user_id": u["id"], "status": "pending"})
+        if not existing:
+            await db.password_reset_requests.insert_one({
+                "id": str(uuid.uuid4()), "user_id": u["id"], "email": email,
+                "status": "pending", "created_at": now_iso(),
+            })
+    return {"ok": True, "message": "Si le compte existe, votre manager sera notifié."}
+
+@api_router.get("/admin/reset-requests")
+async def list_reset_requests(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    items = await db.password_reset_requests.find({"status": "pending"}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return items
+
+@api_router.post("/admin/reset-requests/{rid}/approve")
+async def approve_reset(rid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    req = await db.password_reset_requests.find_one({"id": rid}, {"_id": 0})
+    if not req:
+        raise HTTPException(404, "Demande introuvable")
+    if req.get("status") != "pending":
+        raise HTTPException(409, "Demande déjà traitée")
+    import secrets, string
+    tmp_pwd = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+    await db.users.update_one({"id": req["user_id"]}, {"$set": {"password": hash_password(tmp_pwd), "must_reset": True}})
+    await db.password_reset_requests.update_one({"id": rid}, {"$set": {"status": "approved", "handled_at": now_iso(), "handled_by": user["id"]}})
+    await audit_log(user["id"], "password_reset_approve", {"target_user_id": req["user_id"], "request_id": rid})
+    return {"temp_password": tmp_pwd, "email": req["email"]}
+
+@api_router.post("/auth/change-password")
+async def change_password(data: dict, user=Depends(get_current_user)):
+    old = data.get("old_password", "")
+    new = data.get("new_password", "")
+    if len(new) < 8:
+        raise HTTPException(422, "Nouveau mot de passe : 8 caractères minimum")
+    doc = await db.users.find_one({"id": user["id"]})
+    if not doc or not verify_password(old, doc["password"]):
+        raise HTTPException(401, "Ancien mot de passe invalide")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password": hash_password(new), "must_reset": False}})
+    await audit_log(user["id"], "password_change", {})
+    return {"ok": True}
+
+# ==========================================================
+# AUDIT LOG (RGPD - journalisation des accès sensibles)
+# ==========================================================
+async def audit_log(user_id: str, action: str, details: dict):
+    try:
+        await db.audit_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "action": action,
+            "details": details,
+            "at": now_iso(),
+        })
+    except Exception:
+        pass
+
+@api_router.get("/admin/audit-logs")
+async def list_audit(limit: int = 200, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    items = await db.audit_logs.find({}, {"_id": 0}).sort("at", -1).to_list(limit)
+    return items
+
+# ==========================================================
+# RGPD (export / droit à l'effacement)
+# ==========================================================
+@api_router.get("/rgpd/clients/{cid}/export")
+async def rgpd_export(cid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    client_doc = await db.clients.find_one({"id": cid}, {"_id": 0})
+    est_doc = await db.establishments.find_one({"id": cid}, {"_id": 0})
+    orders = await db.orders.find({"client_id": cid}, {"_id": 0}).to_list(10000)
+    visits = await db.visits.find({"client_id": cid}, {"_id": 0}).to_list(1000)
+    activities = await db.activities.find({"client_id": cid}, {"_id": 0}).to_list(1000)
+    await audit_log(user["id"], "rgpd_export", {"client_id": cid})
+    return {"client": client_doc, "establishment": est_doc, "orders": orders,
+            "visits": visits, "activities": activities, "exported_at": now_iso()}
+
+@api_router.delete("/rgpd/clients/{cid}")
+async def rgpd_delete(cid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    n_orders = await db.orders.count_documents({"client_id": cid})
+    n_visits = await db.visits.count_documents({"client_id": cid})
+    await db.clients.delete_one({"id": cid})
+    await db.establishments.delete_one({"id": cid})
+    await db.orders.delete_many({"client_id": cid})
+    await db.visits.delete_many({"client_id": cid})
+    await db.activities.delete_many({"client_id": cid})
+    await audit_log(user["id"], "rgpd_delete", {"client_id": cid, "orders": n_orders, "visits": n_visits})
+    return {"ok": True, "deleted_client_id": cid, "orders_deleted": n_orders, "visits_deleted": n_visits}
+
+# ==========================================================
+# ORG SETTINGS (seuils, RGPD, géoloc, rétention audio)
+# ==========================================================
+DEFAULT_ORG_SETTINGS = {
+    "credit_thresholds": {
+        "overdue_orange_days": 7,
+        "overdue_red_days": 30,
+        "credit_orange_pct": 60,
+        "credit_red_pct": 100,
+    },
+    "geolocation_enabled": True,   # ponctuelle uniquement, jamais continue
+    "voice_transcript_retention_days": 90,
+    "voice_delete_after_transcription": False,
+    "default_payment_terms_days": 30,
+    "costs_validated_at": None,
+    "costs_validated_by": None,
+    "data_hosting_region": "EU",
+}
+
+async def get_org_settings():
+    doc = await db.org_settings.find_one({"id": "global"}, {"_id": 0})
+    if not doc:
+        base = {"id": "global", **DEFAULT_ORG_SETTINGS}
+        await db.org_settings.insert_one(base.copy())
+        doc = await db.org_settings.find_one({"id": "global"}, {"_id": 0})
+    for k, v in DEFAULT_ORG_SETTINGS.items():
+        doc.setdefault(k, v)
+    return doc
+
+@api_router.get("/org/settings")
+async def read_org_settings(user=Depends(get_current_user)):
+    s = await get_org_settings()
+    if user["role"] != "manager":
+        # commercial : lecture seule, sans données sensibles
+        return {
+            "geolocation_enabled": s.get("geolocation_enabled", True),
+            "voice_transcript_retention_days": s.get("voice_transcript_retention_days", 90),
+            "voice_delete_after_transcription": s.get("voice_delete_after_transcription", False),
+            "data_hosting_region": s.get("data_hosting_region", "EU"),
+        }
+    return s
+
+@api_router.put("/org/settings")
+async def update_org_settings(data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    allowed = ("credit_thresholds", "geolocation_enabled", "voice_transcript_retention_days",
+               "voice_delete_after_transcription", "default_payment_terms_days")
+    updates = {k: data[k] for k in allowed if k in data}
+    if updates:
+        await db.org_settings.update_one({"id": "global"}, {"$set": updates}, upsert=True)
+    await audit_log(user["id"], "org_settings_update", {"fields": list(updates.keys())})
+    return await get_org_settings()
+
+# ==========================================================
+# COSTS VALIDATION (verrou marges = pas de chiffres tant que non validé)
+# ==========================================================
+@api_router.get("/margins/lock-status")
+async def margin_lock_status(user=Depends(get_current_user)):
+    s = await get_org_settings()
+    total_products = await db.products.count_documents({})
+    validated_costs = await db.product_costs.count_documents({})
+    return {
+        "unlocked": bool(s.get("costs_validated_at")),
+        "validated_at": s.get("costs_validated_at"),
+        "validated_by": s.get("costs_validated_by"),
+        "products_total": total_products,
+        "costs_saisis": validated_costs,
+    }
+
+@api_router.post("/admin/costs/validate")
+async def validate_costs(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    n = await db.product_costs.count_documents({})
+    if n == 0:
+        raise HTTPException(400, "Aucun coût de revient saisi. Impossible de valider.")
+    await db.org_settings.update_one({"id": "global"},
+        {"$set": {"costs_validated_at": now_iso(), "costs_validated_by": user["id"]}}, upsert=True)
+    await audit_log(user["id"], "costs_validate", {"count": n})
+    return {"validated_at": now_iso(), "products_validated": n}
+
+@api_router.post("/admin/costs/invalidate")
+async def invalidate_costs(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    await db.org_settings.update_one({"id": "global"},
+        {"$set": {"costs_validated_at": None, "costs_validated_by": None}}, upsert=True)
+    await audit_log(user["id"], "costs_invalidate", {})
+    return {"ok": True}
+
+# ==========================================================
+# PAYMENT TRACKING (DSO, retards, mauvais payeurs)
+# ==========================================================
+def _parse_iso(dt_str):
+    try:
+        return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+async def _client_payment_analysis(cid: str, default_terms: int):
+    est = await db.establishments.find_one({"id": cid}, {"_id": 0}) or await db.clients.find_one({"id": cid}, {"_id": 0}) or {}
+    terms = est.get("payment_terms_days") or default_terms
+    orders = await db.orders.find({"client_id": cid}, {"_id": 0}).to_list(2000)
+    now = datetime.now(timezone.utc)
+    paid_delays = []
+    overdue_amt = 0.0
+    overdue_ages = []
+    unpaid_amt = 0.0
+    for o in orders:
+        if o.get("status") == "annule":
+            continue
+        created = _parse_iso(o.get("created_at", ""))
+        if not created:
+            continue
+        due = created + timedelta(days=terms)
+        total = o.get("total", 0) or 0
+        if o.get("payment_status") == "paid":
+            paid_at = _parse_iso(o.get("paid_at", "") or "")
+            if paid_at:
+                paid_delays.append((paid_at - due).days)
+        else:
+            unpaid_amt += total
+            if now > due:
+                overdue_amt += total
+                overdue_ages.append((now - due).days)
+    avg_delay = round(sum(paid_delays) / len(paid_delays), 1) if paid_delays else None
+    return {
+        "client_id": cid,
+        "payment_terms_days": terms,
+        "avg_paid_delay_vs_due": avg_delay,
+        "gap_days": avg_delay,
+        "overdue_amount": round(overdue_amt, 2),
+        "overdue_oldest_days": max(overdue_ages) if overdue_ages else 0,
+        "unpaid_amount": round(unpaid_amt, 2),
+        "paid_invoices_count": len(paid_delays),
+    }
+
+@api_router.get("/payments/client/{cid}")
+async def payment_analysis(cid: str, user=Depends(get_current_user)):
+    # Rôle : commercial n'accède qu'à ses clients assignés
+    if user["role"] != "manager":
+        est = await db.establishments.find_one({"id": cid}, {"_id": 0}) or await db.clients.find_one({"id": cid}, {"_id": 0})
+        if not est:
+            raise HTTPException(404, "Client introuvable")
+        if est.get("assigned_to") not in (user["id"], None) and est.get("owner_id") != user["id"]:
+            raise HTTPException(403, "Client non assigné")
+    s = await get_org_settings()
+    return await _client_payment_analysis(cid, s.get("default_payment_terms_days", 30))
+
+@api_router.get("/payments/bad-payers")
+async def bad_payers(limit: int = 20, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    s = await get_org_settings()
+    default_terms = s.get("default_payment_terms_days", 30)
+    ests = await db.establishments.find({}, {"_id": 0}).to_list(5000)
+    if not ests:
+        ests = await db.clients.find({}, {"_id": 0}).to_list(5000)
+    result = []
+    for e in ests:
+        a = await _client_payment_analysis(e["id"], default_terms)
+        a["name"] = e.get("name", "?")
+        score = 0
+        if a["avg_paid_delay_vs_due"]:
+            score += max(0, a["avg_paid_delay_vs_due"])
+        score += a["overdue_oldest_days"]
+        score += min(50, a["overdue_amount"] / 100)
+        a["score"] = round(score, 1)
+        if a["overdue_amount"] > 0 or (a["avg_paid_delay_vs_due"] or 0) > 0:
+            result.append(a)
+    result.sort(key=lambda x: -x["score"])
+    return result[:limit]
+
+@api_router.get("/payments/dso")
+async def dso_evolution(months: int = 12, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    from collections import defaultdict
+    orders = await db.orders.find({}, {"_id": 0}).to_list(50000)
+    monthly_ca = defaultdict(float)
+    monthly_unpaid = defaultdict(float)
+    for o in orders:
+        if o.get("status") == "annule":
+            continue
+        created = _parse_iso(o.get("created_at", ""))
+        if not created:
+            continue
+        key = f"{created.year:04d}-{created.month:02d}"
+        monthly_ca[key] += o.get("total", 0) or 0
+        if o.get("payment_status") != "paid":
+            monthly_unpaid[key] += o.get("total", 0) or 0
+    keys = sorted(set(list(monthly_ca.keys()) + list(monthly_unpaid.keys())))[-months:]
+    chart = []
+    for k in keys:
+        ca = monthly_ca.get(k, 0)
+        unpaid = monthly_unpaid.get(k, 0)
+        daily = ca / 30 if ca else 0
+        dso = round(unpaid / daily, 1) if daily else 0
+        chart.append({"month": k, "ca": round(ca, 2), "encours": round(unpaid, 2), "dso": dso})
+    current = chart[-1]["dso"] if chart else 0
+    prev = chart[-2]["dso"] if len(chart) >= 2 else current
+    return {"chart": chart, "current_dso": current, "prev_dso": prev, "trend": round(current - prev, 1)}
+
+@api_router.post("/establishments/recompute-status")
+async def recompute_all_statuses(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    s = await get_org_settings()
+    default_terms = s.get("default_payment_terms_days", 30)
+    thresholds = s.get("credit_thresholds", DEFAULT_ORG_SETTINGS["credit_thresholds"])
+    ests = await db.establishments.find({}, {"_id": 0}).to_list(5000)
+    updated = 0
+    for e in ests:
+        a = await _client_payment_analysis(e["id"], default_terms)
+        limit = e.get("credit_limit") or 0
+        credit_used_pct = (a["unpaid_amount"] / limit * 100) if limit else 0
+        overdue_days = a["overdue_oldest_days"]
+        if overdue_days >= thresholds["overdue_red_days"] or credit_used_pct >= thresholds["credit_red_pct"]:
+            color = "rouge"
+        elif overdue_days >= thresholds["overdue_orange_days"] or credit_used_pct >= thresholds["credit_orange_pct"]:
+            color = "orange"
+        else:
+            color = "vert"
+        await db.establishments.update_one({"id": e["id"]}, {"$set": {
+            "current_credit": a["unpaid_amount"],
+            "overdue_amount": a["overdue_amount"],
+            "overdue_days": overdue_days,
+            "credit_status": color,
+            "credit_status_updated_at": now_iso(),
+        }})
+        updated += 1
+    await audit_log(user["id"], "recompute_statuses", {"updated": updated})
+    return {"updated": updated}
+
+# ==========================================================
+# VOICE RETENTION PURGE (cron / manuel)
+# ==========================================================
+@api_router.post("/admin/voice/purge")
+async def purge_voice(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    s = await get_org_settings()
+    days = int(s.get("voice_transcript_retention_days", 90))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    r = await db.visits.update_many(
+        {"created_at": {"$lt": cutoff}, "voice_transcript": {"$ne": ""}},
+        {"$set": {"voice_transcript": ""}}
+    )
+    await audit_log(user["id"], "voice_purge", {"days": days, "updated": r.modified_count})
+    return {"purged": r.modified_count, "cutoff_days": days}
 
 @api_router.get("/")
 async def root():

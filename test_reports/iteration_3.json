@@ -1,0 +1,43 @@
+{
+  "summary": "Backend-only regression run for iteration 3 (large feature drop: i18n, forgot/change password degraded mode, admin user mgmt, RGPD export/delete, org settings, margins lock via HTTP 423, DSO/bad-payers/payment tracking, recompute credit status, audit logs, voice purge, JWT 90d). 37 pytest tests written and executed against the preview URL — 37/37 PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/forgot-password", "issue": "No rate-limit / anti-enumeration cool-down. Returns generic OK for unknown emails (good), but repeated calls create unbounded pending rows for existing users. Consider dedup or throttling."},
+      {"endpoint": "POST /api/admin/users", "issue": "Emails are silently lowercased server-side; API contract does not document this. Documented via test (assert lower-case equality). Non-blocking."},
+      {"endpoint": "POST /api/admin/reset-requests/{rid}/approve", "issue": "No idempotency check — approving an already-approved request 404s only if not found; can be re-approved multiple times if still pending. Consider guarding on status==pending."},
+      {"endpoint": "GET /api/payments/client/{cid}", "issue": "Endpoint is not gated by role — commercials can query payment analytics for any client id. Only /bad-payers and /dso are manager-only. Confirm this is intentional."},
+      {"endpoint": "GET /api/margins/lock-status", "issue": "Also not gated (accessible to commercial). Contains no sensitive numbers so likely intentional, worth double-checking."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_backend_iter3.py",
+    "/app/test_reports/pytest/iteration_3.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: dedupe pending reset requests per user in POST /api/auth/forgot-password.",
+    "OPTIONAL: reject POST /api/admin/reset-requests/{rid}/approve when status != 'pending'.",
+    "OPTIONAL: decide role-gating for GET /api/payments/client/{cid} and /api/margins/lock-status."
+  ],
+  "critical_code_review_comments": [
+    "server.py has grown to 2872 lines — needs modular split (auth, admin, rgpd, payments, margins, org settings) into routers/*.py.",
+    "audit_log() swallows all exceptions silently (except: pass) — sensitive RGPD/password events could be lost without any trace. At minimum log.exception().",
+    "hash_password uses bcrypt default rounds; fine for now but not configurable via env.",
+    "JWT secret is committed in .env and shipped; acceptable for dev but rotate for prod.",
+    "DSO computes daily = ca/30 — inaccurate month length; edge months (Feb/31d) skew ~7%. Fine for trend but note it.",
+    "In /api/payments/bad-payers the score aggregates unbounded overdue_amount/100 capped at 50 but overdue_oldest_days is unbounded → single very old client dominates ranking. Consider log or bounded weighting.",
+    "/api/rgpd/clients/{cid}/export uses same id for `clients` and `establishments` — assumes 1:1. Confirm data model.",
+    "Voice purge queries visits.voice_transcript field but never verifies field exists elsewhere (activities/audio) — check completeness against PRD."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backend_iter3.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend only)"},
+  "test_credentials": "manager guillaume@sulauze.com / Cellier2026! (used); demo@cellier.fr / demo1234 available.",
+  "seed_data_creation": "Tests create TEST_ prefixed users and one TEST_RGPD_DEL client (deleted at end). One product cost is added if none existed. Costs are validated at end (unlocks margins) — main agent may want to invalidate via POST /api/admin/costs/invalidate if UI demo needs to show lock again.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 3 covered ALL new endpoints from the feature drop (auth i18n + 90d JWT, admin users, forgot/change pwd, RGPD, org settings, margins lock (423), payments/DSO/bad-payers, recompute-status, audit logs, voice purge). All 37 pytest cases pass serially (-n 0). Notes: (a) pytest.ini forces -n 2 loadscope which breaks module-level STATE dict shared across classes — always run this file with `-n 0`. (b) Emails are lowercased server-side. (c) Costs-validation state is now ON at end of run; recall /api/admin/costs/invalidate to reset UI demos. (d) See minor issues in report for potential hardening (rate-limit forgot-password, idempotent approve).",
+  "rca of the issue": "No functional issue found. Only the harness quirk: default pytest.ini uses -n 2 loadscope which distributes each class to a separate worker → module-level STATE dict is not shared → cascading KeyErrors. Fixed by running with -n 0. Test file works correctly serially. Non-issue for main agent."
+}
