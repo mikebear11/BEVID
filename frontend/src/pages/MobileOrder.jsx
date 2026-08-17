@@ -147,6 +147,14 @@ export default function MobileOrder() {
         toast.success("Commande + signature en file — synchro auto au retour du réseau", { icon: "📶" });
       } else {
         toast.success("Commande signée ✓");
+        // Envoi automatique du PDF par email si le client a une adresse
+        try {
+          const orderId = res.data?.id;
+          if (orderId && est?.email) {
+            await api.post(`/orders/${orderId}/send-pdf-email`, {});
+            toast.success(`PDF envoyé à ${est.email}`, { icon: "📧" });
+          }
+        } catch (e) { /* silent : l'utilisateur peut renvoyer manuellement */ }
       }
       nav(`/etab/${id}`);
     } catch (err) {

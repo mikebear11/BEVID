@@ -625,12 +625,7 @@ async def geocode_all(user=Depends(get_current_user)):
     return {"updated": updated, "total_processed": min(len(clients), 30)}
 
 # ---------- PDF ORDER ----------
-@api_router.get("/orders/{oid}/pdf")
-async def order_pdf(oid: str, user=Depends(get_current_user)):
-    o = await db.orders.find_one({"id": oid}, {"_id": 0})
-    if not o:
-        raise HTTPException(404, "Commande introuvable")
-    c = await db.clients.find_one({"id": o["client_id"]}, {"_id": 0}) or {}
+def _build_order_pdf_bytes(o: dict, c: dict) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=40, bottomMargin=40, leftMargin=50, rightMargin=50)
     styles = getSampleStyleSheet()
@@ -647,7 +642,6 @@ async def order_pdf(oid: str, user=Depends(get_current_user)):
     if c.get('contact_name'):
         elems.append(Paragraph(f"Contact: {c.get('contact_name')} · {c.get('phone','')}", styles['Normal']))
     elems.append(Spacer(1, 20))
-    # lines table
     data = [["Produit", "Qté", "PU (€)", "Total (€)"]]
     for l in o.get("lines", []):
         tot = l["quantity"] * l["unit_price"]
@@ -672,7 +666,6 @@ async def order_pdf(oid: str, user=Depends(get_current_user)):
         elems.append(Spacer(1, 18))
         elems.append(Paragraph(f"<b>Notes:</b> {o['notes']}", styles['Normal']))
     elems.append(Spacer(1, 40))
-    # signature
     sig_b64 = o.get("signature")
     if sig_b64 and sig_b64.startswith("data:image"):
         try:
@@ -686,6 +679,15 @@ async def order_pdf(oid: str, user=Depends(get_current_user)):
         elems.append(Paragraph("Signature client: ____________________________", styles['Normal']))
     doc.build(elems)
     buf.seek(0)
+    return buf.getvalue()
+
+@api_router.get("/orders/{oid}/pdf")
+async def order_pdf(oid: str, user=Depends(get_current_user)):
+    o = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    c = await db.clients.find_one({"id": o["client_id"]}, {"_id": 0}) or {}
+    buf = io.BytesIO(_build_order_pdf_bytes(o, c))
     return StreamingResponse(buf, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="commande-{o["id"][:8]}.pdf"'})
 
@@ -3458,6 +3460,243 @@ async def dismiss_conflict(cid: str, user=Depends(get_current_user)):
         raise HTTPException(403, "Manager only")
     await db.conflicts.update_one({"id": cid}, {"$set": {"seen": True, "dismissed_by": user["id"], "dismissed_at": now_iso()}})
     return {"ok": True}
+
+# =============================================================
+# CONFLICT PLAYBOOK — Rembourser + prévenir client (1-click)
+# =============================================================
+@api_router.get("/conflicts/{cid}/playbook-preview")
+async def conflict_playbook_preview(cid: str, user=Depends(get_current_user)):
+    """Preview des actions possibles pour un conflit + message pré-rempli."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    conf = await db.conflicts.find_one({"id": cid}, {"_id": 0})
+    if not conf:
+        raise HTTPException(404, "Conflit introuvable")
+    order = None
+    client = None
+    if conf.get("kind") == "order":
+        order = await db.orders.find_one({"id": conf["entity_id"]}, {"_id": 0})
+        if order:
+            client = await db.clients.find_one({"id": order["client_id"]}, {"_id": 0}) or {}
+    can_refund = bool(order and order.get("payment_status") == "paid" and order.get("stripe_payment_intent_id"))
+    already_refunded = bool(order and order.get("payment_status") == "refunded")
+    reason_type = (conf.get("extra") or {}).get("reason_type") or "conflit"
+    reason_label = {
+        "credit_red": "compte bloqué (crédit rouge)",
+        "stock": "rupture de stock",
+    }.get(reason_type, "conflit détecté à la synchro")
+    total = (order or {}).get("total", 0)
+    default_msg = (
+        f"Bonjour {(client or {}).get('contact_name') or (client or {}).get('name', '')},\n\n"
+        f"Nous avons rencontré un {reason_label} sur votre commande #{(order or {}).get('id', '')[:8].upper()} "
+        f"({total:.2f} €).\n\n"
+        f"Un remboursement intégral a été initié aujourd'hui et vous parviendra sous 3–5 jours ouvrés. "
+        f"Notre équipe reprend contact avec vous dans la journée pour trouver une solution.\n\n"
+        f"Toutes nos excuses pour la gêne,\nBEVID"
+    )
+    return {
+        "conflict": conf,
+        "order": order and {
+            "id": order["id"], "total": order.get("total"), "payment_status": order.get("payment_status"),
+            "has_signature": bool(order.get("signature")), "client_id": order.get("client_id"),
+            "stripe_payment_intent_id": order.get("stripe_payment_intent_id"),
+        },
+        "client": client and {
+            "id": client.get("id"), "name": client.get("name"), "contact_name": client.get("contact_name"),
+            "email": client.get("email"), "phone": client.get("phone"),
+        },
+        "can_refund": can_refund,
+        "already_refunded": already_refunded,
+        "default_message": default_msg,
+    }
+
+@api_router.post("/conflicts/{cid}/playbook")
+async def conflict_playbook(cid: str, data: dict, user=Depends(get_current_user)):
+    """
+    Exécute la playbook manager :
+      - remboursement Stripe (si applicable + demandé)
+      - réintégration du stock (obligatoire)
+      - notification client (WhatsApp / Email)
+      - marque le conflit résolu
+    Body: { refund: bool, restock: bool=True, channel: "whatsapp"|"email"|"none", message: str }
+    """
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    conf = await db.conflicts.find_one({"id": cid}, {"_id": 0})
+    if not conf:
+        raise HTTPException(404, "Conflit introuvable")
+    if conf.get("resolved_at"):
+        raise HTTPException(400, "Conflit déjà résolu")
+
+    do_refund = bool(data.get("refund"))
+    do_restock = data.get("restock", True) is not False
+    channel = (data.get("channel") or "none").lower()
+    message = (data.get("message") or "").strip()
+
+    order = None
+    client = {}
+    if conf.get("kind") == "order":
+        order = await db.orders.find_one({"id": conf["entity_id"]}, {"_id": 0})
+        if order:
+            client = await db.clients.find_one({"id": order["client_id"]}, {"_id": 0}) or {}
+
+    result = {"refund": None, "restock": None, "notification": None}
+
+    # 1) Refund
+    if do_refund and order:
+        if order.get("payment_status") == "refunded":
+            result["refund"] = {"ok": True, "already": True}
+        elif order.get("stripe_payment_intent_id"):
+            try:
+                r = stripe.Refund.create(payment_intent=order["stripe_payment_intent_id"])
+                await db.orders.update_one({"id": order["id"]}, {"$set": {
+                    "payment_status": "refunded",
+                    "refunded_at": now_iso(),
+                    "refund_id": r.id,
+                    "refunded_by": user["id"],
+                }})
+                result["refund"] = {"ok": True, "refund_id": r.id}
+            except Exception as e:
+                result["refund"] = {"ok": False, "reason": str(e)[:200]}
+        else:
+            # No stripe intent = mark as refunded manually (COD / à régler)
+            await db.orders.update_one({"id": order["id"]}, {"$set": {
+                "payment_status": "refunded",
+                "refunded_at": now_iso(),
+                "refunded_by": user["id"],
+                "refund_manual": True,
+            }})
+            result["refund"] = {"ok": True, "manual": True}
+
+    # 2) Restock (rétablir les quantités déduites)
+    if do_restock and order:
+        for line in order.get("lines", []):
+            await db.products.update_one(
+                {"id": line["product_id"]},
+                {"$inc": {"stock": line.get("quantity", 0)}}
+            )
+        result["restock"] = {"ok": True, "lines": len(order.get("lines", []))}
+
+    # 3) Notification client
+    if channel == "whatsapp":
+        phone = (client.get("phone") or "").replace(" ", "")
+        if not phone:
+            result["notification"] = {"ok": False, "reason": "Numéro client manquant"}
+        else:
+            if not phone.startswith("+"):
+                phone = "+33" + phone.lstrip("0")
+            r = await send_wa(phone, message or "Bonjour, votre commande fait l'objet d'un remboursement. Nous vous recontactons.")
+            result["notification"] = {**r, "channel": "whatsapp"}
+    elif channel == "email":
+        to_email = client.get("email")
+        if not to_email:
+            result["notification"] = {"ok": False, "reason": "Email client manquant"}
+        else:
+            html_body = "<div style='font-family:Arial,sans-serif;color:#222;line-height:1.5;'>" \
+                        + escape(message or "").replace("\n", "<br/>") \
+                        + "<hr style='margin:20px 0;border:none;border-top:1px solid #eee'/>" \
+                        + "<p style='font-size:12px;color:#888'>BEVID — équipe support</p></div>"
+            try:
+                email_id = await send_email(to=to_email, subject="BEVID · Information sur votre commande", html=html_body)
+                result["notification"] = {"ok": True, "channel": "email", "email_id": email_id}
+            except HTTPException as e:
+                result["notification"] = {"ok": False, "channel": "email", "reason": str(e.detail)[:200]}
+            except Exception as e:
+                result["notification"] = {"ok": False, "channel": "email", "reason": str(e)[:200]}
+    else:
+        result["notification"] = {"ok": True, "skipped": True}
+
+    # 4) Marquer le conflit résolu
+    resolution = {
+        "actor": user["id"], "at": now_iso(),
+        "refund": result["refund"], "restock": result["restock"], "notification": result["notification"],
+        "channel": channel, "refund_requested": do_refund,
+    }
+    await db.conflicts.update_one({"id": cid}, {"$set": {
+        "seen": True, "resolved_at": now_iso(), "resolved_by": user["id"], "resolution": resolution
+    }})
+
+    # Update order visibility flag
+    if order:
+        await db.orders.update_one({"id": order["id"]}, {"$set": {"has_conflict": False, "conflict_resolved_at": now_iso()}})
+        await db.activities.insert_one(Activity(
+            client_id=order["client_id"], agent_id=user["id"], type="note",
+            content=f"Playbook conflit #{cid[:6]} exécuté — refund:{do_refund} · restock:{do_restock} · notif:{channel}",
+            owner_id=order.get("owner_id", user["id"])
+        ).model_dump())
+    await audit_log(user["id"], "conflict_playbook", {"conflict_id": cid, "refund": do_refund, "channel": channel})
+
+    return {"ok": True, "result": result}
+
+# =============================================================
+# ORDER PDF EMAIL — envoi du PDF signé au client (Resend)
+# via lien public signé (24h) car email API sans pièce jointe
+# =============================================================
+@api_router.get("/public/orders/{token}/pdf")
+async def public_order_pdf(token: str):
+    o = await db.orders.find_one({"receipt_token": token}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Lien invalide ou expiré")
+    exp = o.get("receipt_token_exp")
+    if exp:
+        try:
+            if datetime.fromisoformat(exp.replace("Z", "+00:00")) < datetime.now(timezone.utc):
+                raise HTTPException(410, "Lien expiré")
+        except (ValueError, TypeError):
+            pass
+    c = await db.clients.find_one({"id": o["client_id"]}, {"_id": 0}) or {}
+    buf = io.BytesIO(_build_order_pdf_bytes(o, c))
+    return StreamingResponse(buf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="commande-{o["id"][:8]}.pdf"'})
+
+@api_router.post("/orders/{oid}/send-pdf-email")
+async def send_order_pdf_email(oid: str, data: dict = None, user=Depends(get_current_user)):
+    """Envoie au client (ou destinataire override) un email contenant le lien de téléchargement du PDF signé."""
+    data = data or {}
+    o = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    c = await db.clients.find_one({"id": o["client_id"]}, {"_id": 0}) or {}
+    to_email = (data.get("to") or c.get("email") or "").strip()
+    if not to_email:
+        raise HTTPException(400, "Email client manquant")
+
+    # (re)génère un token unique 24h
+    token = uuid.uuid4().hex
+    exp = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    await db.orders.update_one({"id": oid}, {"$set": {"receipt_token": token, "receipt_token_exp": exp}})
+
+    base = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    pdf_url = f"{base}/api/public/orders/{token}/pdf"
+    client_greet = escape(c.get("contact_name") or c.get("name") or "cher client")
+    order_short = escape(o["id"][:8].upper())
+    total = o.get("total", 0)
+    signed_note = "Votre signature a été enregistrée avec horodatage." if o.get("signature") else "Votre commande a été enregistrée."
+    html = (
+        "<div style='font-family:Arial,sans-serif;color:#222;line-height:1.55;max-width:560px;'>"
+        f"<h2 style='color:#4A154B;margin:0 0 12px'>BEVID · Bon de commande</h2>"
+        f"<p>Bonjour {client_greet},</p>"
+        f"<p>Merci pour votre commande <b>#{order_short}</b> d'un montant de <b>{total:.2f} €</b>.</p>"
+        f"<p>{signed_note} Vous pouvez télécharger votre bon de commande au format PDF ci-dessous :</p>"
+        f"<p style='margin:24px 0'><a href='{pdf_url}' "
+        f"style='background:#4A154B;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600'>"
+        f"Télécharger le PDF</a></p>"
+        f"<p style='font-size:12px;color:#888'>Ce lien est valide 24 heures. Il contient un identifiant unique, ne pas le partager.</p>"
+        f"<hr style='margin:20px 0;border:none;border-top:1px solid #eee'/>"
+        f"<p style='font-size:12px;color:#888'>BEVID — {escape(EMAIL_REPLY_TO or '')}</p>"
+        "</div>"
+    )
+    try:
+        email_id = await send_email(to=to_email, subject=f"BEVID · Votre bon de commande #{order_short}", html=html)
+    except HTTPException:
+        raise
+    await db.activities.insert_one(Activity(
+        client_id=o["client_id"], agent_id=user["id"], type="email",
+        content=f"PDF commande #{o['id'][:8]} envoyé par email à {to_email}",
+        owner_id=o.get("owner_id", user["id"])
+    ).model_dump())
+    await audit_log(user["id"], "order_pdf_email_sent", {"order_id": oid, "to": to_email})
+    return {"ok": True, "email_id": email_id, "to": to_email, "expires": exp}
 
 app.include_router(api_router)
 

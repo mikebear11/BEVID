@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { CloudDownload, AlertTriangle, ShoppingCart, ClipboardCheck, X } from "lucide-react";
+import { CloudDownload, AlertTriangle, ShoppingCart, ClipboardCheck, X, Wrench } from "lucide-react";
 import { toast } from "sonner";
+import ConflictPlaybookModal from "./ConflictPlaybookModal";
 
 /**
  * Feed en-tête du dashboard : visites & commandes qui viennent d'arriver
@@ -11,6 +12,7 @@ import { toast } from "sonner";
 export default function SyncFeed() {
   const [feed, setFeed] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [playbookId, setPlaybookId] = useState(null);
 
   const load = async () => {
     try { const { data } = await api.get("/dashboard/sync-feed?minutes=60"); setFeed(data); }
@@ -37,15 +39,27 @@ export default function SyncFeed() {
       {/* Conflits en tête */}
       {feed.conflicts.length > 0 && (
         <div className="space-y-2 mb-3">
-          {feed.conflicts.map(c => (
-            <div key={c.id} className="flex items-start gap-2 p-2 rounded-lg bg-red-50 border border-red-200" data-testid={`conflict-${c.id}`}>
-              <AlertTriangle size={14} className="text-red-600 mt-0.5 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-red-900">Conflit resync — {c.kind}</p>
-                <p className="text-xs text-red-800">{c.reason}</p>
-                {c.extra?.client_name && <p className="text-[10px] text-red-700 mt-0.5">Client : {c.extra.client_name}</p>}
+          {feed.conflicts.filter(c => !c.resolved_at).map(c => (
+            <div key={c.id} className="p-2.5 rounded-lg bg-red-50 border border-red-200" data-testid={`conflict-${c.id}`}>
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="text-red-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-red-900">Conflit resync — {c.kind}</p>
+                  <p className="text-xs text-red-800">{c.reason}</p>
+                  {c.extra?.client_name && <p className="text-[10px] text-red-700 mt-0.5">Client : {c.extra.client_name}</p>}
+                </div>
+                <button onClick={() => dismiss(c.id)} className="text-red-700 hover:text-red-900 min-w-[36px] min-h-[36px] flex items-center justify-center" title="Écarter" data-testid={`dismiss-conflict-${c.id}`}><X size={14} /></button>
               </div>
-              <button onClick={() => dismiss(c.id)} className="text-red-700 hover:text-red-900 min-w-[36px] min-h-[36px] flex items-center justify-center" data-testid={`dismiss-conflict-${c.id}`}><X size={14} /></button>
+              {c.kind === "order" && (
+                <div className="mt-2 ml-6">
+                  <button
+                    onClick={() => setPlaybookId(c.id)}
+                    className="bg-red-700 hover:bg-red-800 text-white text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5 min-h-[36px]"
+                    data-testid={`playbook-open-${c.id}`}>
+                    <Wrench size={12} /> Rembourser + prévenir client
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -74,6 +88,13 @@ export default function SyncFeed() {
             </div>
           ))}
         </div>
+      )}
+      {playbookId && (
+        <ConflictPlaybookModal
+          conflictId={playbookId}
+          onClose={() => setPlaybookId(null)}
+          onResolved={load}
+        />
       )}
     </div>
   );

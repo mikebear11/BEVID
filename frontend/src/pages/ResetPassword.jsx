@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function ResetPassword() {
   const { token } = useParams();
@@ -45,11 +46,11 @@ export default function ResetPassword() {
             <p className="text-sm text-stone-600">Choisissez un mot de passe sûr (8 caractères minimum).</p>
             <div>
               <label className="text-xs text-stone-600">Nouveau mot de passe</label>
-              <input type="password" required minLength={8} value={pwd} onChange={e => setPwd(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="reset-new" />
+              <PasswordInput required minLength={8} value={pwd} onChange={e => setPwd(e.target.value)} className="mt-1" autoComplete="new-password" data-testid="reset-new" />
             </div>
             <div>
               <label className="text-xs text-stone-600">Confirmer</label>
-              <input type="password" required minLength={8} value={confirm} onChange={e => setConfirm(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="reset-confirm" />
+              <PasswordInput required minLength={8} value={confirm} onChange={e => setConfirm(e.target.value)} className="mt-1" autoComplete="new-password" data-testid="reset-confirm" />
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full min-h-[48px]" data-testid="reset-submit">
               {loading ? "…" : "Enregistrer"}

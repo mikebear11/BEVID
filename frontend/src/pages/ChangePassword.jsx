@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function ChangePassword() {
   const { t } = useI18n();
@@ -35,16 +36,16 @@ export default function ChangePassword() {
       <form onSubmit={submit} className="space-y-4 bg-white p-6 rounded-2xl border border-stone-200">
         <div>
           <label className="text-xs text-stone-600">{t("old_password")}</label>
-          <input type="password" required value={old_password} onChange={e => setOld(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="cp-old" />
+          <PasswordInput required value={old_password} onChange={e => setOld(e.target.value)} className="mt-1" autoComplete="current-password" data-testid="cp-old" />
         </div>
         <div>
           <label className="text-xs text-stone-600">{t("new_password")}</label>
-          <input type="password" required minLength={8} value={new_password} onChange={e => setNew(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="cp-new" />
+          <PasswordInput required minLength={8} value={new_password} onChange={e => setNew(e.target.value)} className="mt-1" autoComplete="new-password" data-testid="cp-new" />
           <p className="text-xs text-stone-500 mt-1">8 caractères minimum.</p>
         </div>
         <div>
           <label className="text-xs text-stone-600">{t("confirm")}</label>
-          <input type="password" required minLength={8} value={confirm} onChange={e => setConfirm(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="cp-confirm" />
+          <PasswordInput required minLength={8} value={confirm} onChange={e => setConfirm(e.target.value)} className="mt-1" autoComplete="new-password" data-testid="cp-confirm" />
         </div>
         <button type="submit" disabled={loading} className="btn-primary w-full min-h-[48px]" data-testid="cp-submit">
           {loading ? "…" : t("save")}

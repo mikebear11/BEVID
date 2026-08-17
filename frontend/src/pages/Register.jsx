@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function Register() {
   const { register } = useAuth();
@@ -52,7 +53,7 @@ export default function Register() {
         </div>
         <div>
           <label className="text-xs text-stone-600">{t("password")}</label>
-          <input type="password" required minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="input-crm mt-1 min-h-[48px]" data-testid="register-password" />
+          <PasswordInput required minLength={8} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="mt-1" autoComplete="new-password" data-testid="register-password" />
         </div>
         <div>
           <label className="text-xs text-stone-600">{t("role")}</label>

@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { Wine } from "lucide-react";
 import BevidLogo from "@/components/BevidLogo";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function Login() {
   const { login } = useAuth();
@@ -72,7 +73,7 @@ export default function Login() {
                 {t("forgot_password")}
               </Link>
             </div>
-            <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="login-password" />
+            <PasswordInput required value={password} onChange={e => setPassword(e.target.value)} className="mt-1" autoComplete="current-password" data-testid="login-password" />
           </div>
           <button type="submit" disabled={loading} className="btn-primary w-full min-h-[48px]" data-testid="login-submit">
             {loading ? "…" : t("login")}
