@@ -23,6 +23,8 @@ import Deals from "@/pages/Deals";
 import Connectors from "@/pages/Connectors";
 import SettingsPage from "@/pages/Settings";
 import SmartGoals from "@/pages/SmartGoals";
+import Tournee from "@/pages/Tournee";
+import Etablissement360 from "@/pages/Etablissement360";
 import PublicSignature from "@/pages/PublicSignature";
 
 function Protected({ children }) {
@@ -58,6 +60,8 @@ function App() {
               <Route path="/connectors" element={<Protected><Connectors /></Protected>} />
               <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
               <Route path="/smart-goals" element={<Protected><SmartGoals /></Protected>} />
+              <Route path="/tournee" element={<Protected><Tournee /></Protected>} />
+              <Route path="/etab/:id" element={<Protected><Etablissement360 /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

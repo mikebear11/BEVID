@@ -7,3 +7,11 @@ crons:
     method: POST
     # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
     enabled: true
+  - name: deviation-alerts
+    description: "Calcule chaque lundi les écarts fréquence/volume et génère les alertes classées par enjeu"
+    cron: "0 6 * * 1"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/deviation-alerts"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

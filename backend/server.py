@@ -1856,6 +1856,574 @@ async def anniversaries(days: int = 30, user=Depends(get_current_user)):
     items.sort(key=lambda x: x["date"])
     return {"count": len(items), "items": items}
 
+# ---------- BRASSERIE LOT 1 : ESTABLISHMENTS / PRICE LISTS / DEROGATIONS ----------
+class Establishment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    siret: Optional[str] = ""
+    type: Literal["bar", "restaurant", "caviste", "hotel", "epicerie", "autre"] = "bar"
+    address: Optional[str] = ""
+    city: Optional[str] = ""
+    postal_code: Optional[str] = ""
+    region: Optional[str] = ""
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    price_list_id: Optional[str] = None
+    credit_limit: float = 0.0
+    current_credit: float = 0.0
+    overdue_amount: float = 0.0
+    overdue_days: int = 0
+    tags: List[str] = []
+    notes: Optional[str] = ""
+    assigned_to: Optional[str] = None
+    active: bool = True
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+def credit_color(est: dict) -> str:
+    limit = est.get("credit_limit") or 0
+    current = est.get("current_credit") or 0
+    overdue_days = est.get("overdue_days") or 0
+    if overdue_days > 30 or (limit and current >= limit):
+        return "rouge"
+    if overdue_days > 0 or (limit and current >= limit * 0.6):
+        return "orange"
+    return "vert"
+
+class PriceList(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    is_default: bool = False
+    currency: str = "EUR"
+    max_discount_pct: float = 15.0
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+class PriceListItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    price_list_id: str
+    product_id: str
+    unit_price: float
+    min_qty: int = 1
+    max_discount_pct: Optional[float] = None
+
+class Derogation(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    establishment_id: str
+    agent_id: str
+    reason: str
+    requested_amount: float
+    status: Literal["pending", "approved", "rejected"] = "pending"
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+def strip_cost_fields(role: str, obj: dict) -> dict:
+    if role != "gerant" and role != "manager":
+        for k in ["cost_price", "margin_target", "margin", "cost"]:
+            obj.pop(k, None)
+    return obj
+
+@api_router.get("/establishments")
+async def list_establishments(user=Depends(get_current_user)):
+    is_mgr = user["role"] in ("manager", "gerant")
+    q = {} if is_mgr else {"assigned_to": user["id"]}
+    items = await db.establishments.find(q, {"_id": 0}).sort("name", 1).to_list(2000)
+    for e in items:
+        e["credit_status"] = credit_color(e)
+    return items
+
+@api_router.post("/establishments")
+async def create_establishment(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    data.setdefault("assigned_to", user["id"])
+    e = Establishment(**data)
+    doc = e.model_dump()
+    doc["credit_status"] = credit_color(doc)
+    await db.establishments.insert_one(doc.copy())
+    return doc
+
+@api_router.get("/establishments/{eid}")
+async def get_establishment(eid: str, user=Depends(get_current_user)):
+    e = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not e:
+        raise HTTPException(404, "Établissement introuvable")
+    e["credit_status"] = credit_color(e)
+    # top 3 references from last 12 months
+    from datetime import timedelta as _td
+    since = (datetime.now(timezone.utc) - _td(days=365)).isoformat()
+    orders = await db.orders.find({"client_id": eid, "created_at": {"$gte": since}}, {"_id": 0}).to_list(500)
+    from collections import defaultdict
+    stats = defaultdict(lambda: {"qty": 0, "name": ""})
+    volumes_by_month = defaultdict(float)
+    for o in orders:
+        volumes_by_month[o.get("created_at", "")[:7]] += o.get("total", 0)
+        for l in o.get("lines", []):
+            stats[l["product_id"]]["qty"] += l["quantity"]
+            stats[l["product_id"]]["name"] = l["product_name"]
+    top3 = sorted([{"product_id": k, **v} for k, v in stats.items()], key=lambda x: -x["qty"])[:3]
+    last_visit = await db.visits.find_one({"client_id": eid}, {"_id": 0}, sort=[("created_at", -1)])
+    return {**e, "top_products": top3, "volumes_12m": [{"month": k, "ca": round(v, 2)} for k, v in sorted(volumes_by_month.items())], "last_visit": last_visit}
+
+@api_router.put("/establishments/{eid}")
+async def update_est(eid: str, data: dict, user=Depends(get_current_user)):
+    data.pop("id", None); data.pop("_id", None); data.pop("owner_id", None)
+    data["updated_at"] = now_iso()
+    await db.establishments.update_one({"id": eid}, {"$set": data})
+    return await db.establishments.find_one({"id": eid}, {"_id": 0})
+
+@api_router.get("/price-lists")
+async def list_price_lists(user=Depends(get_current_user)):
+    return await db.price_lists.find({}, {"_id": 0}).to_list(200)
+
+@api_router.post("/price-lists")
+async def create_price_list(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    p = PriceList(**data)
+    await db.price_lists.insert_one(p.model_dump())
+    return p.model_dump()
+
+@api_router.get("/price-lists/{plid}/items")
+async def price_list_items(plid: str, user=Depends(get_current_user)):
+    return await db.price_list_items.find({"price_list_id": plid}, {"_id": 0}).to_list(2000)
+
+@api_router.put("/price-lists/{plid}/items")
+async def upsert_price_list_item(plid: str, data: dict, user=Depends(get_current_user)):
+    data["price_list_id"] = plid
+    q = {"price_list_id": plid, "product_id": data.get("product_id")}
+    existing = await db.price_list_items.find_one(q)
+    if existing:
+        await db.price_list_items.update_one(q, {"$set": {"unit_price": float(data.get("unit_price", 0)), "min_qty": int(data.get("min_qty", 1))}})
+    else:
+        item = PriceListItem(**data)
+        await db.price_list_items.insert_one(item.model_dump())
+    return {"ok": True}
+
+@api_router.get("/establishments/{eid}/catalog")
+async def establishment_catalog(eid: str, user=Depends(get_current_user)):
+    """Retourne le catalogue avec les prix personnalisés + quantités habituelles depuis historique."""
+    e = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not e:
+        raise HTTPException(404, "Établissement introuvable")
+    products = await db.products.find({}, {"_id": 0}).to_list(2000)
+    pl_id = e.get("price_list_id")
+    price_map = {}
+    if pl_id:
+        items = await db.price_list_items.find({"price_list_id": pl_id}, {"_id": 0}).to_list(2000)
+        price_map = {i["product_id"]: i for i in items}
+    # habitual qty from last 6 months
+    from datetime import timedelta as _td
+    since = (datetime.now(timezone.utc) - _td(days=180)).isoformat()
+    orders = await db.orders.find({"client_id": eid, "created_at": {"$gte": since}}, {"_id": 0}).to_list(500)
+    from collections import defaultdict
+    qty_stats = defaultdict(list)
+    for o in orders:
+        for l in o.get("lines", []):
+            qty_stats[l["product_id"]].append(l["quantity"])
+    result = []
+    for p in products:
+        pm = price_map.get(p["id"])
+        unit_price = pm["unit_price"] if pm else p.get("price", 0)
+        qtys = qty_stats.get(p["id"], [])
+        habitual_qty = round(sum(qtys) / len(qtys)) if qtys else 0
+        result.append(strip_cost_fields(user["role"], {
+            **p, "unit_price_client": unit_price,
+            "habitual_qty": habitual_qty,
+            "on_price_list": pm is not None,
+        }))
+    max_discount = 15.0
+    if pl_id:
+        pl = await db.price_lists.find_one({"id": pl_id}, {"_id": 0}) or {}
+        max_discount = pl.get("max_discount_pct", 15.0)
+    return {"establishment": {**e, "credit_status": credit_color(e)}, "products": result, "max_discount_pct": max_discount}
+
+@api_router.post("/derogations")
+async def create_derogation(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    data["agent_id"] = user["id"]
+    d = Derogation(**data)
+    await db.derogations.insert_one(d.model_dump())
+    # notify gerant via alert
+    await db.alerts.insert_one({
+        "id": str(uuid.uuid4()), "target_role": "gerant", "kind": "derogation_requested",
+        "establishment_id": data.get("establishment_id"), "payload": d.model_dump(),
+        "severity": "high", "seen": False, "created_at": now_iso(),
+    })
+    return d.model_dump()
+
+@api_router.get("/derogations")
+async def list_derogations(status: Optional[str] = None, user=Depends(get_current_user)):
+    q = {} if user["role"] in ("manager", "gerant") else {"agent_id": user["id"]}
+    if status: q["status"] = status
+    return await db.derogations.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+
+@api_router.put("/derogations/{did}")
+async def review_derogation(did: str, data: dict, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant"):
+        raise HTTPException(403, "Manager only")
+    st = data.get("status")
+    if st not in ("approved", "rejected"):
+        raise HTTPException(400, "status invalide")
+    await db.derogations.update_one({"id": did}, {"$set": {"status": st, "reviewed_by": user["id"], "reviewed_at": now_iso()}})
+    return await db.derogations.find_one({"id": did}, {"_id": 0})
+
+# ---------- SYNC BOOTSTRAP (offline PWA) ----------
+@api_router.get("/sync/bootstrap")
+async def sync_bootstrap(user=Depends(get_current_user)):
+    """Dump initial pour hydratation IndexedDB du portefeuille du commercial."""
+    from datetime import timedelta as _td
+    since_12m = (datetime.now(timezone.utc) - _td(days=365)).isoformat()
+    is_mgr = user["role"] in ("manager", "gerant")
+    est_q = {} if is_mgr else {"assigned_to": user["id"]}
+    establishments = await db.establishments.find(est_q, {"_id": 0}).to_list(5000)
+    for e in establishments:
+        e["credit_status"] = credit_color(e)
+    est_ids = [e["id"] for e in establishments]
+    products = await db.products.find({}, {"_id": 0}).to_list(5000)
+    products = [strip_cost_fields(user["role"], p) for p in products]
+    price_lists = await db.price_lists.find({}, {"_id": 0}).to_list(200)
+    price_list_items = await db.price_list_items.find({}, {"_id": 0}).to_list(20000)
+    orders_q = {"created_at": {"$gte": since_12m}}
+    if not is_mgr: orders_q["client_id"] = {"$in": est_ids}
+    orders = await db.orders.find(orders_q, {"_id": 0}).to_list(20000)
+    visits_q = {"created_at": {"$gte": since_12m}}
+    if not is_mgr: visits_q["client_id"] = {"$in": est_ids}
+    visits = await db.visits.find(visits_q, {"_id": 0}).to_list(10000)
+    return {
+        "user": {k: user[k] for k in user if k != "password"},
+        "server_time": now_iso(),
+        "establishments": establishments,
+        "products": products,
+        "price_lists": price_lists,
+        "price_list_items": price_list_items,
+        "orders": orders,
+        "visits": visits,
+    }
+
+@api_router.post("/sync/push")
+async def sync_push(data: dict, user=Depends(get_current_user)):
+    """Recoit une file d'opérations locales. Détecte conflits (updated_at serveur > client)."""
+    conflicts = []
+    applied = []
+    for op in data.get("operations", []):
+        entity = op.get("entity")  # visits, orders, establishments
+        payload = op.get("payload", {})
+        local_id = op.get("local_id")
+        col = getattr(db, entity, None)
+        if col is None:
+            continue
+        eid = payload.get("id")
+        if eid:
+            server = await col.find_one({"id": eid}, {"_id": 0})
+            if server and server.get("updated_at") and payload.get("client_base_updated_at"):
+                if server["updated_at"] > payload["client_base_updated_at"]:
+                    conflicts.append({"entity": entity, "id": eid, "local_id": local_id, "server_version": server})
+                    await db.sync_conflicts.insert_one({"id": str(uuid.uuid4()), "entity": entity, "record_id": eid, "local_payload": payload, "server_version": server, "user_id": user["id"], "created_at": now_iso()})
+                    continue
+        payload["owner_id"] = payload.get("owner_id", user["id"])
+        payload["updated_at"] = now_iso()
+        payload.pop("client_base_updated_at", None)
+        if not eid:
+            payload["id"] = str(uuid.uuid4())
+        await col.update_one({"id": payload["id"]}, {"$set": payload}, upsert=True)
+        applied.append({"entity": entity, "id": payload["id"], "local_id": local_id})
+    return {"applied": applied, "conflicts": conflicts}
+
+@api_router.get("/sync/conflicts")
+async def sync_conflicts(user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant"):
+        raise HTTPException(403, "Manager only")
+    return await db.sync_conflicts.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+
+# ---------- BRASSERIE LOT 1 SUITE : PRODUITS ENRICHIS / SEGMENTS / ALERTES / CARNET / MARGES ----------
+class ProductEnriched(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_id: str
+    style: Optional[str] = ""
+    abv: Optional[float] = None
+    formats: List[str] = []
+    arguments: List[str] = []
+    accords: Optional[str] = ""
+    cible: Optional[str] = ""
+    stock_status: Literal["disponible", "tension", "epuise"] = "disponible"
+    stock_updated_at: Optional[str] = None
+    documents: List[dict] = []  # [{name, url, kind}]
+    updated_at: str = Field(default_factory=now_iso)
+
+@api_router.get("/products/{pid}/enriched")
+async def get_enriched(pid: str, user=Depends(get_current_user)):
+    e = await db.product_enriched.find_one({"product_id": pid}, {"_id": 0})
+    return e or {"product_id": pid, "style": "", "arguments": [], "documents": [], "stock_status": "disponible"}
+
+@api_router.put("/products/{pid}/enriched")
+async def upsert_enriched(pid: str, data: dict, user=Depends(get_current_user)):
+    data["product_id"] = pid
+    data["updated_at"] = now_iso()
+    if data.get("stock_status"):
+        data["stock_updated_at"] = now_iso()
+    existing = await db.product_enriched.find_one({"product_id": pid})
+    if existing:
+        await db.product_enriched.update_one({"product_id": pid}, {"$set": data})
+    else:
+        e = ProductEnriched(**data)
+        await db.product_enriched.insert_one(e.model_dump())
+    return await db.product_enriched.find_one({"product_id": pid}, {"_id": 0})
+
+# ---------- SEGMENTS + FREQUENCE CIBLE ----------
+class Segment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    code: str  # A, B, C, prospect
+    label: str
+    target_visit_days: int  # 21 for A (3 sem)
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+@api_router.get("/segments")
+async def list_segments(user=Depends(get_current_user)):
+    items = await db.segments.find({}, {"_id": 0}).to_list(50)
+    if not items:
+        # bootstrap defaults
+        defaults = [
+            {"code": "A", "label": "Comptes prioritaires", "target_visit_days": 21},
+            {"code": "B", "label": "Comptes réguliers", "target_visit_days": 60},
+            {"code": "C", "label": "Comptes occasionnels", "target_visit_days": 180},
+            {"code": "prospect", "label": "Prospects", "target_visit_days": 30},
+        ]
+        for d in defaults:
+            s = Segment(**d, owner_id=user["id"])
+            await db.segments.insert_one(s.model_dump())
+        items = await db.segments.find({}, {"_id": 0}).to_list(50)
+    return items
+
+@api_router.put("/segments/{sid}")
+async def update_segment(sid: str, data: dict, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant"):
+        raise HTTPException(403, "Manager only")
+    data.pop("id", None); data.pop("_id", None)
+    await db.segments.update_one({"id": sid}, {"$set": data})
+    return await db.segments.find_one({"id": sid}, {"_id": 0})
+
+@api_router.get("/tasks/today")
+async def tasks_today(user=Depends(get_current_user)):
+    """Liste 'à visiter cette semaine' + rappels next_action datés + alertes écart."""
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    is_mgr = user["role"] in ("manager", "gerant")
+    est_q = {} if is_mgr else {"assigned_to": user["id"]}
+    ests = await db.establishments.find(est_q, {"_id": 0}).to_list(2000)
+    segments = {s["code"]: s for s in await db.segments.find({}, {"_id": 0}).to_list(50)}
+    tasks = []
+    for e in ests:
+        seg = segments.get(e.get("segment", "B"), segments.get("B"))
+        target_days = seg["target_visit_days"] if seg else 60
+        last = await db.visits.find_one({"client_id": e["id"]}, sort=[("created_at", -1)])
+        try:
+            days_since = (now - _dt.fromisoformat(last["created_at"].replace("Z","+00:00"))).days if last else 999
+        except Exception:
+            days_since = 999
+        if days_since >= target_days:
+            urgency = "high" if days_since >= target_days * 1.5 else "medium"
+            tasks.append({"kind": "visite_due", "establishment_id": e["id"], "name": e["name"], "days_since": days_since, "target_days": target_days, "urgency": urgency})
+    # rappels next_action datés
+    upcoming = await db.visits.find({"next_date": {"$gte": now.strftime("%Y-%m-%d"), "$lte": (now + _td(days=7)).strftime("%Y-%m-%d")}}, {"_id": 0}).to_list(200)
+    for v in upcoming:
+        if not is_mgr and v.get("agent_id") != user["id"]:
+            continue
+        tasks.append({"kind": "next_action", "establishment_id": v.get("client_id"), "action": v.get("next_action"), "date": v.get("next_date"), "urgency": "medium"})
+    tasks.sort(key=lambda x: (0 if x["urgency"]=="high" else 1, -x.get("days_since", 0)))
+    return tasks
+
+@api_router.get("/coverage")
+async def coverage(user=Depends(get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    since_30 = (now - _td(days=30)).isoformat()
+    since_90 = (now - _td(days=90)).isoformat()
+    ests = await db.establishments.find({}, {"_id": 0}).to_list(5000)
+    segments = {s["code"]: s for s in await db.segments.find({}, {"_id": 0}).to_list(50)}
+    from collections import defaultdict
+    by_seg = defaultdict(lambda: {"total": 0, "visited_30": 0, "visited_90": 0})
+    for e in ests:
+        code = e.get("segment", "B")
+        by_seg[code]["total"] += 1
+        v30 = await db.visits.find_one({"client_id": e["id"], "created_at": {"$gte": since_30}})
+        v90 = await db.visits.find_one({"client_id": e["id"], "created_at": {"$gte": since_90}})
+        if v30: by_seg[code]["visited_30"] += 1
+        if v90: by_seg[code]["visited_90"] += 1
+    result = []
+    for code, stats in by_seg.items():
+        seg = segments.get(code, {})
+        pct_30 = round(stats["visited_30"] / stats["total"] * 100, 1) if stats["total"] else 0
+        pct_90 = round(stats["visited_90"] / stats["total"] * 100, 1) if stats["total"] else 0
+        result.append({"segment": code, "label": seg.get("label", code), "total": stats["total"], "coverage_30d": pct_30, "coverage_90d": pct_90})
+    return result
+
+# ---------- ALERTES ECART FREQUENCE + VOLUME (cron hebdo) ----------
+class AlertRule(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    freq_deviation_pct: float = 25.0  # écart >25% = alerte
+    volume_deviation_pct: float = 20.0
+    high_volume_hl: float = 20.0  # >20hL/an = enjeu high
+    medium_volume_hl: float = 5.0
+    owner_id: str
+
+@api_router.get("/alerts/deviation-rules")
+async def get_rules(user=Depends(get_current_user)):
+    r = await db.alert_rules.find_one({}, {"_id": 0})
+    return r or AlertRule(owner_id=user["id"]).model_dump()
+
+@api_router.put("/alerts/deviation-rules")
+async def set_rules(data: dict, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant"):
+        raise HTTPException(403, "Manager only")
+    existing = await db.alert_rules.find_one({})
+    if existing:
+        await db.alert_rules.update_one({"id": existing["id"]}, {"$set": data})
+    else:
+        data["owner_id"] = user["id"]
+        r = AlertRule(**data)
+        await db.alert_rules.insert_one(r.model_dump())
+    return await db.alert_rules.find_one({}, {"_id": 0})
+
+async def _compute_deviations():
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    rules = await db.alert_rules.find_one({}, {"_id": 0}) or AlertRule(owner_id="system").model_dump()
+    ests = await db.establishments.find({}, {"_id": 0}).to_list(5000)
+    created = 0
+    for e in ests:
+        # Frequency deviation : compare last 90j vs previous 90j
+        orders_last = await db.orders.find({"client_id": e["id"], "created_at": {"$gte": (now - _td(days=90)).isoformat()}}, {"_id": 0}).to_list(500)
+        orders_prev = await db.orders.find({"client_id": e["id"], "created_at": {"$gte": (now - _td(days=180)).isoformat(), "$lt": (now - _td(days=90)).isoformat()}}, {"_id": 0}).to_list(500)
+        if not orders_prev:
+            continue
+        freq_dev = ((len(orders_last) - len(orders_prev)) / len(orders_prev)) * 100
+        # Volume deviation vs same period year ago
+        orders_ya = await db.orders.find({"client_id": e["id"], "created_at": {"$gte": (now - _td(days=455)).isoformat(), "$lt": (now - _td(days=365)).isoformat()}}, {"_id": 0}).to_list(500)
+        vol_last = sum(o.get("total", 0) for o in orders_last)
+        vol_ya = sum(o.get("total", 0) for o in orders_ya) if orders_ya else 0
+        vol_dev = ((vol_last - vol_ya) / vol_ya * 100) if vol_ya else 0
+        annual_hl = e.get("annual_volume_hl", 0)
+        severity = "low"
+        if annual_hl >= rules["high_volume_hl"]: severity = "high"
+        elif annual_hl >= rules["medium_volume_hl"]: severity = "medium"
+        if abs(freq_dev) > rules["freq_deviation_pct"] or abs(vol_dev) > rules["volume_deviation_pct"]:
+            await db.alerts.insert_one({
+                "id": str(uuid.uuid4()), "target_user_id": e.get("assigned_to"),
+                "kind": "deviation", "establishment_id": e["id"],
+                "payload": {"freq_dev_pct": round(freq_dev,1), "vol_dev_pct": round(vol_dev,1), "annual_hl": annual_hl, "name": e["name"]},
+                "severity": severity, "seen": False, "created_at": now_iso(),
+            })
+            created += 1
+    return created
+
+@api_router.post("/cron/deviation-alerts")
+async def cron_deviation(request: Request, authorization: Optional[str] = Header(None)):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    import hmac, asyncio
+    if not authorization or not authorization.startswith("Bearer ") or not hmac.compare_digest(authorization.split(" ",1)[1], WEBHOOK_CRON_SECRET):
+        raise HTTPException(401, "auth invalide")
+    asyncio.create_task(_compute_deviations())
+    return {"status": "queued"}
+
+# ---------- CARNET COMMANDES SIGNÉES NON LIVRÉES + PRÉVISION ----------
+@api_router.get("/orderbook")
+async def orderbook(user=Depends(get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    is_mgr = user["role"] in ("manager", "gerant")
+    q = {"status": {"$in": ["signee", "confirme", "validee"]}, "delivery_status": {"$ne": "livree"}}
+    if not is_mgr: q["agent_id"] = user["id"]
+    orders = await db.orders.find(q, {"_id": 0}).to_list(2000)
+    from collections import defaultdict
+    signed_by_week = defaultdict(lambda: defaultdict(float))
+    for o in orders:
+        d = o.get("delivery_date") or o.get("created_at","")[:10]
+        try:
+            dt = _dt.fromisoformat(d)
+            wk = dt.strftime("%Y-W%W")
+        except Exception:
+            wk = "unknown"
+        for l in o.get("lines", []):
+            signed_by_week[wk][l["product_name"]] += l["quantity"]
+    # Forecast: intentions from visits + historical avg
+    intentions = await db.visits.find({"volume_previsionnel": {"$gt": 0}}, {"_id": 0}).to_list(500)
+    hist_avg_weekly = 0
+    all_orders_year = await db.orders.find({"created_at": {"$gte": (now - _td(days=365)).isoformat()}}, {"_id": 0}).to_list(20000)
+    if all_orders_year:
+        total_units = sum(l["quantity"] for o in all_orders_year for l in o.get("lines", []))
+        hist_avg_weekly = round(total_units / 52, 1)
+    return {
+        "signed_by_week": {wk: dict(prods) for wk, prods in signed_by_week.items()},
+        "intentions_count": len(intentions),
+        "intentions_total_units": sum(v.get("volume_previsionnel", 0) for v in intentions),
+        "historical_avg_weekly_units": hist_avg_weekly,
+        "signed_count": len(orders),
+    }
+
+# ---------- MARGES (gerant only) ----------
+class ProductCost(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_id: str
+    cost_matieres: float = 0.0
+    cost_emballage: float = 0.0
+    cost_mo: float = 0.0
+    cost_accises: float = 0.0
+    total_cost: float = 0.0
+    effective_from: str = Field(default_factory=now_iso)
+    owner_id: str
+
+@api_router.get("/costs/{pid}")
+async def get_cost(pid: str, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant"):
+        raise HTTPException(403, "Manager only")
+    c = await db.product_costs.find_one({"product_id": pid}, {"_id": 0}, sort=[("effective_from", -1)])
+    return c or {"product_id": pid, "total_cost": 0}
+
+@api_router.post("/costs/{pid}")
+async def set_cost(pid: str, data: dict, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant"):
+        raise HTTPException(403, "Manager only")
+    data["product_id"] = pid
+    data["total_cost"] = sum([float(data.get(k, 0)) for k in ["cost_matieres", "cost_emballage", "cost_mo", "cost_accises"]])
+    data["owner_id"] = user["id"]
+    c = ProductCost(**data)
+    await db.product_costs.insert_one(c.model_dump())
+    return c.model_dump()
+
+@api_router.get("/margins/top-clients")
+async def top_margin_clients(user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant"):
+        raise HTTPException(403, "Manager only")
+    orders = await db.orders.find({}, {"_id": 0}).to_list(20000)
+    costs = {c["product_id"]: c["total_cost"] async for c in db.product_costs.find({}, {"_id": 0})}
+    from collections import defaultdict
+    margin_by_client = defaultdict(lambda: {"name": "", "ca": 0, "marge": 0, "discount_pcts": []})
+    neg_lines = []
+    for o in orders:
+        cid = o["client_id"]; margin_by_client[cid]["name"] = o["client_name"]
+        for l in o.get("lines", []):
+            revenue = l["quantity"] * l["unit_price"]
+            cost = costs.get(l["product_id"], 0) * l["quantity"]
+            margin = revenue - cost
+            margin_by_client[cid]["ca"] += revenue
+            margin_by_client[cid]["marge"] += margin
+            if margin < 0:
+                neg_lines.append({"client": o["client_name"], "product": l["product_name"], "margin": round(margin, 2)})
+    result = [{"client_id": k, "name": v["name"], "ca": round(v["ca"], 2), "marge": round(v["marge"], 2), "taux_marge_pct": round(v["marge"]/v["ca"]*100, 1) if v["ca"] else 0} for k, v in margin_by_client.items()]
+    result.sort(key=lambda x: -x["marge"])
+    return {"top10_marge": result[:10], "lignes_marge_negative": neg_lines[:20]}
+
 @api_router.get("/")
 async def root():
     return {"service": "CRM Boisson API", "status": "ok"}
