@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { ArrowLeft, Sparkles, Plus, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Plus, Loader2, Trash2, Repeat, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ClientDetail() {
@@ -9,19 +9,22 @@ export default function ClientDetail() {
   const [c, setC] = useState(null);
   const [orders, setOrders] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [stats, setStats] = useState(null);
   const [insight, setInsight] = useState("");
   const [loadingAI, setLoadingAI] = useState(false);
   const [note, setNote] = useState("");
 
   const load = async () => {
-    const [{ data: client }, { data: ords }, { data: acts }] = await Promise.all([
+    const [{ data: client }, { data: ords }, { data: acts }, { data: st }] = await Promise.all([
       api.get(`/clients/${id}`),
       api.get(`/orders`),
       api.get(`/activities?client_id=${id}`),
+      api.get(`/clients/${id}/stats`),
     ]);
     setC(client);
     setOrders(ords.filter(o => o.client_id === id));
     setActivities(acts);
+    setStats(st);
   };
   useEffect(() => { load(); }, [id]);
 
@@ -46,6 +49,14 @@ export default function ClientDetail() {
     if (!confirm("Supprimer ce client ?")) return;
     await api.delete(`/clients/${id}`);
     window.location.href = "/clients";
+  };
+
+  const reorder = async (oid) => {
+    try {
+      await api.post(`/orders/reorder/${oid}`);
+      toast.success("Recommande créée");
+      load();
+    } catch { toast.error("Erreur"); }
   };
 
   if (!c) return <div className="text-stone-500">Chargement…</div>;
@@ -76,10 +87,11 @@ export default function ClientDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card-crm p-5"><p className="overline">CA total</p><div className="font-display text-3xl text-[#2D5A4C] mt-1">{totalCa.toLocaleString('fr-FR')} €</div></div>
-        <div className="card-crm p-5"><p className="overline">Commandes</p><div className="font-display text-3xl mt-1">{orders.length}</div></div>
-        <div className="card-crm p-5"><p className="overline">Activités</p><div className="font-display text-3xl mt-1">{activities.length}</div></div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card-crm p-5"><p className="overline">CA total</p><div className="font-display text-2xl md:text-3xl text-[#2D5A4C] mt-1">{(stats?.total_ca ?? totalCa).toLocaleString('fr-FR')} €</div></div>
+        <div className="card-crm p-5"><p className="overline">Panier moyen</p><div className="font-display text-2xl md:text-3xl text-[#4A154B] mt-1 flex items-center gap-1"><TrendingUp size={16} />{(stats?.avg_basket ?? 0).toLocaleString('fr-FR')} €</div></div>
+        <div className="card-crm p-5"><p className="overline">Commandes</p><div className="font-display text-2xl md:text-3xl mt-1">{orders.length}</div><p className="text-[10px] text-stone-500 mt-1">{stats?.frequency_days ? `~ tous les ${stats.frequency_days}j` : ""}</p></div>
+        <div className="card-crm p-5"><p className="overline">Activités</p><div className="font-display text-2xl md:text-3xl mt-1">{activities.length}</div></div>
       </div>
 
       {insight && (
@@ -98,12 +110,17 @@ export default function ClientDetail() {
           <div className="space-y-2">
             {orders.length === 0 && <p className="text-sm text-stone-500">Aucune commande</p>}
             {orders.map(o => (
-              <div key={o.id} className="flex justify-between text-sm border-b border-stone-100 pb-2">
+              <div key={o.id} className="flex justify-between items-center text-sm border-b border-stone-100 pb-2">
                 <div>
                   <div className="font-medium">#{o.id.slice(0,8)}</div>
                   <div className="text-xs text-stone-500">{o.created_at.slice(0,10)} · {o.lines.length} lignes</div>
                 </div>
-                <div className="font-display text-[#2D5A4C]">{o.total.toLocaleString('fr-FR')} €</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-display text-[#2D5A4C]">{o.total.toLocaleString('fr-FR')} €</div>
+                  <button onClick={() => reorder(o.id)} className="text-stone-400 hover:text-[#4A154B] p-1" title="Recommander en 1 clic" data-testid={`reorder-${o.id}`}>
+                    <Repeat size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

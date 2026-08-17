@@ -2,16 +2,21 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from "recharts";
-import { TrendingUp, Users, ShoppingCart, Award, Sparkles } from "lucide-react";
+import { TrendingUp, Users, ShoppingCart, Award, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import FollowUpsWidget from "@/components/FollowUpsWidget";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [k, setK] = useState(null);
   const [seeding, setSeeding] = useState(false);
+  const [lowStock, setLowStock] = useState({ items: [], count: 0 });
 
   const load = async () => {
-    try { const { data } = await api.get("/dashboard/kpis"); setK(data); }
+    try {
+      const [{ data: kpi }, { data: ls }] = await Promise.all([api.get("/dashboard/kpis"), api.get("/alerts/low-stock?threshold=30")]);
+      setK(kpi); setLowStock(ls);
+    }
     catch(e) { toast.error("Erreur chargement KPIs"); }
   };
   useEffect(() => { load(); }, []);
@@ -49,6 +54,19 @@ export default function Dashboard() {
         )}
       </div>
 
+      {lowStock.count > 0 && (
+        <div className="card-crm p-4 border-l-4 border-l-[#C78B3A] flex items-start gap-3" data-testid="low-stock-banner">
+          <AlertTriangle size={20} className="text-[#C78B3A] flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium text-sm">Alerte stock bas · {lowStock.count} produit{lowStock.count > 1 ? 's' : ''}</p>
+            <p className="text-xs text-stone-600 mt-1">
+              {lowStock.items.slice(0, 5).map(p => `${p.name} (${p.stock})`).join(" · ")}
+              {lowStock.items.length > 5 && ` +${lowStock.items.length - 5} autres`}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {cards.map((c) => (
           <div key={c.label} className="card-crm p-5" data-testid={`kpi-${c.label.toLowerCase().replace(/[^a-z]/g,'-')}`}>
@@ -62,6 +80,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <FollowUpsWidget />
         <div className="card-crm p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-display text-xl">Évolution du CA</h3>

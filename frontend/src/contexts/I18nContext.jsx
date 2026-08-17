@@ -9,6 +9,7 @@ const dict = {
     search: "Rechercher", voice_input: "Saisie vocale", ai_assistant: "Assistant IA",
     revenue: "Chiffre d'affaires", active_clients: "Clients actifs", quick_report: "Rapport 1-clic",
     welcome: "Bienvenue", performance: "Performance", account_analysis: "Analyse du compte",
+    visit: "Visite",
   },
   en: {
     dashboard: "Dashboard", clients: "Clients", products: "Catalog", orders: "Orders",
@@ -18,6 +19,7 @@ const dict = {
     search: "Search", voice_input: "Voice input", ai_assistant: "AI Assistant",
     revenue: "Revenue", active_clients: "Active clients", quick_report: "1-click report",
     welcome: "Welcome", performance: "Performance", account_analysis: "Account analysis",
+    visit: "Visit",
   }
 };
 

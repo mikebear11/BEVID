@@ -1,0 +1,22 @@
+{
+  "summary": "Smoke tested 4 new features (Tours map, PDF+Signature, low-stock banner, CSV import) end-to-end. Backend endpoints (login, low-stock, geocode-all, PDF, CSV bulk-import) all return expected payloads. Frontend integration verified via Playwright: login OK, Leaflet map renders with markers on /tours, geocode-all-btn visible, PDF button triggers /api/orders/{id}/pdf returning 200 application/pdf, sign-btn opens SignaturePad canvas, csv-import-btn accepts file upload. Low-stock banner correctly hidden (0 items <30 in seed).",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login (demo@cellier.fr)",
+    "GET /api/alerts/low-stock?threshold=30 -> {threshold:30, items:[], count:0}",
+    "GET /api/orders/{id}/pdf -> 200 application/pdf 2199 bytes",
+    "POST /api/clients/bulk-import (CSV) -> {created:1, errors:[]}",
+    "Frontend login and navigation",
+    "Dashboard renders (banner absent as expected, no low stock)",
+    "Tours page: leaflet-container present, 1 marker rendered, geocode-all-btn visible",
+    "Orders page: 5 pdf-btn-* and 5 sign-btn-* buttons present; PDF fetch returns 200 application/pdf",
+    "Signature pad canvas opens on sign-btn click",
+    "Clients page: csv-import-btn present, hidden file input accepts CSV"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Only 1 marker visible on map (seed has few geocoded clients in Bordeaux/Marseille area). Low-stock banner data-testid not rendered because no products <30 threshold - this is correct conditional rendering, not a bug."
+}

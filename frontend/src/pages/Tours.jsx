@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Plus, MapPin, Calendar } from "lucide-react";
+import { api, API } from "@/lib/api";
+import { Plus, MapPin, Calendar, Locate, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import TourMap from "@/components/TourMap";
 
 export default function Tours() {
   const [tours, setTours] = useState([]);
   const [clients, setClients] = useState([]);
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ name: "", date: new Date().toISOString().slice(0,10), client_ids: [] });
+  const [selectedTour, setSelectedTour] = useState(null);
+  const [geocoding, setGeocoding] = useState(false);
 
   const load = async () => {
     const [{ data: t }, { data: c }] = await Promise.all([api.get("/tours"), api.get("/clients")]);
     setTours(t); setClients(c);
+    if (!selectedTour && t.length > 0) setSelectedTour(t[0]);
   };
   useEffect(() => { load(); }, []);
 
@@ -20,34 +24,67 @@ export default function Tours() {
   const submit = async (e) => {
     e.preventDefault();
     if (form.client_ids.length === 0) { toast.error("Ajoutez au moins un client"); return; }
-    await api.post("/tours", form);
+    const { data } = await api.post("/tours", form);
     toast.success("Tournée créée");
     setShow(false); setForm({ name: "", date: new Date().toISOString().slice(0,10), client_ids: [] });
+    setSelectedTour(data);
     load();
   };
 
   const setStatus = async (t, status) => {
-    await api.put(`/tours/${t.id}`, { status });
-    load();
+    await api.put(`/tours/${t.id}`, { status }); load();
   };
+
+  const geocodeAll = async () => {
+    setGeocoding(true);
+    try {
+      const { data } = await api.post("/clients/geocode-all");
+      toast.success(`${data.updated} clients géolocalisés`);
+      await load();
+    } catch { toast.error("Erreur géocodage"); }
+    finally { setGeocoding(false); }
+  };
+
+  const mapClients = selectedTour
+    ? clients.filter(c => selectedTour.client_ids?.includes(c.id))
+    : clients;
 
   return (
     <div className="space-y-6" data-testid="tours-page">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
         <div><p className="overline">Planning terrain</p><h1 className="font-display text-4xl">Tournées</h1></div>
-        <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2" data-testid="add-tour-btn"><Plus size={16} /> Nouvelle</button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={geocodeAll} disabled={geocoding} className="btn-ghost flex items-center gap-2" data-testid="geocode-all-btn">
+            {geocoding ? <Loader2 size={14} className="animate-spin" /> : <Locate size={14} />}
+            Géocoder les adresses
+          </button>
+          <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2" data-testid="add-tour-btn"><Plus size={16} /> Nouvelle</button>
+        </div>
+      </div>
+
+      <div className="card-crm p-4 md:p-6">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-display text-xl">Carte {selectedTour ? `· ${selectedTour.name}` : "· Tous les clients"}</h3>
+          {tours.length > 0 && (
+            <select value={selectedTour?.id || ""} onChange={e => setSelectedTour(tours.find(x => x.id === e.target.value))} className="text-xs border border-stone-200 rounded px-2 py-1" data-testid="tour-select">
+              <option value="">Tous les clients</option>
+              {tours.map(t => <option key={t.id} value={t.id}>{t.name} · {t.date}</option>)}
+            </select>
+          )}
+        </div>
+        <TourMap clients={mapClients} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {tours.length === 0 && <p className="text-stone-500 text-sm">Aucune tournée planifiée</p>}
         {tours.map(t => (
-          <div key={t.id} className="card-crm p-5" data-testid={`tour-${t.id}`}>
+          <div key={t.id} className={`card-crm p-5 cursor-pointer ${selectedTour?.id === t.id ? 'border-[#4A154B]' : ''}`} onClick={() => setSelectedTour(t)} data-testid={`tour-${t.id}`}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="overline flex items-center gap-1"><Calendar size={11} /> {t.date}</p>
                 <h3 className="font-display text-xl mt-1">{t.name}</h3>
               </div>
-              <select value={t.status} onChange={e => setStatus(t, e.target.value)} className="text-xs border rounded px-2 py-1">
+              <select value={t.status} onChange={e => { e.stopPropagation(); setStatus(t, e.target.value); }} onClick={e => e.stopPropagation()} className="text-xs border rounded px-2 py-1">
                 <option value="planifiee">Planifiée</option>
                 <option value="en_cours">En cours</option>
                 <option value="terminee">Terminée</option>

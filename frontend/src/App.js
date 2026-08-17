@@ -15,6 +15,7 @@ import Orders from "@/pages/Orders";
 import Tours from "@/pages/Tours";
 import Reports from "@/pages/Reports";
 import Agents from "@/pages/Agents";
+import VisitReport from "@/pages/VisitReport";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -40,6 +41,7 @@ function App() {
               <Route path="/tours" element={<Protected><Tours /></Protected>} />
               <Route path="/reports" element={<Protected><Reports /></Protected>} />
               <Route path="/agents" element={<Protected><Agents /></Protected>} />
+              <Route path="/visit" element={<Protected><VisitReport /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

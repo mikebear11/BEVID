@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Plus, X, Trash2 } from "lucide-react";
+import { api, API } from "@/lib/api";
+import { Plus, X, Trash2, FileDown, PenLine, Repeat } from "lucide-react";
 import { toast } from "sonner";
+import SignaturePad from "@/components/SignaturePad";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -11,6 +12,31 @@ export default function Orders() {
   const [selClient, setSelClient] = useState("");
   const [lines, setLines] = useState([]);
   const [notes, setNotes] = useState("");
+  const [sigOrderId, setSigOrderId] = useState(null);
+
+  const downloadPdf = async (oid) => {
+    const token = localStorage.getItem("crm_token");
+    const res = await fetch(`${API}/orders/${oid}/pdf`, { headers: { Authorization: `Bearer ${token}` } });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `commande-${oid.slice(0,8)}.pdf`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("PDF téléchargé");
+  };
+
+  const saveSignature = async (dataUrl) => {
+    await api.post(`/orders/${sigOrderId}/signature`, { signature: dataUrl });
+    toast.success("Signature enregistrée");
+    setSigOrderId(null); load();
+  };
+
+  const reorder = async (oid) => {
+    try {
+      await api.post(`/orders/reorder/${oid}`);
+      toast.success("Recommande créée en 1 clic");
+      load();
+    } catch { toast.error("Erreur"); }
+  };
 
   const load = async () => {
     const [{ data: o }, { data: c }, { data: p }] = await Promise.all([
@@ -52,17 +78,24 @@ export default function Orders() {
       <div className="card-crm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-stone-50 border-b border-stone-200 text-left overline">
-            <tr><th className="p-3">#</th><th className="p-3">Client</th><th className="p-3 hidden md:table-cell">Date</th><th className="p-3 hidden md:table-cell">Lignes</th><th className="p-3 text-right">Total</th></tr>
+            <tr><th className="p-3">#</th><th className="p-3">Client</th><th className="p-3 hidden md:table-cell">Date</th><th className="p-3 hidden md:table-cell">Lignes</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Actions</th></tr>
           </thead>
           <tbody>
-            {orders.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-stone-500">Aucune commande</td></tr>}
+            {orders.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-500">Aucune commande</td></tr>}
             {orders.map(o => (
-              <tr key={o.id} className="border-b border-stone-100 hover:bg-stone-50">
+              <tr key={o.id} className="border-b border-stone-100 hover:bg-stone-50" data-testid={`order-row-${o.id}`}>
                 <td className="p-3 font-mono text-xs">{o.id.slice(0,8)}</td>
-                <td className="p-3 font-medium">{o.client_name}</td>
+                <td className="p-3 font-medium">{o.client_name} {o.signature && <span className="text-[#2D5A4C] text-xs ml-1">· signée</span>}</td>
                 <td className="p-3 hidden md:table-cell text-stone-600">{o.created_at.slice(0,10)}</td>
                 <td className="p-3 hidden md:table-cell">{o.lines.length}</td>
                 <td className="p-3 text-right font-display text-[#2D5A4C]">{o.total.toLocaleString('fr-FR')} €</td>
+                <td className="p-3 text-right">
+                  <div className="inline-flex gap-1">
+                    <button onClick={() => reorder(o.id)} className="text-stone-500 hover:text-[#2D5A4C] p-1" title="Recommander (1-clic)" data-testid={`reorder-btn-${o.id}`}><Repeat size={14} /></button>
+                    <button onClick={() => setSigOrderId(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="Signer" data-testid={`sign-btn-${o.id}`}><PenLine size={14} /></button>
+                    <button onClick={() => downloadPdf(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="PDF" data-testid={`pdf-btn-${o.id}`}><FileDown size={14} /></button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -109,6 +142,8 @@ export default function Orders() {
           </form>
         </div>
       )}
+
+      {sigOrderId && <SignaturePad onSave={saveSignature} onClose={() => setSigOrderId(null)} />}
     </div>
   );
 }

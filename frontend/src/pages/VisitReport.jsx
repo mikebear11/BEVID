@@ -1,0 +1,149 @@
+import React, { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "@/lib/api";
+import { useVoice } from "@/hooks/useVoice";
+import { Mic, Check, Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+const MOODS = [
+  { v: "excellent", label: "😄 Excellent", color: "#2D5A4C" },
+  { v: "bon", label: "🙂 Bon", color: "#5C8A6A" },
+  { v: "neutre", label: "😐 Neutre", color: "#8A8A8A" },
+  { v: "difficile", label: "😟 Difficile", color: "#8C2A2A" },
+];
+const INTERESTS = [
+  { v: "chaud", label: "🔥 Chaud" },
+  { v: "tiede", label: "🌤 Tiède" },
+  { v: "froid", label: "❄️ Froid" },
+];
+const ACTIONS = [
+  { v: "commande", label: "🛒 Commande" },
+  { v: "devis", label: "📄 Devis" },
+  { v: "relance", label: "📞 Relance" },
+  { v: "visite", label: "🚗 Revisite" },
+  { v: "aucune", label: "— Aucune" },
+];
+
+export default function VisitReport() {
+  const nav = useNavigate();
+  const [params] = useSearchParams();
+  const [clients, setClients] = useState([]);
+  const [form, setForm] = useState({
+    client_id: params.get("client_id") || "",
+    mood: "bon", interest: "tiede", next_action: "relance",
+    next_date: "", summary: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const { supported, listening, transcript, start, stop, reset, setTranscript } = useVoice("fr-FR");
+
+  useEffect(() => { api.get("/clients").then(r => setClients(r.data)); }, []);
+
+  const aiFill = async () => {
+    const text = (transcript || form.summary).trim();
+    if (!text) return;
+    setAiLoading(true);
+    try {
+      const { data } = await api.post("/ai/ask", {
+        prompt: `Depuis ce compte-rendu vocal terrain, extrait STRICTEMENT au format JSON: {"mood":"excellent|bon|neutre|difficile","interest":"chaud|tiede|froid","next_action":"commande|devis|relance|visite|aucune","summary":"résumé de 1-2 phrases"}. Retourne UNIQUEMENT le JSON, sans markdown.\n\nTEXTE: ${text}`,
+      });
+      const clean = data.answer.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      setForm(f => ({ ...f, ...parsed, summary: parsed.summary || text }));
+      toast.success("Formulaire rempli par l'IA");
+    } catch (e) { toast.error("Extraction IA échouée, complétez à la main"); }
+    finally { setAiLoading(false); }
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.client_id) { toast.error("Sélectionnez un client"); return; }
+    setSubmitting(true);
+    try {
+      const payload = { ...form, voice_transcript: transcript, summary: form.summary || transcript };
+      await api.post("/visits", payload);
+      toast.success("Compte-rendu enregistré");
+      nav(`/clients/${form.client_id}`);
+    } catch { toast.error("Erreur"); }
+    finally { setSubmitting(false); }
+  };
+
+  const Chip = ({ active, onClick, children, testId }) => (
+    <button type="button" onClick={onClick} data-testid={testId}
+      className={`px-3 py-2 rounded-full text-sm border transition-colors duration-200 min-h-[44px] ${active ? "bg-[#4A154B] text-white border-[#4A154B]" : "bg-white text-stone-700 border-stone-200 hover:border-[#4A154B]"}`}>
+      {children}
+    </button>
+  );
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6" data-testid="visit-page">
+      <div>
+        <p className="overline">Terrain · Compte-rendu</p>
+        <h1 className="font-display text-4xl">Nouvelle visite</h1>
+        <p className="text-sm text-stone-500 mt-1">Dictez ou tapez en 30 secondes.</p>
+      </div>
+
+      <form onSubmit={submit} className="space-y-5">
+        <div>
+          <label className="overline">Client *</label>
+          <select required value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })} className="input-crm mt-1" data-testid="visit-client">
+            <option value="">— Choisir —</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name} · {c.city}</option>)}
+          </select>
+        </div>
+
+        <div className="card-crm p-4">
+          <div className="flex items-center justify-between mb-2">
+            <label className="overline">Dictée vocale</label>
+            {supported && (
+              <button type="button" onClick={listening ? stop : start} data-testid="visit-mic"
+                className={`w-11 h-11 rounded-full flex items-center justify-center ${listening ? "bg-[#8C2A2A] text-white" : "bg-[#4A154B] text-white"}`}>
+                {listening ? <span className="equalizer"><span/><span/><span/><span/><span/></span> : <Mic size={18} />}
+              </button>
+            )}
+          </div>
+          <textarea rows={3} placeholder="Racontez la visite… ou remplissez juste les boutons ci-dessous" value={transcript || form.summary}
+            onChange={e => { setTranscript(""); setForm({ ...form, summary: e.target.value }); }}
+            className="input-crm" data-testid="visit-summary" />
+          {(transcript || form.summary) && (
+            <button type="button" onClick={aiFill} disabled={aiLoading} className="text-xs text-[#4A154B] font-medium mt-2 flex items-center gap-1" data-testid="visit-ai-fill">
+              {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              Remplir le formulaire avec l'IA
+            </button>
+          )}
+        </div>
+
+        <div>
+          <label className="overline">Ambiance</label>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {MOODS.map(m => <Chip key={m.v} active={form.mood === m.v} onClick={() => setForm({ ...form, mood: m.v })} testId={`mood-${m.v}`}>{m.label}</Chip>)}
+          </div>
+        </div>
+
+        <div>
+          <label className="overline">Intérêt du client</label>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {INTERESTS.map(i => <Chip key={i.v} active={form.interest === i.v} onClick={() => setForm({ ...form, interest: i.v })} testId={`interest-${i.v}`}>{i.label}</Chip>)}
+          </div>
+        </div>
+
+        <div>
+          <label className="overline">Prochaine action</label>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {ACTIONS.map(a => <Chip key={a.v} active={form.next_action === a.v} onClick={() => setForm({ ...form, next_action: a.v })} testId={`action-${a.v}`}>{a.label}</Chip>)}
+          </div>
+        </div>
+
+        <div>
+          <label className="overline">Date prochaine action (optionnel)</label>
+          <input type="date" value={form.next_date} onChange={e => setForm({ ...form, next_date: e.target.value })} className="input-crm mt-1" />
+        </div>
+
+        <button type="submit" disabled={submitting} className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base" data-testid="visit-submit">
+          {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={18} />}
+          Enregistrer le compte-rendu
+        </button>
+      </form>
+    </div>
+  );
+}

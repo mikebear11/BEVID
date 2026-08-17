@@ -1,14 +1,20 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, uuid, jwt, bcrypt
+import os, logging, uuid, jwt, bcrypt, io, csv, base64
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Literal
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+import httpx
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -523,6 +529,306 @@ async def seed_demo(user=Depends(get_current_user)):
             o = Order(client_id=cli["id"], client_name=cli["name"], lines=lines, total=total, agent_id=user["id"], owner_id=user["id"])
             await db.orders.insert_one(o.model_dump())
     return {"ok": True, "products": len(created_products), "clients": len(created_clients)}
+
+# ---------- GEOCODING ----------
+@api_router.post("/clients/{cid}/geocode")
+async def geocode_client(cid: str, user=Depends(get_current_user)):
+    c = await db.clients.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Client introuvable")
+    query = ", ".join([x for x in [c.get("address"), c.get("city")] if x]) or c.get("name", "")
+    if not query:
+        raise HTTPException(400, "Adresse manquante")
+    async with httpx.AsyncClient(timeout=10.0) as hx:
+        r = await hx.get("https://nominatim.openstreetmap.org/search",
+                         params={"q": query, "format": "json", "limit": 1},
+                         headers={"User-Agent": "CellierCRM/1.0"})
+    results = r.json() if r.status_code == 200 else []
+    if not results:
+        raise HTTPException(404, "Adresse introuvable")
+    lat, lng = float(results[0]["lat"]), float(results[0]["lon"])
+    await db.clients.update_one({"id": cid}, {"$set": {"lat": lat, "lng": lng, "updated_at": now_iso()}})
+    return {"lat": lat, "lng": lng}
+
+@api_router.post("/clients/geocode-all")
+async def geocode_all(user=Depends(get_current_user)):
+    q = {} if user["role"] == "manager" else {"$or": [{"owner_id": user["id"]}, {"assigned_to": user["id"]}]}
+    q["$and"] = [{"$or": [{"lat": None}, {"lat": {"$exists": False}}]}]
+    clients = await db.clients.find(q, {"_id": 0}).to_list(200)
+    updated = 0
+    async with httpx.AsyncClient(timeout=15.0) as hx:
+        for c in clients[:30]:  # rate limit
+            query = ", ".join([x for x in [c.get("address"), c.get("city")] if x]) or c.get("name", "")
+            if not query:
+                continue
+            try:
+                r = await hx.get("https://nominatim.openstreetmap.org/search",
+                                 params={"q": query, "format": "json", "limit": 1},
+                                 headers={"User-Agent": "CellierCRM/1.0"})
+                results = r.json() if r.status_code == 200 else []
+                if results:
+                    await db.clients.update_one({"id": c["id"]},
+                        {"$set": {"lat": float(results[0]["lat"]), "lng": float(results[0]["lon"])}})
+                    updated += 1
+            except Exception:
+                pass
+    return {"updated": updated, "total_processed": min(len(clients), 30)}
+
+# ---------- PDF ORDER ----------
+@api_router.get("/orders/{oid}/pdf")
+async def order_pdf(oid: str, user=Depends(get_current_user)):
+    o = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    c = await db.clients.find_one({"id": o["client_id"]}, {"_id": 0}) or {}
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=40, bottomMargin=40, leftMargin=50, rightMargin=50)
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('T', parent=styles['Title'], textColor=colors.HexColor("#4A154B"), fontSize=26, spaceAfter=6)
+    over_style = ParagraphStyle('O', parent=styles['Normal'], fontSize=8, textColor=colors.grey, spaceAfter=20)
+    elems = []
+    elems.append(Paragraph("BON DE COMMANDE", over_style))
+    elems.append(Paragraph(f"Cellier · Commande #{o['id'][:8].upper()}", title_style))
+    elems.append(Paragraph(f"Date: {o.get('created_at','')[:10]}", styles['Normal']))
+    elems.append(Spacer(1, 16))
+    elems.append(Paragraph(f"<b>Client:</b> {o.get('client_name','')}", styles['Normal']))
+    if c.get('address') or c.get('city'):
+        elems.append(Paragraph(f"{c.get('address','')}, {c.get('city','')}", styles['Normal']))
+    if c.get('contact_name'):
+        elems.append(Paragraph(f"Contact: {c.get('contact_name')} · {c.get('phone','')}", styles['Normal']))
+    elems.append(Spacer(1, 20))
+    # lines table
+    data = [["Produit", "Qté", "PU (€)", "Total (€)"]]
+    for l in o.get("lines", []):
+        tot = l["quantity"] * l["unit_price"]
+        data.append([l["product_name"], str(l["quantity"]), f"{l['unit_price']:.2f}", f"{tot:.2f}"])
+    data.append(["", "", "TOTAL", f"{o.get('total',0):.2f} €"])
+    t = Table(data, colWidths=[260, 50, 70, 80])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#4A154B")),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
+        ('GRID', (0,0), (-1,-2), 0.5, colors.HexColor("#E7E4DF")),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor("#F7F5F2")),
+        ('FONTNAME', (2,-1), (-1,-1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (2,-1), (-1,-1), colors.HexColor("#2D5A4C")),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+    ]))
+    elems.append(t)
+    if o.get("notes"):
+        elems.append(Spacer(1, 18))
+        elems.append(Paragraph(f"<b>Notes:</b> {o['notes']}", styles['Normal']))
+    elems.append(Spacer(1, 40))
+    # signature
+    sig_b64 = o.get("signature")
+    if sig_b64 and sig_b64.startswith("data:image"):
+        try:
+            b = base64.b64decode(sig_b64.split(",", 1)[1])
+            img = RLImage(io.BytesIO(b), width=180, height=70)
+            elems.append(Paragraph("Signature client:", styles['Normal']))
+            elems.append(img)
+        except Exception:
+            pass
+    else:
+        elems.append(Paragraph("Signature client: ____________________________", styles['Normal']))
+    doc.build(elems)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="commande-{o["id"][:8]}.pdf"'})
+
+@api_router.post("/orders/{oid}/signature")
+async def order_signature(oid: str, data: dict, user=Depends(get_current_user)):
+    sig = data.get("signature", "")
+    await db.orders.update_one({"id": oid}, {"$set": {"signature": sig, "signed_at": now_iso()}})
+    return {"ok": True}
+
+# ---------- LOW STOCK ALERTS ----------
+@api_router.get("/alerts/low-stock")
+async def low_stock(threshold: int = 20, user=Depends(get_current_user)):
+    items = await db.products.find({"stock": {"$lt": threshold}}, {"_id": 0}).sort("stock", 1).to_list(200)
+    return {"threshold": threshold, "items": items, "count": len(items)}
+
+# ---------- CSV BULK IMPORT ----------
+@api_router.post("/clients/bulk-import")
+async def bulk_import(file: UploadFile = File(...), user=Depends(get_current_user)):
+    content = await file.read()
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+    reader = csv.DictReader(io.StringIO(text))
+    created = 0
+    errors = []
+    for i, row in enumerate(reader, start=2):
+        try:
+            data = {
+                "name": (row.get("name") or row.get("nom") or "").strip(),
+                "type": (row.get("type") or "bar").strip().lower(),
+                "contact_name": (row.get("contact_name") or row.get("contact") or "").strip(),
+                "phone": (row.get("phone") or row.get("telephone") or "").strip(),
+                "email": (row.get("email") or "").strip(),
+                "city": (row.get("city") or row.get("ville") or "").strip(),
+                "address": (row.get("address") or row.get("adresse") or "").strip(),
+                "status": (row.get("status") or "prospect").strip().lower(),
+                "notes": (row.get("notes") or "").strip(),
+                "owner_id": user["id"],
+                "assigned_to": user["id"],
+            }
+            if not data["name"]:
+                errors.append(f"Ligne {i}: nom manquant")
+                continue
+            if data["type"] not in ["bar", "restaurant", "caviste", "supermarche", "hotel", "autre"]:
+                data["type"] = "autre"
+            if data["status"] not in ["prospect", "actif", "inactif", "vip"]:
+                data["status"] = "prospect"
+            c = Client(**data)
+            await db.clients.insert_one(c.model_dump())
+            created += 1
+        except Exception as e:
+            errors.append(f"Ligne {i}: {str(e)[:80]}")
+    return {"created": created, "errors": errors[:10], "total_errors": len(errors)}
+
+# ---------- FOLLOW-UPS / RELANCES ----------
+@api_router.get("/alerts/follow-ups")
+async def follow_ups(user=Depends(get_current_user)):
+    """Clients à relancer: prospects sans commande, clients actifs sans activité récente."""
+    from datetime import datetime as _dt
+    is_mgr = user["role"] == "manager"
+    q = {} if is_mgr else {"$or": [{"owner_id": user["id"]}, {"assigned_to": user["id"]}]}
+    clients = await db.clients.find(q, {"_id": 0}).to_list(2000)
+    now = datetime.now(timezone.utc)
+    alerts = []
+    for c in clients:
+        cid = c["id"]
+        last_order = await db.orders.find_one({"client_id": cid}, {"_id": 0, "created_at": 1}, sort=[("created_at", -1)])
+        last_activity = await db.activities.find_one({"client_id": cid}, {"_id": 0, "created_at": 1}, sort=[("created_at", -1)])
+        last_touch = None
+        for x in [last_order, last_activity]:
+            if x and x.get("created_at"):
+                try:
+                    d = _dt.fromisoformat(x["created_at"].replace("Z", "+00:00"))
+                    if not last_touch or d > last_touch:
+                        last_touch = d
+                except Exception:
+                    pass
+        days_since = (now - last_touch).days if last_touch else 999
+        reason = None; priority = "low"
+        if c.get("status") == "prospect" and not last_order:
+            reason = "Prospect sans commande"
+            priority = "high" if days_since > 14 else "medium"
+        elif c.get("status") == "vip" and days_since > 21:
+            reason = f"VIP silencieux depuis {days_since}j"
+            priority = "high"
+        elif c.get("status") == "actif" and days_since > 45:
+            reason = f"Client actif sans contact depuis {days_since}j"
+            priority = "medium"
+        elif c.get("status") == "actif" and days_since > 90:
+            reason = f"Risque d'attrition ({days_since}j)"
+            priority = "high"
+        if reason:
+            alerts.append({
+                "client_id": cid, "client_name": c["name"], "city": c.get("city", ""),
+                "status": c["status"], "days_since": days_since,
+                "reason": reason, "priority": priority,
+                "last_touch": last_touch.isoformat() if last_touch else None,
+            })
+    order_map = {"high": 0, "medium": 1, "low": 2}
+    alerts.sort(key=lambda a: (order_map[a["priority"]], -a["days_since"]))
+    return {"count": len(alerts), "items": alerts}
+
+@api_router.get("/clients/{cid}/stats")
+async def client_stats(cid: str, user=Depends(get_current_user)):
+    orders = await db.orders.find({"client_id": cid}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    total_ca = sum(o.get("total", 0) for o in orders)
+    avg_basket = round(total_ca / len(orders), 2) if orders else 0
+    last_order = orders[0] if orders else None
+    from datetime import datetime as _dt
+    frequency_days = None
+    if len(orders) >= 2:
+        try:
+            first = _dt.fromisoformat(orders[-1]["created_at"].replace("Z", "+00:00"))
+            last = _dt.fromisoformat(orders[0]["created_at"].replace("Z", "+00:00"))
+            frequency_days = round((last - first).days / max(1, len(orders) - 1), 1)
+        except Exception:
+            pass
+    return {
+        "orders_count": len(orders),
+        "total_ca": round(total_ca, 2),
+        "avg_basket": avg_basket,
+        "last_order_date": last_order["created_at"][:10] if last_order else None,
+        "last_order_total": last_order.get("total", 0) if last_order else 0,
+        "frequency_days": frequency_days,
+    }
+
+@api_router.post("/orders/reorder/{oid}")
+async def reorder(oid: str, user=Depends(get_current_user)):
+    """Crée une nouvelle commande identique à une précédente (1-clic)."""
+    src = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not src:
+        raise HTTPException(404, "Commande source introuvable")
+    new_data = {
+        "client_id": src["client_id"],
+        "client_name": src["client_name"],
+        "lines": src.get("lines", []),
+        "notes": f"Recommande de #{src['id'][:8]}",
+        "agent_id": user["id"],
+        "owner_id": user["id"],
+    }
+    total = sum(l["quantity"] * l["unit_price"] for l in new_data["lines"])
+    new_data["total"] = total
+    o = Order(**new_data)
+    await db.orders.insert_one(o.model_dump())
+    for line in o.lines:
+        await db.products.update_one({"id": line.product_id}, {"$inc": {"stock": -line.quantity}})
+    await db.activities.insert_one(Activity(
+        client_id=o.client_id, agent_id=user["id"], type="commande",
+        content=f"Recommande {o.id[:8]} - {total:.2f}€ (basée sur #{src['id'][:8]})", owner_id=user["id"]
+    ).model_dump())
+    return o.model_dump()
+
+# ---------- VISIT REPORTS (compte-rendus terrain) ----------
+class VisitReport(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    client_id: str
+    client_name: str
+    agent_id: str
+    mood: Literal["excellent", "bon", "neutre", "difficile"] = "neutre"
+    interest: Literal["chaud", "tiede", "froid"] = "tiede"
+    next_action: Literal["relance", "devis", "commande", "aucune", "visite"] = "relance"
+    next_date: Optional[str] = None
+    summary: str = ""
+    voice_transcript: Optional[str] = ""
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+@api_router.post("/visits")
+async def create_visit(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    data["agent_id"] = user["id"]
+    cid = data.get("client_id")
+    c = await db.clients.find_one({"id": cid}, {"_id": 0}) if cid else None
+    if not c:
+        raise HTTPException(404, "Client introuvable")
+    data["client_name"] = c["name"]
+    v = VisitReport(**data)
+    await db.visits.insert_one(v.model_dump())
+    # aussi comme activity
+    content = f"Visite ({v.mood} · {v.interest}) → {v.next_action}. {v.summary[:120]}"
+    await db.activities.insert_one(Activity(
+        client_id=cid, agent_id=user["id"], type="visite",
+        content=content, owner_id=user["id"]
+    ).model_dump())
+    return v.model_dump()
+
+@api_router.get("/visits")
+async def list_visits(client_id: Optional[str] = None, user=Depends(get_current_user)):
+    q = {"client_id": client_id} if client_id else {}
+    items = await db.visits.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
 
 @api_router.get("/")
 async def root():

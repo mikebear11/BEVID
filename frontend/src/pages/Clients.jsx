@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import React, { useEffect, useState, useRef } from "react";
+import { api, API } from "@/lib/api";
 import { Link } from "react-router-dom";
-import { Plus, Search, Mic } from "lucide-react";
+import { Plus, Search, Mic, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useVoice } from "@/hooks/useVoice";
 
@@ -15,6 +15,23 @@ export default function Clients() {
   const [form, setForm] = useState({ name: "", type: "bar", contact_name: "", phone: "", email: "", city: "", status: "prospect", notes: "" });
   const { supported, listening, transcript, start, stop, reset } = useVoice("fr-FR");
   const [parsing, setParsing] = useState(false);
+  const fileRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+
+  const importCsv = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImporting(true);
+    try {
+      const fd = new FormData(); fd.append("file", f);
+      const token = localStorage.getItem("crm_token");
+      const res = await fetch(`${API}/clients/bulk-import`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      toast.success(`${data.created} clients importés${data.total_errors ? ` (${data.total_errors} erreurs)` : ""}`);
+      load();
+    } catch { toast.error("Erreur import"); }
+    finally { setImporting(false); if (fileRef.current) fileRef.current.value = ""; }
+  };
 
   const load = async () => {
     const { data } = await api.get("/clients"); setItems(data);
@@ -52,9 +69,15 @@ export default function Clients() {
           <p className="overline">Portefeuille</p>
           <h1 className="font-display text-4xl">Clients</h1>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 self-start" data-testid="add-client-btn">
-          <Plus size={16} /> Nouveau client
-        </button>
+        <div className="flex gap-2 self-start flex-wrap">
+          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={importCsv} data-testid="csv-input" />
+          <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-ghost flex items-center gap-2" data-testid="csv-import-btn">
+            <Upload size={16} /> {importing ? "Import…" : "Importer CSV"}
+          </button>
+          <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2" data-testid="add-client-btn">
+            <Plus size={16} /> Nouveau client
+          </button>
+        </div>
       </div>
 
       <div className="relative">

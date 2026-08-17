@@ -3,10 +3,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import VoiceFAB from "@/components/VoiceFAB";
-import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, Languages } from "lucide-react";
+import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, Languages, ClipboardCheck } from "lucide-react";
 
 const nav = [
   { to: "/", key: "dashboard", icon: LayoutDashboard },
+  { to: "/visit", key: "visit", icon: ClipboardCheck },
   { to: "/clients", key: "clients", icon: Users },
   { to: "/products", key: "products", icon: Wine },
   { to: "/orders", key: "orders", icon: ShoppingCart },
