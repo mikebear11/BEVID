@@ -1724,6 +1724,138 @@ async def quarterly_pdf(year: Optional[int] = None, quarter: Optional[int] = Non
     doc.build(elems); buf.seek(0)
     return StreamingResponse(buf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="bilan-Q{q_num}-{y}.pdf"'})
 
+# ---------- SMART GOALS AI ----------
+class SmartGoal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    agent_id: str
+    agent_name: str = ""
+    year: int
+    month: int
+    title: str
+    kpi_type: Literal["ca", "orders", "new_clients", "visits"] = "ca"
+    target_value: float
+    rationale: str = ""
+    status: Literal["pending", "approved", "rejected"] = "pending"
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+@api_router.post("/goals/smart/suggest/{agent_id}")
+async def suggest_smart(agent_id: str, user=Depends(get_current_user)):
+    """IA propose 3 objectifs SMART pour le mois prochain."""
+    from datetime import datetime as _dt
+    now = datetime.now(timezone.utc)
+    y = now.year if now.month < 12 else now.year + 1
+    m = now.month + 1 if now.month < 12 else 1
+    review = await monthly_review(agent_id, now.year, now.month, user)
+    agent = review["agent"] or {}
+    ctx = (f"Historique du mois en cours de {agent.get('name','?')}:\n"
+           f"CA {review['ca']}€ vs {review['prev_ca']}€ (croiss. {review['growth_pct']}%)\n"
+           f"Commandes: {review['orders_count']} · Panier moy: {review['avg_basket']}€\n"
+           f"Clients touchés: {review['clients_reached']} · Nouveaux: {review['new_clients']}\n"
+           f"Visites: {review['visits']} · Activités: {review['activities']}")
+    prompt = (f"Propose 3 objectifs SMART pour {agent.get('name','?')} pour {m:02d}/{y}. "
+              "Retourne UNIQUEMENT un JSON strict avec cette structure : "
+              '{"goals":[{"title":"…","kpi_type":"ca|orders|new_clients|visits","target_value":<nombre>,"rationale":"1 phrase"}]}. '
+              "Sois ambitieux mais réaliste (croissance 10-20% max). Aucun markdown.")
+    req = AIRequest(prompt=prompt, context=ctx, model="claude-sonnet-5")
+    ai = await ai_ask(req, user)
+    import json, re
+    try:
+        clean = re.sub(r'```json|```', '', ai.get("answer", "")).strip()
+        parsed = json.loads(clean)
+        created = []
+        for g in parsed.get("goals", [])[:3]:
+            sg = SmartGoal(
+                agent_id=agent_id, agent_name=agent.get("name",""), year=y, month=m,
+                title=g.get("title",""), kpi_type=g.get("kpi_type","ca"),
+                target_value=float(g.get("target_value", 0)), rationale=g.get("rationale",""),
+                status="pending", owner_id=user["id"],
+            )
+            await db.smart_goals.insert_one(sg.model_dump())
+            created.append(sg.model_dump())
+        return {"created": created}
+    except Exception as e:
+        raise HTTPException(500, f"Parse IA échoué: {str(e)[:100]}")
+
+@api_router.get("/goals/smart")
+async def list_smart(status: Optional[str] = None, agent_id: Optional[str] = None, user=Depends(get_current_user)):
+    is_mgr = user["role"] == "manager"
+    q = {}
+    if agent_id: q["agent_id"] = agent_id
+    elif not is_mgr: q["agent_id"] = user["id"]
+    if status: q["status"] = status
+    items = await db.smart_goals.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return items
+
+@api_router.put("/goals/smart/{gid}")
+async def review_smart(gid: str, data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Seul un manager peut valider")
+    new_status = data.get("status")
+    if new_status not in ("approved", "rejected", "pending"):
+        raise HTTPException(400, "Statut invalide")
+    upd = {"status": new_status, "reviewed_by": user["id"], "reviewed_at": now_iso()}
+    if "target_value" in data:
+        upd["target_value"] = float(data["target_value"])
+    if "title" in data:
+        upd["title"] = data["title"]
+    await db.smart_goals.update_one({"id": gid}, {"$set": upd})
+    g = await db.smart_goals.find_one({"id": gid}, {"_id": 0})
+    # If approved and ca goal, sync to monthly Goals collection
+    if new_status == "approved" and g and g.get("kpi_type") == "ca":
+        existing = await db.goals.find_one({"agent_id": g["agent_id"], "year": g["year"], "month": g["month"]})
+        if existing:
+            await db.goals.update_one({"id": existing["id"]}, {"$set": {"target_ca": g["target_value"]}})
+        else:
+            mg = MonthlyGoal(agent_id=g["agent_id"], year=g["year"], month=g["month"], target_ca=g["target_value"], owner_id=user["id"])
+            await db.goals.insert_one(mg.model_dump())
+    return g
+
+# ---------- ANNIVERSARIES ----------
+@api_router.get("/anniversaries")
+async def anniversaries(days: int = 30, user=Depends(get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
+    is_mgr = user["role"] == "manager"
+    q = {} if is_mgr else {"$or": [{"owner_id": user["id"]}, {"assigned_to": user["id"]}]}
+    clients = await db.clients.find(q, {"_id": 0}).to_list(2000)
+    now = datetime.now(timezone.utc)
+    horizon = now + _td(days=days)
+    items = []
+    for c in clients:
+        # first order date
+        first = await db.orders.find_one({"client_id": c["id"]}, {"_id": 0, "created_at": 1}, sort=[("created_at", 1)])
+        events = []
+        try:
+            created = _dt.fromisoformat(c["created_at"].replace("Z", "+00:00"))
+            # next anniversary of onboarding
+            anniv = created.replace(year=now.year)
+            if anniv < now:
+                anniv = anniv.replace(year=now.year + 1)
+            if anniv <= horizon:
+                yrs = now.year - created.year if anniv.year == now.year else now.year - created.year + 1
+                if yrs >= 1:
+                    events.append({"kind": "compte", "date": anniv.strftime("%Y-%m-%d"), "years": yrs, "label": f"{yrs} an{'s' if yrs>1 else ''} chez Cellier"})
+        except Exception:
+            pass
+        if first:
+            try:
+                fd = _dt.fromisoformat(first["created_at"].replace("Z", "+00:00"))
+                anniv = fd.replace(year=now.year)
+                if anniv < now: anniv = anniv.replace(year=now.year + 1)
+                if anniv <= horizon:
+                    yrs = now.year - fd.year if anniv.year == now.year else now.year - fd.year + 1
+                    if yrs >= 1:
+                        events.append({"kind": "premiere_commande", "date": anniv.strftime("%Y-%m-%d"), "years": yrs, "label": f"{yrs} an{'s' if yrs>1 else ''} de collaboration"})
+            except Exception:
+                pass
+        for ev in events:
+            items.append({"client_id": c["id"], "client_name": c["name"], "type": c.get("type"), "city": c.get("city"), "phone": c.get("phone"), "email": c.get("email"), **ev})
+    items.sort(key=lambda x: x["date"])
+    return {"count": len(items), "items": items}
+
 @api_router.get("/")
 async def root():
     return {"service": "CRM Boisson API", "status": "ok"}

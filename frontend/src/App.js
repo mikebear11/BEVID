@@ -22,6 +22,7 @@ import Pipeline from "@/pages/Pipeline";
 import Deals from "@/pages/Deals";
 import Connectors from "@/pages/Connectors";
 import SettingsPage from "@/pages/Settings";
+import SmartGoals from "@/pages/SmartGoals";
 import PublicSignature from "@/pages/PublicSignature";
 
 function Protected({ children }) {
@@ -56,6 +57,7 @@ function App() {
               <Route path="/deals" element={<Protected><Deals /></Protected>} />
               <Route path="/connectors" element={<Protected><Connectors /></Protected>} />
               <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
+              <Route path="/smart-goals" element={<Protected><SmartGoals /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />
