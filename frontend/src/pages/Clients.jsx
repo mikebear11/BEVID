@@ -33,8 +33,12 @@ export default function Clients() {
     finally { setImporting(false); if (fileRef.current) fileRef.current.value = ""; }
   };
 
+  const [scores, setScores] = useState({});
   const load = async () => {
     const { data } = await api.get("/clients"); setItems(data);
+    api.get("/reports/health-scores").then(r => {
+      const map = {}; r.data.forEach(s => { map[s.client_id] = s; }); setScores(map);
+    }).catch(() => {});
   };
   useEffect(() => { load(); }, []);
 
@@ -94,21 +98,34 @@ export default function Clients() {
               <th className="p-3 hidden md:table-cell">Ville</th>
               <th className="p-3 hidden lg:table-cell">Contact</th>
               <th className="p-3">Statut</th>
+              <th className="p-3 text-right">Santé</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-stone-500">Aucun client. Cliquez sur "Nouveau client" ou utilisez la saisie vocale.</td></tr>}
-            {filtered.map(c => (
-              <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50" data-testid={`client-row-${c.id}`}>
-                <td className="p-3">
-                  <Link to={`/clients/${c.id}`} className="font-medium text-stone-800 hover:text-[#4A154B]">{c.name}</Link>
-                </td>
-                <td className="p-3 hidden md:table-cell text-stone-600 capitalize">{c.type}</td>
-                <td className="p-3 hidden md:table-cell text-stone-600">{c.city || "—"}</td>
-                <td className="p-3 hidden lg:table-cell text-stone-600">{c.contact_name || "—"}</td>
-                <td className="p-3"><span className={`badge badge-${c.status}`}>{c.status}</span></td>
-              </tr>
-            ))}
+            {filtered.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-500">Aucun client. Cliquez sur "Nouveau client" ou utilisez la saisie vocale.</td></tr>}
+            {filtered.map(c => {
+              const s = scores[c.id];
+              const color = s ? (s.score >= 80 ? "#2D5A4C" : s.score >= 60 ? "#5C8A6A" : s.score >= 40 ? "#C78B3A" : "#8C2A2A") : "#8A8A8A";
+              return (
+                <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50" data-testid={`client-row-${c.id}`}>
+                  <td className="p-3">
+                    <Link to={`/clients/${c.id}`} className="font-medium text-stone-800 hover:text-[#4A154B]">{c.name}</Link>
+                  </td>
+                  <td className="p-3 hidden md:table-cell text-stone-600 capitalize">{c.type}</td>
+                  <td className="p-3 hidden md:table-cell text-stone-600">{c.city || "—"}</td>
+                  <td className="p-3 hidden lg:table-cell text-stone-600">{c.contact_name || "—"}</td>
+                  <td className="p-3"><span className={`badge badge-${c.status}`}>{c.status}</span></td>
+                  <td className="p-3 text-right" data-testid={`health-${c.id}`}>
+                    {s ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color }} title={s.reasons.join(" · ")}>
+                        <span className="font-display text-base">{s.score}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: color + "20" }}>{s.grade}</span>
+                      </span>
+                    ) : <span className="text-stone-300 text-xs">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

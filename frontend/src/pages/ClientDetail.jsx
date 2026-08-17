@@ -14,17 +14,20 @@ export default function ClientDetail() {
   const [loadingAI, setLoadingAI] = useState(false);
   const [note, setNote] = useState("");
 
+  const [health, setHealth] = useState(null);
   const load = async () => {
-    const [{ data: client }, { data: ords }, { data: acts }, { data: st }] = await Promise.all([
+    const [{ data: client }, { data: ords }, { data: acts }, { data: st }, { data: h }] = await Promise.all([
       api.get(`/clients/${id}`),
       api.get(`/orders`),
       api.get(`/activities?client_id=${id}`),
       api.get(`/clients/${id}/stats`),
+      api.get(`/clients/${id}/health-score`),
     ]);
     setC(client);
     setOrders(ords.filter(o => o.client_id === id));
     setActivities(acts);
     setStats(st);
+    setHealth(h);
   };
   useEffect(() => { load(); }, [id]);
 
@@ -87,6 +90,15 @@ export default function ClientDetail() {
           <button onClick={del} className="btn-ghost text-[#8C2A2A]" data-testid="delete-client-btn"><Trash2 size={16} /></button>
         </div>
       </div>
+
+      {health && (
+        <div className="card-crm p-5 flex items-center gap-4 border-l-4" style={{ borderColor: health.score >= 80 ? "#2D5A4C" : health.score >= 60 ? "#5C8A6A" : health.score >= 40 ? "#C78B3A" : "#8C2A2A" }} data-testid="health-card">
+          <div className="flex-shrink-0"><p className="overline">Score santé</p><div className="font-display text-5xl" style={{ color: health.score >= 60 ? "#2D5A4C" : health.score >= 40 ? "#C78B3A" : "#8C2A2A" }}>{health.score}<span className="text-2xl text-stone-400">/100</span></div><span className="badge badge-vip mt-1 inline-block">Grade {health.grade}</span></div>
+          <div className="flex-1 space-y-1 text-sm">
+            {health.reasons.map((r, i) => <div key={i} className="text-stone-700">• {r}</div>)}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card-crm p-5"><p className="overline">CA total</p><div className="font-display text-2xl md:text-3xl text-[#2D5A4C] mt-1">{(stats?.total_ca ?? totalCa).toLocaleString('fr-FR')} €</div></div>

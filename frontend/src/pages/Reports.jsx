@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from "recharts";
-import { Download, Sparkles, Loader2, FileText } from "lucide-react";
+import { Download, Sparkles, Loader2, FileText, FileDown } from "lucide-react";
+import { API } from "@/lib/api";
 import { toast } from "sonner";
 
 const COLORS = ["#4A154B", "#2D5A4C", "#C78B3A", "#8C2A2A", "#6B2D5C"];
@@ -47,8 +48,18 @@ export default function Reports() {
     <div className="space-y-6" data-testid="reports-page">
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
         <div><p className="overline">Analyse</p><h1 className="font-display text-4xl">Rapports</h1></div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={exportCsv} className="btn-ghost flex items-center gap-2" data-testid="export-csv-btn"><Download size={14} /> Export CSV</button>
+          <button onClick={async () => {
+            const token = localStorage.getItem("crm_token");
+            const now = new Date();
+            const q = Math.floor(now.getMonth() / 3) + 1;
+            const res = await fetch(`${API}/reports/quarterly/pdf?year=${now.getFullYear()}&quarter=${q}`, { headers: { Authorization: `Bearer ${token}` } });
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a"); a.href = url; a.download = `bilan-Q${q}-${now.getFullYear()}.pdf`; a.click();
+            toast.success("Bilan trimestriel téléchargé");
+          }} className="btn-ghost flex items-center gap-2" data-testid="quarterly-pdf-btn"><FileDown size={14} /> Bilan trimestriel PDF</button>
           <button onClick={genSummary} disabled={loading} className="btn-primary flex items-center gap-2" data-testid="ai-summary-btn">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Synthèse IA
           </button>

@@ -1558,6 +1558,172 @@ async def cron_reminders(request: Request, authorization: Optional[str] = Header
     asyncio.create_task(_process_reminders())
     return {"status": "queued"}
 
+# ---------- HEALTH SCORE ----------
+async def _compute_score(client, orders):
+    from datetime import datetime as _dt, timedelta as _td
+    if not orders:
+        return {"score": 20 if client.get("status") == "prospect" else 40, "grade": "C", "reasons": ["Aucune commande"]}
+    now = datetime.now(timezone.utc)
+    reasons = []
+    score = 50
+    # frequency (30 pts)
+    try:
+        first = _dt.fromisoformat(orders[-1]["created_at"].replace("Z", "+00:00"))
+        last = _dt.fromisoformat(orders[0]["created_at"].replace("Z", "+00:00"))
+        span = max((last - first).days, 1)
+        freq = span / max(len(orders) - 1, 1) if len(orders) > 1 else 999
+        if freq < 21:
+            score += 30; reasons.append("Fréquence excellente")
+        elif freq < 45:
+            score += 20; reasons.append("Fréquence régulière")
+        elif freq < 90:
+            score += 10; reasons.append("Fréquence correcte")
+        else:
+            score -= 10; reasons.append(f"Fréquence faible (~{int(freq)}j)")
+        # recency
+        days_since = (now - last).days
+        if days_since > 60:
+            score -= 15; reasons.append(f"Silence {days_since}j")
+        elif days_since < 20:
+            score += 5
+    except Exception:
+        pass
+    # growth (20 pts)
+    if len(orders) >= 4:
+        recent_avg = sum(o.get("total", 0) for o in orders[:len(orders)//2]) / (len(orders)//2)
+        older_avg = sum(o.get("total", 0) for o in orders[len(orders)//2:]) / (len(orders) - len(orders)//2)
+        if older_avg > 0:
+            growth = (recent_avg - older_avg) / older_avg
+            if growth > 0.15:
+                score += 20; reasons.append("Croissance forte")
+            elif growth > 0:
+                score += 10; reasons.append("Croissance positive")
+            elif growth < -0.2:
+                score -= 15; reasons.append("Décroissance marquée")
+    # payment (20 pts)
+    unpaid = [o for o in orders if o.get("payment_status") not in ("paid", "refunded")]
+    old_unpaid = [o for o in unpaid if (now - _dt.fromisoformat(o["created_at"].replace("Z", "+00:00"))).days > 30]
+    if not unpaid:
+        score += 20; reasons.append("Aucun impayé")
+    elif old_unpaid:
+        score -= 20; reasons.append(f"{len(old_unpaid)} impayés >30j")
+    else:
+        score -= 5; reasons.append(f"{len(unpaid)} en attente")
+    score = max(0, min(100, score))
+    grade = "A" if score >= 80 else "B" if score >= 60 else "C" if score >= 40 else "D"
+    return {"score": score, "grade": grade, "reasons": reasons[:4]}
+
+@api_router.get("/clients/{cid}/health-score")
+async def health_score(cid: str, user=Depends(get_current_user)):
+    c = await db.clients.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Client introuvable")
+    orders = await db.orders.find({"client_id": cid}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return await _compute_score(c, orders)
+
+@api_router.get("/reports/health-scores")
+async def all_health_scores(user=Depends(get_current_user)):
+    is_mgr = user["role"] == "manager"
+    q = {} if is_mgr else {"$or": [{"owner_id": user["id"]}, {"assigned_to": user["id"]}]}
+    clients = await db.clients.find(q, {"_id": 0}).to_list(2000)
+    result = []
+    for c in clients:
+        orders = await db.orders.find({"client_id": c["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+        s = await _compute_score(c, orders)
+        result.append({"client_id": c["id"], "name": c["name"], **s})
+    result.sort(key=lambda x: x["score"])
+    return result
+
+# ---------- MORNING CHECKLIST ----------
+@api_router.get("/onboarding/morning")
+async def morning_checklist(user=Depends(get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
+    is_mgr = user["role"] == "manager"
+    tasks = []
+    # 1. Impayés à encaisser
+    cutoff = (datetime.now(timezone.utc) - _td(days=30)).isoformat()
+    q_over = {"created_at": {"$lt": cutoff}, "payment_status": {"$nin": ["paid", "refunded"]}}
+    if not is_mgr: q_over["agent_id"] = user["id"]
+    overdue = await db.orders.find(q_over, {"_id": 0}).sort("created_at", 1).to_list(3)
+    for o in overdue[:1]:
+        tasks.append({"priority": "high", "type": "impaye", "title": f"Encaisser {o['client_name']} · {o.get('total',0):.0f}€", "action_path": f"/orders", "icon": "💳"})
+    # 2. VIP silencieux à recontacter
+    q_c = {"status": "vip"} if is_mgr else {"status": "vip", "$or": [{"owner_id": user["id"]}, {"assigned_to": user["id"]}]}
+    vips = await db.clients.find(q_c, {"_id": 0}).to_list(50)
+    now = datetime.now(timezone.utc)
+    for c in vips:
+        last = await db.activities.find_one({"client_id": c["id"]}, sort=[("created_at", -1)])
+        try:
+            days = (now - _dt.fromisoformat(last["created_at"].replace("Z","+00:00"))).days if last else 999
+        except Exception: days = 999
+        if days > 14:
+            tasks.append({"priority": "medium", "type": "relance", "title": f"Appeler {c['name']} (VIP silencieux {days}j)", "action_path": f"/clients/{c['id']}", "icon": "📞"})
+            break
+    # 3. Deal proche du closing
+    q_d = {"stage": {"$in": ["proposition", "negociation"]}} if is_mgr else {"stage": {"$in": ["proposition", "negociation"]}, "agent_id": user["id"]}
+    deal = await db.deals.find_one(q_d, {"_id": 0}, sort=[("amount", -1)])
+    if deal:
+        tasks.append({"priority": "medium", "type": "deal", "title": f"Faire avancer '{deal['title']}' · {deal.get('amount',0):.0f}€", "action_path": "/deals", "icon": "🎯"})
+    # Fill with visit if fewer than 3
+    if len(tasks) < 3:
+        tasks.append({"priority": "low", "type": "visit", "title": "Programmer une tournée cette semaine", "action_path": "/tours", "icon": "🚗"})
+    return {"date": now.strftime("%Y-%m-%d"), "user": user["name"], "tasks": tasks[:3]}
+
+# ---------- QUARTERLY REPORT PDF ----------
+@api_router.get("/reports/quarterly/pdf")
+async def quarterly_pdf(year: Optional[int] = None, quarter: Optional[int] = None, user=Depends(get_current_user)):
+    from datetime import datetime as _dt
+    now = datetime.now(timezone.utc)
+    y = year or now.year
+    q_num = quarter or ((now.month - 1) // 3 + 1)
+    start_month = (q_num - 1) * 3 + 1
+    months = [f"{y:04d}-{start_month + i:02d}" for i in range(3)]
+    is_mgr = user["role"] == "manager"
+    order_q = {} if is_mgr else {"agent_id": user["id"]}
+    all_orders = await db.orders.find(order_q, {"_id": 0}).to_list(20000)
+    q_orders = [o for o in all_orders if o.get("created_at","")[:7] in months]
+    total_ca = sum(o.get("total", 0) for o in q_orders)
+    from collections import defaultdict
+    by_client = defaultdict(float); by_prod = defaultdict(lambda: {"ca": 0, "qty": 0})
+    for o in q_orders:
+        by_client[o["client_name"]] += o.get("total", 0)
+        for l in o.get("lines", []):
+            by_prod[l["product_name"]]["ca"] += l["quantity"] * l["unit_price"]
+            by_prod[l["product_name"]]["qty"] += l["quantity"]
+    top_clients = sorted(by_client.items(), key=lambda x: -x[1])[:5]
+    top_prods = sorted(by_prod.items(), key=lambda x: -x[1]["ca"])[:5]
+    # AI synthesis
+    ctx = f"BILAN Q{q_num} {y}\nCA: {total_ca:.2f}€ sur {len(q_orders)} commandes\nTop clients: " + ", ".join([f"{n} ({v:.0f}€)" for n,v in top_clients])
+    ctx += "\nTop produits: " + ", ".join([f"{n} ({v['ca']:.0f}€)" for n,v in top_prods])
+    ai_text = ""
+    try:
+        req = AIRequest(prompt="Prépare un CR de comité de direction en 4 sections: 1) Verdict Q en 1 phrase, 2) Faits marquants (3 bullets), 3) Risques identifiés (2 bullets), 4) Recommandations stratégiques (3 bullets). Ton corporate, précis.", context=ctx, model="claude-sonnet-5")
+        r = await ai_ask(req, user)
+        ai_text = r.get("answer", "")
+    except Exception:
+        ai_text = "Synthèse IA indisponible."
+    # PDF
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=40, leftMargin=50, rightMargin=50)
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle('T', parent=styles['Title'], textColor=colors.HexColor("#4A154B"), fontSize=28, spaceAfter=6)
+    over = ParagraphStyle('O', parent=styles['Normal'], fontSize=8, textColor=colors.grey, spaceAfter=16)
+    h2 = ParagraphStyle('H2', parent=styles['Heading2'], textColor=colors.HexColor("#2D5A4C"), fontSize=14, spaceAfter=6)
+    body = ParagraphStyle('B', parent=styles['Normal'], fontSize=10, leading=14)
+    elems = [Paragraph("Comité de direction", over), Paragraph(f"Bilan Q{q_num} {y}", title),
+             Paragraph(f"Chiffre d'affaires: <b>{total_ca:,.2f} €</b> · {len(q_orders)} commandes".replace(",", " "), body), Spacer(1, 16)]
+    elems.append(Paragraph("Top 5 clients", h2))
+    tc = [["Client", "CA (€)"]] + [[n, f"{v:,.2f}".replace(",", " ")] for n, v in top_clients]
+    t = Table(tc, colWidths=[300, 100]); t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#4A154B")), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor("#E7E4DF")), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('TOPPADDING', (0,0), (-1,-1), 6)]))
+    elems.extend([t, Spacer(1, 14), Paragraph("Top 5 produits", h2)])
+    tp = [["Produit", "Quantité", "CA (€)"]] + [[n, str(v["qty"]), f"{v['ca']:,.2f}".replace(",", " ")] for n, v in top_prods]
+    t2 = Table(tp, colWidths=[250, 70, 100]); t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor("#2D5A4C")), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor("#E7E4DF")), ('BOTTOMPADDING', (0,0), (-1,-1), 6), ('TOPPADDING', (0,0), (-1,-1), 6)]))
+    elems.extend([t2, Spacer(1, 20), Paragraph("Synthèse managériale (Claude Sonnet 5)", h2)])
+    for para in ai_text.split("\n\n"):
+        elems.append(Paragraph(para.replace("\n", "<br/>"), body)); elems.append(Spacer(1, 6))
+    doc.build(elems); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="bilan-Q{q_num}-{y}.pdf"'})
+
 @api_router.get("/")
 async def root():
     return {"service": "CRM Boisson API", "status": "ok"}
