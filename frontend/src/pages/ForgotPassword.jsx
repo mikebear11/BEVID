@@ -25,7 +25,7 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-stone-50">
       <div className="w-full max-w-sm bg-white rounded-2xl p-8 shadow-sm border border-stone-200" data-testid="forgot-password-page">
-        <p className="overline">Cellier</p>
+        <p className="overline">BEVID</p>
         <h2 className="font-display text-3xl mt-1 mb-6">{t("forgot_password")}</h2>
 
         {sent ? (

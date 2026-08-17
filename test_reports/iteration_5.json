@@ -1,0 +1,44 @@
+{
+  "summary": "Verified Cellier->BEVID rebrand and vinovendpro->vinovent connector rename. All backend & frontend checks pass. Fixed one env var deviation: backend/.env still had EMAIL_FROM_NAME=Cellier which would leak old brand in outgoing password-reset emails; updated to BEVID and restarted backend.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bevid_rename.py",
+    "/app/test_reports/pytest/bevid_rename.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Two internal-only 'cellier' identifiers remain (non user-visible, safe to leave or align later): localStorage key 'cellier_checklist_dismissed' in /app/frontend/src/components/MorningChecklist.jsx (renaming would invalidate existing users' dismiss state) and service-worker notification tag 'cellier-notif' in /app/frontend/public/sw.js. Not blocking, but flag for consistency."
+  ],
+  "updated_files": [
+    "/app/backend/.env (EMAIL_FROM_NAME: Cellier -> BEVID)",
+    "/app/backend/tests/test_bevid_rename.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (all branding checks pass)"},
+  "test_credentials": "guillaume@sulauze.com / Cellier2026! (password intentionally unchanged - it's a credential, not brand)",
+  "seed_data_creation": "Created a test connector via POST /api/connectors with provider='vinovent' (name='Vinovent', config.api_key='TEST_key'). Not auto-cleaned; visible in list but harmless.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/test_bevid_rename.py (pytest). Run: pytest /app/backend/tests/test_bevid_rename.py -v. Login uses /api/auth/login returning access_token. Connector model requires 'name' field in addition to provider. EMAIL_FROM_NAME env is now BEVID in backend/.env. Login page copy: 'BEVID · CRM' overline + '© 2026 BEVID' footer. Only internal (non-user-facing) 'cellier' identifiers remain (localStorage key + SW tag).",
+  "verified_checks": {
+    "backend_login_password_unchanged": true,
+    "vinovent_provider_accepted": true,
+    "vinovendpro_provider_rejected_422": true,
+    "forgot_password_endpoint_responds": true,
+    "email_from_name_env_is_BEVID": true,
+    "email_html_hardcoded_BEVID": "confirmed lines 2630/2639 in server.py",
+    "pdf_receipt_uses_BEVID": "confirmed via grep (lines 614, 1497 use 'BEVID')",
+    "login_page_shows_BEVID_no_Cellier": true,
+    "index_html_title_BEVID": "BEVID · CRM Boisson",
+    "manifest_short_name_BEVID": true,
+    "dashboard_sidebar_BEVID": true,
+    "connectors_page_shows_Vinovent_not_VinovendPro": true
+  }
+}

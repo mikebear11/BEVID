@@ -36,7 +36,7 @@ export default function PublicSignature() {
     <div className="min-h-screen p-6" data-testid="public-signature-page">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center">
-          <p className="overline">Cellier · Bon de commande</p>
+          <p className="overline">BEVID · Bon de commande</p>
           <h1 className="font-display text-4xl mt-2">#{info.id.slice(0, 8).toUpperCase()}</h1>
           <p className="text-stone-500 text-sm mt-1">{info.client_name} · {info.created_at?.slice(0, 10)}</p>
         </div>

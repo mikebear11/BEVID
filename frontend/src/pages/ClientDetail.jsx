@@ -79,7 +79,7 @@ export default function ClientDetail() {
             {c.city && <span>· {c.city}</span>}
             {c.contact_name && <span>· {c.contact_name}</span>}
             {c.phone && <a href={`tel:${c.phone.replace(/\s/g,'')}`} data-testid="phone-link" className="text-[#4A154B] font-medium underline decoration-dotted underline-offset-4 hover:text-[#6B2D5C]">📞 {c.phone}</a>}
-            {c.email && <a href={`mailto:${c.email}?subject=${encodeURIComponent('Cellier · ' + c.name)}`} data-testid="email-link" className="text-[#4A154B] font-medium underline decoration-dotted underline-offset-4 hover:text-[#6B2D5C]">✉ {c.email}</a>}
+            {c.email && <a href={`mailto:${c.email}?subject=${encodeURIComponent('BEVID · ' + c.name)}`} data-testid="email-link" className="text-[#4A154B] font-medium underline decoration-dotted underline-offset-4 hover:text-[#6B2D5C]">✉ {c.email}</a>}
           </div>
         </div>
         <div className="flex gap-2">

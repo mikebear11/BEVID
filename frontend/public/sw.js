@@ -1,11 +1,11 @@
-/* Cellier Service Worker for Push Notifications */
+/* BEVID Service Worker for Push Notifications */
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(self.clients.claim()); });
 
 self.addEventListener("push", (event) => {
-  const data = event.data ? event.data.json() : { title: "Cellier", body: "Nouvelle notification" };
+  const data = event.data ? event.data.json() : { title: "BEVID", body: "Nouvelle notification" };
   event.waitUntil(
-    self.registration.showNotification(data.title || "Cellier", {
+    self.registration.showNotification(data.title || "BEVID", {
       body: data.body,
       icon: "/manifest.json",
       badge: "/manifest.json",

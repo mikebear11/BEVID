@@ -29,7 +29,7 @@ export default function NotificationBell() {
           const key = `${a.kind || "follow"}-${a.client_id}`;
           if (!notifiedRef.current.has(key)) {
             notifiedRef.current.add(key);
-            new Notification("Cellier · Alerte", { body: `${a.client_name} — ${a.reason}`, icon: "/manifest.json" });
+            new Notification("BEVID · Alerte", { body: `${a.client_name} — ${a.reason}`, icon: "/manifest.json" });
           }
         });
       }

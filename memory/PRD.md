@@ -1,68 +1,62 @@
-# Cellier — CRM Distribution de Boissons
+# BEVID — CRM Distribution de Boissons
 
 ## Architecture
-FastAPI + MongoDB (hébergement UE) + React 19 + Tailwind + Shadcn + Leaflet + reportlab + emergentintegrations (Claude Sonnet 5) + Emergent Resend (email transactionnel).
+FastAPI + MongoDB (hébergement UE) + React 19 + Tailwind + Shadcn + Leaflet + reportlab + emergentintegrations + Emergent Resend + html5-qrcode + qrcode.react.
 
 ## Product principles
-- Mobile-first, contrastes élevés, touches ≥ 48px, thumb-zone.
-- ≤ 2 niveaux de navigation.
-- Indicateur de synchro permanent.
-- Marges masquées tant que coûts non validés (verrou explicite).
-- Géolocalisation ponctuelle uniquement (opt-in).
-- Deux rôles (manager / commercial) avec segregation stricte.
-- JWT 90 jours pour session terrain.
-- Multi-langues fr/en/es/de.
+- Mobile-first, contrastes élevés, touches ≥ 48px, thumb-zone
+- ≤ 2 niveaux nav, indicateur sync permanent
+- Marges masquées tant que coûts non validés
+- Géolocalisation ponctuelle uniquement (opt-in)
+- 2 rôles stricts (manager / commercial)
+- JWT 90 jours, multi-langues fr/en/es/de
+- Typo : ZT Nature en display + Outfit body
 
 ## RGPD / CNIL
-- Hébergement UE, TLS 1.3, AES-256.
-- Journalisation des accès sensibles.
-- Export + effacement par contact.
-- Rétention audio paramétrable.
-- ⚠️ Géoloc à valider par DPO avant mise en service.
+- Hébergement UE, TLS 1.3, AES-256
+- Journal d'accès, export + effacement par contact
+- Rétention audio paramétrable
+- ⚠️ Géoloc à valider par DPO
 
-## Implemented — v4 (17/02/2026)
-### Auth & Sécurité
-- JWT 90j, 2 rôles, admin users (create/reset/toggle).
-- **Password reset par email** (Emergent Resend) : `POST /api/auth/forgot-password` → email avec lien https, token à usage unique 60min → `POST /api/auth/reset-password`.
-- Guardrails email G2/G3 (`_assert_safe_email`) : pas de form/input, https only, anchor-host check.
-- Fallback mode dégradé (approve manuel via manager) toujours dispo.
+## Implemented — v5.1 (17/02/2026)
+### Rebrand & renommage connecteur
+- App renommée **BEVID** (partout : sidebar, login, PWA manifest, index.html, emails, PDF)
+- Password `Cellier2026!` conservé (credential, pas brand)
+- Connecteur `Vinovent` (ex-Vinovend Pro) : enum backend + UI
 
-### Paiements & Pilotage
-- DSO mensuel + tendance, mauvais payeurs (score composite), analyse par client (délai contractuel, réel, écart, montant/ancienneté retard).
-- Auto-bascule 🟢🟠🔴 avec seuils configurables.
-- **Alertes mauvais payeurs** : seuils (score + montant) configurables par manager, endpoint scan `/api/alerts/bad-payers/scan`, alertes actives listées + dismiss, écho dans NotificationBell.
+### Stock / DRM / Contenants (v5)
+- Container + StockMovement models
+- QR code par contenant (qrcode.react), scan caméra (html5-qrcode) + saisie manuelle
+- Endpoints scan/move/list/summary/deposits/DRM
+- Product étendu : abv_pct, alcohol_type, volume_liters, hecto_tiers
+- Pages : /stock, /containers, /containers/:id, /scan, /drm
+- DRM mensuelle avec calcul alcool pur + export CSV
 
-### Écran commande mobile terrain
-- `/etab/:id/commande` — 3 étapes : catalogue+panier / récap+livraison / signature.
-- Catalogue offline-friendly (données catalog cached), tarif spécifique client via price_list, quantité habituelle affichée.
-- **Blocage rouge** : écran refus + bouton dérogation.
-- Contrôle remise max par ligne + calcul live HT/TVA/TTC.
-- Signature canvas doigt + horodatage + GPS ponctuel (opt-in org).
-- POST /orders + /orders/{id}/signature.
+### Auth & Sécurité (v4)
+- JWT 90j, 2 rôles, admin users
+- Password reset par email (Emergent Resend) + token single-use 60min
+- Fallback manager-approve
 
-### Tarification à l'hecto (bière)
-- Product model : `volume_liters` + `hecto_tiers: [{min_hl, discount_pct}]`.
-- Catalog renvoie tiers au client.
-- MobileOrder : calcul automatique du palier applicable (qty × volume / 100 = hL), affichage palier actif + palier suivant, remise cumulée avec remise ligne (plafonnée 100%).
-- Modal admin sur `/products` pour paramétrer paliers.
+### Paiements (v4)
+- DSO, mauvais payeurs, seuils configurables, alertes actives
 
-### i18n 4 langues
-- Dictionnaire fr/en/es/de dans I18nContext.
-- Sélecteur à l'inscription + persistance backend (`PUT /api/auth/language`).
+### Écran commande mobile (v4)
+- 3 étapes catalog/récap/signature avec GPS ponctuel
+- Tarif hecto automatique (bière)
 
-### RGPD
-- Export/effacement client, journal audit, purge audio, réglages org.
+### i18n 4 langues + RGPD (v4)
 
 ## En attente / P0 restant
-- P0 : Dexie/Workbox offline-first (IndexedDB + sync queue) — pas encore fait.
-- P1 : Migration des pages historiques vers `t()`.
-- P1 : Google Drive OAuth (attend Client ID/Secret).
-- P1 : Cron `.emergent/crons.yml` pour scan bad-payers quotidien (endpoint prêt).
+- P0 : Dexie/Workbox offline-first
+- P1 : Cron .emergent/crons.yml pour bad-payers + purge audio
+- P1 : Migration pages historiques vers t()
+- P1 : Google Drive OAuth
 
 ## Backlog / P2
-- Automations no-code
-- Custom fields dynamiques
-- Refactor server.py (>3000 lignes) → `/backend/routes/`
+- Impression étiquettes QR en lot
+- N° d'accise DRM officiel
+- Refactor server.py > 3200 lignes → /backend/routes/
+- Aligner identifiants internes restants (localStorage key + SW tag) sur BEVID
 
 ## Credentials
 Voir `/app/memory/test_credentials.md`.

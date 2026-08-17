@@ -5,7 +5,7 @@ import { Plug, Check, AlertCircle, Trash2, Plus, RefreshCw } from "lucide-react"
 
 const PROVIDERS = [
   { key: "easybeer", name: "EasyBeer", desc: "Gestion brasseries & catalogues bières", color: "#C78B3A", fields: ["api_key", "workspace_id"] },
-  { key: "vinovendpro", name: "Vinovend Pro", desc: "Gestion cavistes / distribution vins", color: "#4A154B", fields: ["api_key", "region"] },
+  { key: "vinovent", name: "Vinovent", desc: "Gestion cavistes / distribution vins", color: "#4A154B", fields: ["api_key", "region"] },
   { key: "pennylane", name: "Pennylane", desc: "Comptabilité & facturation", color: "#2D5A4C", fields: ["api_key"] },
   { key: "google_drive", name: "Google Drive", desc: "Étiquettes, tarifs, prospects", color: "#8C2A2A", fields: ["client_id", "client_secret"], oauth: true },
   { key: "custom", name: "Webhook custom", desc: "Connectez toute autre app via API", color: "#5C5C5C", fields: ["endpoint", "api_key"] },
@@ -38,7 +38,7 @@ export default function Connectors() {
 
   return (
     <div className="space-y-6" data-testid="connectors-page">
-      <div><p className="overline">Intégrations</p><h1 className="font-display text-4xl">Connecteurs</h1><p className="text-sm text-stone-500 mt-1">Reliez vos outils métiers à Cellier</p></div>
+      <div><p className="overline">Intégrations</p><h1 className="font-display text-4xl">Connecteurs</h1><p className="text-sm text-stone-500 mt-1">Reliez vos outils métiers à BEVID</p></div>
 
       {items.length > 0 && (
         <div className="card-crm p-4">

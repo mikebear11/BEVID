@@ -34,6 +34,11 @@ import Paiements from "@/pages/Paiements";
 import Confidentialite from "@/pages/Confidentialite";
 import Couts from "@/pages/Couts";
 import MobileOrder from "@/pages/MobileOrder";
+import Stock from "@/pages/Stock";
+import Containers from "@/pages/Containers";
+import ContainerDetail from "@/pages/ContainerDetail";
+import ScanContainer from "@/pages/ScanContainer";
+import DRM from "@/pages/DRM";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -78,6 +83,11 @@ function App() {
               <Route path="/tournee" element={<Protected><Tournee /></Protected>} />
               <Route path="/etab/:id" element={<Protected><Etablissement360 /></Protected>} />
               <Route path="/etab/:id/commande" element={<Protected><MobileOrder /></Protected>} />
+              <Route path="/stock" element={<Protected><Stock /></Protected>} />
+              <Route path="/containers" element={<Protected><Containers /></Protected>} />
+              <Route path="/containers/:id" element={<Protected><ContainerDetail /></Protected>} />
+              <Route path="/scan" element={<Protected><ScanContainer /></Protected>} />
+              <Route path="/drm" element={<Protected><DRM /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

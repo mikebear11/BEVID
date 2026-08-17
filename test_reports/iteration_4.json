@@ -1,0 +1,29 @@
+{
+  "summary": "Regression test on Vinovent connector rename (was 'vinovendpro'/'Vinovend Pro'). Backend Literal enum accepts 'vinovent' and rejects 'vinovendpro'. Frontend Connectors page shows 'Vinovent' card, no remnant of old label. Full flow (login manager -> open modal -> save config) works end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/connectors", "issue": "Invalid provider (e.g. 'vinovendpro') returns HTTP 500 instead of 422. Root cause: handler validates via `Connector(**data)` inside the function body instead of typing the request as `payload: Connector` in the signature. Pydantic ValidationError escapes as an unhandled exception. Validation still rejects the value — only the status code is wrong. Fix: change signature to `async def create_connector(payload: Connector, user=Depends(...))` (or wrap in try/except -> HTTPException 422)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_connector_vinovent.py"],
+  "action_items": [
+    "(Optional) Convert POST /api/connectors handler to accept a typed pydantic body (`payload: Connector`) so bad provider returns 422 instead of 500. Not blocking — validation itself works."
+  ],
+  "critical_code_review_comments": [
+    "Handler `create_connector` (server.py:1091) instantiates the Pydantic model inside the function; the pattern should rely on FastAPI's automatic body validation to produce 422 automatically."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "75% (3/4 assertions — enum rejection is functional, only HTTP status is wrong)", "frontend": "100%"},
+  "test_credentials": "guillaume@sulauze.com / Cellier2026!",
+  "seed_data_creation": "Created a 'TEST_key_123' Vinovent connector via API and 'TEST_uikey_999' via UI, both left in DB (backend UI insertion). Test cleanup removed the 'TEST_key_123' one; the UI one persisted for manual verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Rename is complete and working. If main agent chooses to fix the 500->422 issue for /api/connectors, re-run /app/backend/tests/test_connector_vinovent.py — test_reject_vinovendpro currently fails only because of the status code (500 vs 422).",
+  "rca of the issue": "User-reported typo 'vinovendpro'/'Vinovend Pro' was corrected to 'vinovent'/'Vinovent' in backend Literal enum (server.py:1072) and frontend PROVIDERS array (Connectors.jsx:8). Verified via API (create passes, list contains) and UI (label 'Vinovent' shown, no 'Vinovend Pro' anywhere). Unrelated observation: invalid provider triggers Pydantic ValidationError -> 500 because the model is instantiated inside the handler."
+}

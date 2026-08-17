@@ -91,8 +91,11 @@ class Product(BaseModel):
     stock: int = 0
     unit: str = "bouteille"
     # Tarification volumétrique (bière surtout)
-    volume_liters: Optional[float] = None   # litres par unité (ex : 0.33 pour 33cl, 30 pour un fût)
-    hecto_tiers: List[dict] = []            # [{ "min_hl": 5, "discount_pct": 3 }, { "min_hl": 10, "discount_pct": 5 }]
+    volume_liters: Optional[float] = None
+    hecto_tiers: List[dict] = []
+    # DRM (Déclaration Récapitulative Mensuelle)
+    abv_pct: Optional[float] = None            # degré alcoolique (ex 5.5 pour 5.5%)
+    alcohol_type: Optional[str] = None         # 'biere' | 'vin' | 'spiritueux' | None (soft/eau)
     owner_id: str
     created_at: str = Field(default_factory=now_iso)
 
@@ -562,7 +565,7 @@ async def geocode_client(cid: str, user=Depends(get_current_user)):
     async with httpx.AsyncClient(timeout=10.0) as hx:
         r = await hx.get("https://nominatim.openstreetmap.org/search",
                          params={"q": query, "format": "json", "limit": 1},
-                         headers={"User-Agent": "CellierCRM/1.0"})
+                         headers={"User-Agent": "BEVIDCRM/1.0"})
     results = r.json() if r.status_code == 200 else []
     if not results:
         raise HTTPException(404, "Adresse introuvable")
@@ -584,7 +587,7 @@ async def geocode_all(user=Depends(get_current_user)):
             try:
                 r = await hx.get("https://nominatim.openstreetmap.org/search",
                                  params={"q": query, "format": "json", "limit": 1},
-                                 headers={"User-Agent": "CellierCRM/1.0"})
+                                 headers={"User-Agent": "BEVIDCRM/1.0"})
                 results = r.json() if r.status_code == 200 else []
                 if results:
                     await db.clients.update_one({"id": c["id"]},
@@ -608,7 +611,7 @@ async def order_pdf(oid: str, user=Depends(get_current_user)):
     over_style = ParagraphStyle('O', parent=styles['Normal'], fontSize=8, textColor=colors.grey, spaceAfter=20)
     elems = []
     elems.append(Paragraph("BON DE COMMANDE", over_style))
-    elems.append(Paragraph(f"Cellier · Commande #{o['id'][:8].upper()}", title_style))
+    elems.append(Paragraph(f"BEVID · Commande #{o['id'][:8].upper()}", title_style))
     elems.append(Paragraph(f"Date: {o.get('created_at','')[:10]}", styles['Normal']))
     elems.append(Spacer(1, 16))
     elems.append(Paragraph(f"<b>Client:</b> {o.get('client_name','')}", styles['Normal']))
@@ -1066,7 +1069,7 @@ async def team_progress(user=Depends(get_current_user)):
 class Connector(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    provider: Literal["easybeer", "vinovendpro", "pennylane", "google_drive", "custom"]
+    provider: Literal["easybeer", "vinovent", "pennylane", "google_drive", "custom"]
     name: str
     status: Literal["connected", "disconnected", "error", "pending"] = "disconnected"
     config: dict = Field(default_factory=dict)
@@ -1289,7 +1292,7 @@ STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 # ==========================================================
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
-EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Cellier")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "BEVID")
 EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
 
 _SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
@@ -1393,7 +1396,7 @@ async def create_payment_link(oid: str, request: Request, user=Depends(get_curre
             line_items=[{
                 "price_data": {
                     "currency": "eur",
-                    "product_data": {"name": f"Commande Cellier #{oid[:8]}" + (f" (Escompte -{discount_pct}%)" if discount_pct else "") + f" · {o['client_name']}"},
+                    "product_data": {"name": f"Commande BEVID #{oid[:8]}" + (f" (Escompte -{discount_pct}%)" if discount_pct else "") + f" · {o['client_name']}"},
                     "unit_amount": int(round(total * 100)),
                 },
                 "quantity": 1,
@@ -1491,7 +1494,7 @@ async def receipt_text(oid: str, user=Depends(get_current_user)):
         raise HTTPException(404, "Commande introuvable")
     lines_txt = "\n".join([f"- {l['product_name']} x{l['quantity']} : {l['quantity']*l['unit_price']:.2f}€" for l in o.get("lines", [])])
     paid_flag = "✅ PAYÉE" if o.get("payment_status") == "paid" else "⏳ à régler"
-    txt = (f"🍾 Cellier · Reçu #{o['id'][:8].upper()}\n"
+    txt = (f"🍾 BEVID · Reçu #{o['id'][:8].upper()}\n"
            f"Client : {o['client_name']}\n"
            f"Date : {o.get('created_at','')[:10]}\n"
            f"Statut : {paid_flag}\n\n"
@@ -1641,7 +1644,7 @@ async def _process_reminders():
             phone = "+33" + phone.lstrip("0")
         tone = "amicale" if age == 15 else "ferme"
         body = (f"Bonjour {c.get('contact_name','')}, votre commande #{o['id'][:8]} de {o.get('total',0):.2f}€ "
-                f"reste à régler ({age}j). Un lien de paiement rapide est disponible sur demande. Cordialement, Cellier.")
+                f"reste à régler ({age}j). Un lien de paiement rapide est disponible sur demande. Cordialement, BEVID.")
         channel = s.get("reminder_channel", "whatsapp")
         if phone:
             if channel == "whatsapp":
@@ -1947,7 +1950,7 @@ async def anniversaries(days: int = 30, user=Depends(get_current_user)):
             if anniv <= horizon:
                 yrs = now.year - created.year if anniv.year == now.year else now.year - created.year + 1
                 if yrs >= 1:
-                    events.append({"kind": "compte", "date": anniv.strftime("%Y-%m-%d"), "years": yrs, "label": f"{yrs} an{'s' if yrs>1 else ''} chez Cellier"})
+                    events.append({"kind": "compte", "date": anniv.strftime("%Y-%m-%d"), "years": yrs, "label": f"{yrs} an{'s' if yrs>1 else ''} chez BEVID"})
         except Exception:
             pass
         if first:
@@ -2624,7 +2627,7 @@ async def forgot_password(data: dict, request: Request):
         # URL frontend
         frontend = os.environ.get("FRONTEND_URL", "").rstrip("/")
         reset_url = f"{frontend}/reset-password/{token}"
-        subject = "Réinitialisation de votre mot de passe Cellier"
+        subject = "Réinitialisation de votre mot de passe BEVID"
         # Template server-side. Pas de <form>/<input>. Liens https absolus, ancre = hôte.
         safe_url = reset_url
         html = (
@@ -2633,7 +2636,7 @@ async def forgot_password(data: dict, request: Request):
             '<table role="presentation" width="100%" style="max-width:560px;margin:0 auto;'
             'background:#fff;border-radius:12px;font-family:Arial,sans-serif;color:#1a1a1a">'
             '<tr><td style="padding:32px">'
-            f'<h1 style="margin:0 0 16px 0;font-size:22px;color:#4A154B">Cellier</h1>'
+            f'<h1 style="margin:0 0 16px 0;font-size:22px;color:#4A154B">BEVID</h1>'
             f'<p style="margin:0 0 12px 0">Bonjour {escape(u.get("name") or "")},</p>'
             f'<p style="margin:0 0 12px 0">Vous avez demandé la réinitialisation de votre mot de passe. '
             f'Ouvrez le lien ci-dessous pour en choisir un nouveau. Ce lien expire dans 60 minutes.</p>'
@@ -2644,7 +2647,7 @@ async def forgot_password(data: dict, request: Request):
             f'Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet email — '
             f'votre mot de passe actuel reste valide.</p>'
             f'<p style="margin:24px 0 0 0;font-size:11px;color:#888">'
-            f'Envoyé par Cellier. Nous ne vous demandons jamais votre mot de passe par email.</p>'
+            f'Envoyé par BEVID. Nous ne vous demandons jamais votre mot de passe par email.</p>'
             '</td></tr></table></td></tr></table>'
         )
         try:
@@ -3095,6 +3098,230 @@ async def dismiss_bad_payer_alert(aid: str, user=Depends(get_current_user)):
     await db.bad_payer_alerts.update_one({"id": aid}, {"$set": {"status": "dismissed", "dismissed_at": now_iso(), "dismissed_by": user["id"]}})
     await audit_log(user["id"], "bad_payer_dismiss", {"alert_id": aid})
     return {"ok": True}
+
+# ==========================================================
+# STOCK / CONSIGNES FÛTS / DRM
+# ==========================================================
+class Container(BaseModel):
+    """Contenant physique traçable : fût, carton, palette, bouteille pièce.
+    L'id sert de payload QR code (ou EAN si fourni)."""
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    type: Literal["fut", "carton", "palette", "bouteille", "autre"] = "fut"
+    product_id: Optional[str] = None
+    product_name: Optional[str] = ""
+    barcode: Optional[str] = None              # EAN alternatif si étiquette imprimée
+    batch_lot: Optional[str] = ""              # lot de production/DLC
+    filled_volume_l: Optional[float] = None
+    deposit_amount: float = 0.0                # consigne facturable au retour non-rendu
+    status: Literal["en_stock", "sorti", "chez_client", "retour", "vide", "consigne_facturee", "casse"] = "en_stock"
+    current_location: Optional[str] = None     # "entrepot" ou establishment_id
+    current_location_name: Optional[str] = ""
+    filled_at: Optional[str] = None
+    last_moved_at: str = Field(default_factory=now_iso)
+    owner_id: str
+    created_at: str = Field(default_factory=now_iso)
+
+class StockMovement(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    container_id: Optional[str] = None
+    product_id: Optional[str] = None
+    kind: Literal["entree", "sortie", "retour", "casse", "degustation", "don", "vente", "transfert"] = "entree"
+    qty: float = 1.0
+    from_location: Optional[str] = None
+    to_location: Optional[str] = None
+    note: Optional[str] = ""
+    agent_id: str
+    owner_id: str
+    at: str = Field(default_factory=now_iso)
+
+@api_router.get("/containers")
+async def list_containers(status: Optional[str] = None, type: Optional[str] = None,
+                          location: Optional[str] = None, user=Depends(get_current_user)):
+    q = {}
+    if status: q["status"] = status
+    if type: q["type"] = type
+    if location: q["current_location"] = location
+    items = await db.containers.find(q, {"_id": 0}).sort("last_moved_at", -1).to_list(2000)
+    return items
+
+@api_router.post("/containers")
+async def create_container(data: dict, user=Depends(get_current_user)):
+    data["owner_id"] = user["id"]
+    if data.get("product_id"):
+        p = await db.products.find_one({"id": data["product_id"]}, {"_id": 0})
+        if p:
+            data["product_name"] = p["name"]
+            if not data.get("filled_volume_l"):
+                data["filled_volume_l"] = p.get("volume_liters")
+    if not data.get("current_location"):
+        data["current_location"] = "entrepot"
+        data["current_location_name"] = "Entrepôt"
+    c = Container(**data)
+    await db.containers.insert_one(c.model_dump())
+    await db.stock_movements.insert_one(StockMovement(
+        container_id=c.id, product_id=c.product_id, kind="entree", qty=1,
+        to_location=c.current_location, note="Création contenant",
+        agent_id=user["id"], owner_id=user["id"],
+    ).model_dump())
+    return c.model_dump()
+
+@api_router.get("/containers/{cid}")
+async def get_container(cid: str, user=Depends(get_current_user)):
+    c = await db.containers.find_one({"$or": [{"id": cid}, {"barcode": cid}]}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Contenant introuvable")
+    moves = await db.stock_movements.find({"container_id": c["id"]}, {"_id": 0}).sort("at", -1).to_list(200)
+    return {**c, "movements": moves}
+
+@api_router.put("/containers/{cid}/move")
+async def move_container(cid: str, data: dict, user=Depends(get_current_user)):
+    c = await db.containers.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Contenant introuvable")
+    new_loc = data.get("to_location")
+    new_loc_name = data.get("to_location_name", "")
+    new_status = data.get("status", c.get("status"))
+    if new_loc and new_loc != "entrepot":
+        est = await db.establishments.find_one({"id": new_loc}, {"_id": 0}) or await db.clients.find_one({"id": new_loc}, {"_id": 0})
+        if est:
+            new_loc_name = est.get("name", new_loc_name)
+    await db.containers.update_one({"id": cid}, {"$set": {
+        "current_location": new_loc,
+        "current_location_name": new_loc_name,
+        "status": new_status,
+        "last_moved_at": now_iso(),
+    }})
+    await db.stock_movements.insert_one(StockMovement(
+        container_id=cid, product_id=c.get("product_id"),
+        kind=data.get("kind", "transfert"), qty=1,
+        from_location=c.get("current_location"), to_location=new_loc,
+        note=data.get("note", ""),
+        agent_id=user["id"], owner_id=user["id"],
+    ).model_dump())
+    return await db.containers.find_one({"id": cid}, {"_id": 0})
+
+@api_router.get("/containers/scan/{code}")
+async def scan_container(code: str, user=Depends(get_current_user)):
+    """Endpoint appelé après scan QR/barcode. Accepte id ou barcode."""
+    c = await db.containers.find_one({"$or": [{"id": code}, {"barcode": code}]}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Contenant inconnu")
+    return c
+
+@api_router.get("/stock/summary")
+async def stock_summary(user=Depends(get_current_user)):
+    """État stock par produit : en entrepôt / chez clients / retours / vides."""
+    from collections import defaultdict
+    counts = defaultdict(lambda: {"en_stock": 0, "chez_client": 0, "retour": 0, "vide": 0, "sorti": 0, "total": 0, "volume_l": 0.0})
+    async for c in db.containers.find({}, {"_id": 0}):
+        pid = c.get("product_id") or "_none"
+        st = c.get("status", "en_stock")
+        counts[pid][st] = counts[pid].get(st, 0) + 1
+        counts[pid]["total"] += 1
+        counts[pid]["volume_l"] += (c.get("filled_volume_l") or 0)
+    products = {p["id"]: p async for p in db.products.find({}, {"_id": 0})}
+    result = []
+    for pid, st in counts.items():
+        p = products.get(pid, {})
+        result.append({
+            "product_id": pid,
+            "product_name": p.get("name", "(sans produit)"),
+            "category": p.get("category"),
+            "abv_pct": p.get("abv_pct"),
+            **st,
+        })
+    result.sort(key=lambda x: -x["total"])
+    return result
+
+@api_router.get("/stock/movements")
+async def list_movements(limit: int = 200, user=Depends(get_current_user)):
+    items = await db.stock_movements.find({}, {"_id": 0}).sort("at", -1).to_list(limit)
+    return items
+
+@api_router.get("/deposits/outstanding")
+async def deposits_outstanding(user=Depends(get_current_user)):
+    """Consignes de fûts sortis (chez client) non encore rendus."""
+    items = await db.containers.find(
+        {"status": {"$in": ["chez_client", "sorti"]}, "deposit_amount": {"$gt": 0}}, {"_id": 0}
+    ).to_list(5000)
+    from collections import defaultdict
+    by_client = defaultdict(lambda: {"count": 0, "total_deposit": 0.0, "containers": []})
+    for c in items:
+        loc = c.get("current_location") or "?"
+        by_client[loc]["count"] += 1
+        by_client[loc]["total_deposit"] += c.get("deposit_amount", 0) or 0
+        by_client[loc]["containers"].append({"id": c["id"], "product": c.get("product_name"), "type": c.get("type"), "since": c.get("last_moved_at")})
+        by_client[loc]["client_name"] = c.get("current_location_name") or loc
+    return [{"client_id": k, **v} for k, v in by_client.items()]
+
+@api_router.get("/drm/{year}/{month}")
+async def drm_month(year: int, month: int, user=Depends(get_current_user)):
+    """DRM mensuelle : par produit alcoolisé — stock initial, entrées, sorties, stock final,
+    en volume (L) et alcool pur (L). Manager only."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    prefix = f"{year:04d}-{month:02d}"
+    start = f"{prefix}-01"
+    if month == 12:
+        end = f"{year+1:04d}-01-01"
+    else:
+        end = f"{year:04d}-{month+1:02d}-01"
+    products = {p["id"]: p async for p in db.products.find({}, {"_id": 0})}
+    from collections import defaultdict
+    stats = defaultdict(lambda: {
+        "entrees_l": 0.0, "sorties_l": 0.0, "casse_l": 0.0, "degust_l": 0.0, "don_l": 0.0,
+        "entrees_units": 0, "sorties_units": 0,
+    })
+    movs = await db.stock_movements.find({"at": {"$gte": start, "$lt": end}}, {"_id": 0}).to_list(50000)
+    for m in movs:
+        pid = m.get("product_id")
+        if not pid:
+            continue
+        p = products.get(pid, {})
+        vol_unit = p.get("volume_liters") or 0
+        vol = (m.get("qty") or 0) * vol_unit
+        k = m.get("kind")
+        if k in ("entree", "retour"):
+            stats[pid]["entrees_l"] += vol
+            stats[pid]["entrees_units"] += m.get("qty") or 0
+        elif k in ("sortie", "vente", "transfert"):
+            stats[pid]["sorties_l"] += vol
+            stats[pid]["sorties_units"] += m.get("qty") or 0
+        elif k == "casse":
+            stats[pid]["casse_l"] += vol
+        elif k == "degustation":
+            stats[pid]["degust_l"] += vol
+        elif k == "don":
+            stats[pid]["don_l"] += vol
+    result = []
+    total_alcool_pur_l = 0
+    for pid, st in stats.items():
+        p = products.get(pid, {})
+        if not p or not (p.get("abv_pct") and p.get("alcohol_type")):
+            continue  # DRM = alcool uniquement
+        abv = p["abv_pct"] / 100.0
+        net_l = st["entrees_l"] - st["sorties_l"] - st["casse_l"] - st["degust_l"] - st["don_l"]
+        alcool_pur_l = abs(st["sorties_l"] + st["casse_l"] + st["degust_l"] + st["don_l"]) * abv
+        total_alcool_pur_l += alcool_pur_l
+        result.append({
+            "product_id": pid,
+            "product_name": p.get("name"),
+            "alcohol_type": p.get("alcohol_type"),
+            "abv_pct": p.get("abv_pct"),
+            **{k: round(v, 2) for k, v in st.items()},
+            "net_l": round(net_l, 2),
+            "alcool_pur_l": round(alcool_pur_l, 3),
+        })
+    result.sort(key=lambda x: x["alcohol_type"] or "")
+    return {
+        "period": prefix,
+        "lines": result,
+        "total_alcool_pur_l": round(total_alcool_pur_l, 3),
+        "generated_at": now_iso(),
+        "note": "Récapitulatif automatique — à valider et déclarer sur portailpro.douanes.gouv.fr. Ce logiciel n'est pas un télédéclarant agréé.",
+    }
 
 @api_router.get("/")
 async def root():

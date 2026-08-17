@@ -33,14 +33,14 @@ export default function Login() {
         <div className="relative z-10">
           <div className="flex items-center gap-2">
             <Wine size={22} />
-            <span className="overline text-white/80">Cellier · CRM</span>
+            <span className="overline text-white/80">BEVID · CRM</span>
           </div>
         </div>
         <div className="relative z-10">
           <h1 className="font-display text-5xl leading-tight mb-4">La distribution de boissons,<br/>simplifiée.</h1>
           <p className="text-white/80 max-w-md">Saisie vocale, assistant IA par compte, rapports en un clic. Vos commerciaux passent enfin plus de temps sur le terrain.</p>
         </div>
-        <div className="relative z-10 overline text-white/50">© 2026 Cellier</div>
+        <div className="relative z-10 overline text-white/50">© 2026 BEVID</div>
       </div>
       <div className="flex-1 flex items-center justify-center p-6">
         <form onSubmit={submit} className="w-full max-w-sm space-y-5" data-testid="login-form">

@@ -25,6 +25,8 @@ const dict = {
     revenue: "Chiffre d'affaires", active_clients: "Clients actifs", quick_report: "Rapport 1-clic",
     voice_input: "Saisie vocale", ai_assistant: "Assistant IA", performance: "Performance",
     account_analysis: "Analyse du compte",
+    // Stock / DRM / containers
+    stock: "Stock", containers: "Contenants", scan: "Scanner", drm: "DRM",
     // Paiements
     payment_terms: "Délai contractuel", actual_delay: "Délai réel moyen", gap: "Écart",
     overdue_amount: "Montant en retard", overdue_age: "Ancienneté", bad_payers: "Mauvais payeurs",

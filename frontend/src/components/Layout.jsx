@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import VoiceFAB from "@/components/VoiceFAB";
 import SyncIndicator from "@/components/SyncIndicator";
-import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins } from "lucide-react";
+import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 
 const navAll = [
@@ -17,6 +17,10 @@ const navAll = [
   { to: "/products", key: "products", icon: Wine, roles: ["manager", "commercial"] },
   { to: "/orders", key: "orders", icon: ShoppingCart, roles: ["manager", "commercial"] },
   { to: "/tours", key: "tours", icon: RouteIcon, roles: ["manager", "commercial"] },
+  { to: "/stock", key: "stock", icon: Warehouse, roles: ["manager", "commercial"] },
+  { to: "/containers", key: "containers", icon: QrCode, roles: ["manager", "commercial"] },
+  { to: "/scan", key: "scan", icon: QrCode, roles: ["manager", "commercial"] },
+  { to: "/drm", key: "drm", icon: FileText, roles: ["manager"] },
   { to: "/reports", key: "reports", icon: BarChart3, roles: ["manager"] },
   { to: "/paiements", key: "payments", icon: Banknote, roles: ["manager"] },
   { to: "/monthly-review", key: "monthly", icon: Trophy, roles: ["manager"] },
@@ -43,7 +47,7 @@ export default function Layout({ children }) {
       <aside className="hidden md:flex md:flex-col w-64 border-r border-stone-200 bg-white/60 backdrop-blur-md" data-testid="sidebar">
         <div className="p-6 border-b border-stone-200 flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl text-[#4A154B] leading-none">Cellier</h1>
+            <h1 className="font-display text-2xl text-[#4A154B] leading-none">BEVID</h1>
             <p className="overline mt-1">CRM Boisson · Pro</p>
           </div>
           <SyncIndicator />
@@ -85,7 +89,7 @@ export default function Layout({ children }) {
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-stone-200 flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3">
-          <h1 className="font-display text-xl text-[#4A154B]">Cellier</h1>
+          <h1 className="font-display text-xl text-[#4A154B]">BEVID</h1>
           <SyncIndicator />
         </div>
         <div className="flex gap-2 items-center">
