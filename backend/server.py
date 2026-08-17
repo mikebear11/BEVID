@@ -185,7 +185,7 @@ async def update_language(data: dict, user=Depends(get_current_user)):
 
 @api_router.post("/auth/login")
 async def login(data: UserLogin):
-    doc = await db.users.find_one({"email": data.email})
+    doc = await db.users.find_one({"email": data.email.strip().lower()})
     if not doc or not verify_password(data.password, doc["password"]):
         raise HTTPException(401, "Identifiants invalides")
     token = create_token(doc["id"])
@@ -2216,6 +2216,7 @@ async def sync_bootstrap(user=Depends(get_current_user)):
     return {
         "user": {k: user[k] for k in user if k != "password"},
         "server_time": now_iso(),
+        "snapshot_at": now_iso(),
         "establishments": establishments,
         "products": products,
         "price_lists": price_lists,
@@ -3325,7 +3326,58 @@ async def drm_month(year: int, month: int, user=Depends(get_current_user)):
 
 @api_router.get("/")
 async def root():
-    return {"service": "CRM Boisson API", "status": "ok"}
+    return {"service": "BEVID API", "status": "ok"}
+
+# ==========================================================
+# CRONS externes (Emergent scheduler) — endpoints publics idempotents
+# ==========================================================
+@api_router.post("/cron/bad-payer-scan")
+async def cron_bad_payer_scan():
+    s = await get_org_settings()
+    score_threshold = float(s.get("bad_payer_alert_score_threshold", 30))
+    amt_threshold = float(s.get("bad_payer_alert_overdue_amount", 500))
+    default_terms = s.get("default_payment_terms_days", 30)
+    ests = await db.establishments.find({}, {"_id": 0}).to_list(5000)
+    if not ests:
+        ests = await db.clients.find({}, {"_id": 0}).to_list(5000)
+    new_alerts = 0
+    for e in ests:
+        a = await _client_payment_analysis(e["id"], default_terms)
+        score = 0
+        if a["avg_paid_delay_vs_due"]:
+            score += max(0, a["avg_paid_delay_vs_due"])
+        score += a["overdue_oldest_days"]
+        score += min(50, a["overdue_amount"] / 100)
+        crossed = (score >= score_threshold) or (a["overdue_amount"] >= amt_threshold)
+        if not crossed:
+            await db.bad_payer_alerts.update_many(
+                {"client_id": e["id"], "status": "active"},
+                {"$set": {"status": "resolved", "resolved_at": now_iso()}}
+            )
+            continue
+        existing = await db.bad_payer_alerts.find_one({"client_id": e["id"], "status": "active"}, {"_id": 0})
+        if existing:
+            await db.bad_payer_alerts.update_one({"id": existing["id"]},
+                {"$set": {"snapshot": a, "score": round(score, 1), "updated_at": now_iso()}})
+            continue
+        alert = {"id": str(uuid.uuid4()), "client_id": e["id"], "client_name": e.get("name", "?"),
+                 "assigned_to": e.get("assigned_to"), "score": round(score, 1), "snapshot": a,
+                 "reason": ("Score" if score >= score_threshold else "Montant") + " au-dessus du seuil",
+                 "status": "active", "created_at": now_iso()}
+        await db.bad_payer_alerts.insert_one(alert.copy())
+        new_alerts += 1
+    return {"ok": True, "new_alerts": new_alerts, "ran_at": now_iso()}
+
+@api_router.post("/cron/voice-purge")
+async def cron_voice_purge():
+    s = await get_org_settings()
+    days = int(s.get("voice_transcript_retention_days", 90))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    r = await db.visits.update_many(
+        {"created_at": {"$lt": cutoff}, "voice_transcript": {"$ne": ""}},
+        {"$set": {"voice_transcript": ""}}
+    )
+    return {"ok": True, "purged": r.modified_count, "cutoff_days": days, "ran_at": now_iso()}
 
 app.include_router(api_router)
 

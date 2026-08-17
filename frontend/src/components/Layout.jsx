@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import VoiceFAB from "@/components/VoiceFAB";
 import SyncIndicator from "@/components/SyncIndicator";
+import BevidLogo from "@/components/BevidLogo";
 import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 
@@ -46,9 +47,12 @@ export default function Layout({ children }) {
       {/* Sidebar desktop */}
       <aside className="hidden md:flex md:flex-col w-64 border-r border-stone-200 bg-white/60 backdrop-blur-md" data-testid="sidebar">
         <div className="p-6 border-b border-stone-200 flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-2xl text-[#4A154B] leading-none">BEVID</h1>
-            <p className="overline mt-1">CRM Boisson · Pro</p>
+          <div className="flex items-center gap-2 text-[#4A154B]">
+            <BevidLogo size={28} />
+            <div>
+              <h1 className="font-display text-2xl leading-none">BEVID</h1>
+              <p className="overline mt-1">CRM Boisson · Pro</p>
+            </div>
           </div>
           <SyncIndicator />
         </div>
@@ -88,8 +92,9 @@ export default function Layout({ children }) {
 
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-stone-200 flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display text-xl text-[#4A154B]">BEVID</h1>
+        <div className="flex items-center gap-3 text-[#4A154B]">
+          <BevidLogo size={22} />
+          <h1 className="font-display text-xl">BEVID</h1>
           <SyncIndicator />
         </div>
         <div className="flex gap-2 items-center">

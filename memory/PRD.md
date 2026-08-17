@@ -1,62 +1,55 @@
 # BEVID — CRM Distribution de Boissons
 
 ## Architecture
-FastAPI + MongoDB (hébergement UE) + React 19 + Tailwind + Shadcn + Leaflet + reportlab + emergentintegrations + Emergent Resend + html5-qrcode + qrcode.react.
+FastAPI + MongoDB (UE) + React 19 + Tailwind + Dexie (offline) + Emergent Resend + html5-qrcode + qrcode.react.
 
 ## Product principles
-- Mobile-first, contrastes élevés, touches ≥ 48px, thumb-zone
-- ≤ 2 niveaux nav, indicateur sync permanent
+- Mobile-first, ≥ 48px, thumb-zone, indicateur sync permanent
 - Marges masquées tant que coûts non validés
-- Géolocalisation ponctuelle uniquement (opt-in)
-- 2 rôles stricts (manager / commercial)
-- JWT 90 jours, multi-langues fr/en/es/de
-- Typo : ZT Nature en display + Outfit body
+- Géoloc ponctuelle uniquement, opt-in
+- 2 rôles stricts, JWT 90 jours, 4 langues fr/en/es/de
+- Typo ZT Nature + logo BEVID SVG
 
-## RGPD / CNIL
-- Hébergement UE, TLS 1.3, AES-256
-- Journal d'accès, export + effacement par contact
-- Rétention audio paramétrable
-- ⚠️ Géoloc à valider par DPO
+## Implemented — v5.2 (17/02/2026)
+### Offline first (P0)
+- Dexie DB `bevid_offline` : establishments, products, sync_queue, meta
+- `/lib/db.js` : saveSnapshot, enqueueMutation, pendingCount
+- `/lib/syncQueue.js` : flushQueue + startSyncListener (online + interval 60s)
+- `/lib/api.js` : `postOffline(url, data)` — écrit local si offline, réessaie auto
+- `AuthContext` : bootstrap Dexie au login + flushQueue au démarrage
+- `SyncIndicator` : compte réel des mutations en attente (Dexie)
+- Bootstrap endpoint : `/api/sync/bootstrap` (GET, respect ségrégation manager/commercial)
 
-## Implemented — v5.1 (17/02/2026)
-### Rebrand & renommage connecteur
-- App renommée **BEVID** (partout : sidebar, login, PWA manifest, index.html, emails, PDF)
-- Password `Cellier2026!` conservé (credential, pas brand)
-- Connecteur `Vinovent` (ex-Vinovend Pro) : enum backend + UI
+### Cron endpoints publics
+- `POST /api/cron/bad-payer-scan` → programmé chaque jour 07:00 Paris
+- `POST /api/cron/voice-purge` → programmé chaque jour 03:30 Paris
+- Ajoutés à `/app/.emergent/crons.yml`
 
-### Stock / DRM / Contenants (v5)
-- Container + StockMovement models
-- QR code par contenant (qrcode.react), scan caméra (html5-qrcode) + saisie manuelle
-- Endpoints scan/move/list/summary/deposits/DRM
-- Product étendu : abv_pct, alcohol_type, volume_liters, hecto_tiers
-- Pages : /stock, /containers, /containers/:id, /scan, /drm
-- DRM mensuelle avec calcul alcool pur + export CSV
+### QR Labels
+- Page `/containers/labels` — grille A4 3×8 imprimable, sélection, `window.print()`, page-break contrôlé
+- Chaque étiquette : QR (qrcode.react) + logo BEVID + produit + volume + lot
 
-### Auth & Sécurité (v4)
-- JWT 90j, 2 rôles, admin users
-- Password reset par email (Emergent Resend) + token single-use 60min
-- Fallback manager-approve
+### BEVID branding
+- Nouveau composant `BevidLogo` (SVG inline, currentColor)
+- Login split-screen + sidebar desktop + top bar mobile utilisent le logo
+- `EMAIL_FROM_NAME=BEVID`, PWA manifest, index.html title
 
-### Paiements (v4)
-- DSO, mauvais payeurs, seuils configurables, alertes actives
-
-### Écran commande mobile (v4)
-- 3 étapes catalog/récap/signature avec GPS ponctuel
-- Tarif hecto automatique (bière)
-
-### i18n 4 langues + RGPD (v4)
+## Rappels v5 / v4 déjà en place
+- Vinovent (ex-Vinovendpro)
+- Stock / DRM / Containers / Scan
+- Password reset par email (Emergent Resend)
+- Paiements DSO / mauvais payeurs
+- Mobile order + tarif hecto + signature GPS
+- i18n 4 langues + RGPD (audit, purge, export/erase)
 
 ## En attente / P0 restant
-- P0 : Dexie/Workbox offline-first
-- P1 : Cron .emergent/crons.yml pour bad-payers + purge audio
-- P1 : Migration pages historiques vers t()
-- P1 : Google Drive OAuth
+- Workbox service worker pour vraie mise en cache offline des assets (au-delà de Dexie data)
+- Migrer les pages historiques (Visits, Orders) vers `postOffline` pour bénéficier de la queue
 
 ## Backlog / P2
-- Impression étiquettes QR en lot
-- N° d'accise DRM officiel
-- Refactor server.py > 3200 lignes → /backend/routes/
-- Aligner identifiants internes restants (localStorage key + SW tag) sur BEVID
+- Icônes PWA BEVID en PNG (actuellement placeholder)
+- Notification tag SW + localStorage key à re-préfixer bevid_
+- Refactor server.py → /backend/routes/
 
 ## Credentials
 Voir `/app/memory/test_credentials.md`.

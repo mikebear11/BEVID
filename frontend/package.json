@@ -39,6 +39,8 @@
     "cra-template": "1.2.0",
     "date-fns": "4.1.0",
     "dayjs": "1.11.13",
+    "dexie": "^4.4.5",
+    "dexie-react-hooks": "^4.4.0",
     "embla-carousel-react": "8.6.0",
     "framer-motion": "11.18.0",
     "html5-qrcode": "^2.3.8",

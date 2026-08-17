@@ -5,13 +5,25 @@ crons:
     timezone: "Europe/Paris"
     endpoint: "{{BASE_URL}}/api/cron/payment-reminders"
     method: POST
-    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
     enabled: true
   - name: deviation-alerts
-    description: "Calcule chaque lundi les écarts fréquence/volume et génère les alertes classées par enjeu"
+    description: "Calcule chaque lundi les écarts fréquence/volume et génère les alertes"
     cron: "0 6 * * 1"
     timezone: "Europe/Paris"
     endpoint: "{{BASE_URL}}/api/cron/deviation-alerts"
     method: POST
-    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true
+  - name: bad-payer-scan
+    description: "Scan quotidien des mauvais payeurs contre les seuils configurés"
+    cron: "0 7 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/bad-payer-scan"
+    method: POST
+    enabled: true
+  - name: voice-purge
+    description: "Purge les transcriptions vocales au-delà de la rétention (RGPD)"
+    cron: "30 3 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/voice-purge"
+    method: POST
     enabled: true

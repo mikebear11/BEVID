@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { Wine } from "lucide-react";
+import BevidLogo from "@/components/BevidLogo";
 
 export default function Login() {
   const { login } = useAuth();
@@ -32,7 +33,7 @@ export default function Login() {
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1562601579-599dec564e06?w=1200')", backgroundSize: "cover", backgroundPosition: "center", mixBlendMode: "multiply" }} />
         <div className="relative z-10">
           <div className="flex items-center gap-2">
-            <Wine size={22} />
+            <BevidLogo size={28} />
             <span className="overline text-white/80">BEVID · CRM</span>
           </div>
         </div>

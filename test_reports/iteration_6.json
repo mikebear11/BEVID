@@ -1,0 +1,44 @@
+{
+  "summary": "Tested passe A/B/C/D: infra offline Dexie+syncQueue, crons publics (bad-payer-scan, voice-purge), page /containers/labels, rebrand BevidLogo. 4/4 backend tests PASS. Frontend: /login BEVID visible, sidebar BEVID logo visible, sync indicator 'À jour' after login, /containers/labels loads (24-label sheet), print button toggles disabled/enabled correctly, offline hook does not crash the app and SyncIndicator switches to 'Hors ligne'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/login", "issue": "Email input not lowercased before find_one; admin_create_user lowercases stored email, so users typing mixed-case at login get 401. Trim+lower recommended."},
+      {"endpoint": "GET /api/sync/bootstrap", "issue": "Response omits 'snapshot_at' (only 'server_time'), while frontend db.js saveSnapshot expects snapshot.snapshot_at → stored as undefined in Dexie meta."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Offline mode on dashboard", "issue": "When context goes offline, dashboard GET calls (KPIs, top products, etc.) raise unhandled AxiosError 'Network Error' — visible as React dev-overlay 'Uncaught runtime errors'. postOffline() only covers POST mutations; GETs have no .catch on some callers. Not a crash in production but noisy in dev.", "affected_selectors": ["dashboard KPI cards"]}
+    ],
+    "design_issues": [
+      {"screen": "Dashboard", "issues": ["Recharts warning 'width(-1) and height(-1)' spams console — chart container missing minWidth/minHeight (cosmetic)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter6_crons_bootstrap.py",
+    "/app/test_reports/pytest/iter6.xml"
+  ],
+  "action_items": [
+    "Consider lowercasing email in /api/auth/login (defensive, matches admin_create_user behavior).",
+    "Add 'snapshot_at' field to /api/sync/bootstrap response (used by frontend saveSnapshot).",
+    "Wrap dashboard fetches in try/catch or silence AxiosError network failures when navigator.onLine === false to avoid React dev-overlay noise."
+  ],
+  "critical_code_review_comments": [
+    "server.py file is 3397 lines — still growing; should be split (auth, sync, cron, admin, etc.).",
+    "syncQueue.js flushQueue: on non-4xx error it breaks the loop (correct back-off), but there is no exponential delay; setInterval 60s is the only retry cadence. OK for MVP.",
+    "QRLabels.jsx: 'items.find(c => c.id === id)' inside render loop is O(n²) — negligible at n=24 but consider a Map.",
+    "api.js postOffline swallows non-network errors correctly, but the same defensive layer isn't applied to GET requests → dashboard shows 'Uncaught' overlay when offline."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter6_crons_bootstrap.py (new)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (all requested checks pass)"},
+  "test_credentials": "guillaume@sulauze.com / Cellier2026! (manager)",
+  "seed_data_creation": "Created ephemeral commercial users test_commercial_<uuid8>@example.com via /api/admin/users for segregation test. They are marked active=false at teardown; not deleted from users collection (no DELETE endpoint used to avoid interference).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: pytest /app/backend/tests/test_iter6_crons_bootstrap.py -v -o addopts=''. Backend login response key is 'token' (not 'access_token'). Dexie DB name is 'bevid_offline' with stores establishments/products/sync_queue/meta. window.__SYNC_PENDING__ is updated every ~2s by SyncIndicator + startSyncListener. Cron endpoints POST /api/cron/{bad-payer-scan,voice-purge} are unauthenticated by design (called by scheduler). QRLabels page requires containers to exist in DB — test DB has 1 container available.",
+  "rca of the issue": "No blocking issues. Two minor deviations noted: (1) /auth/login case-sensitivity in email lookup; (2) /sync/bootstrap missing snapshot_at key. Neither impacts the passe under test but should be fixed before broader release."
+}

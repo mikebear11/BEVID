@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Wifi, WifiOff, CloudCheck } from "lucide-react";
 import { useI18n } from "@/contexts/I18nContext";
+import { pendingCount } from "@/lib/db";
 
 /**
  * Indicateur permanent d'état de connexion / synchro.
- * Prêt à recevoir la file de synchro Dexie/Workbox (badge nb pending).
- * Se lit dans <Layout>.
+ * Compte réel les mutations en attente depuis Dexie.
  */
 export default function SyncIndicator() {
   const { t } = useI18n();
@@ -17,12 +17,8 @@ export default function SyncIndicator() {
     const off = () => setOnline(false);
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
-    // Interface future avec le sync queue Dexie (window.__SYNC__.pending)
-    const iv = setInterval(() => {
-      try {
-        const n = window.__SYNC_PENDING__ || 0;
-        setPending(n);
-      } catch (e) {}
+    const iv = setInterval(async () => {
+      try { setPending(await pendingCount()); } catch (e) {}
     }, 1500);
     return () => {
       window.removeEventListener("online", on);

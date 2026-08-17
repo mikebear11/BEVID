@@ -39,6 +39,7 @@ import Containers from "@/pages/Containers";
 import ContainerDetail from "@/pages/ContainerDetail";
 import ScanContainer from "@/pages/ScanContainer";
 import DRM from "@/pages/DRM";
+import QRLabels from "@/pages/QRLabels";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -87,6 +88,7 @@ function App() {
               <Route path="/containers" element={<Protected><Containers /></Protected>} />
               <Route path="/containers/:id" element={<Protected><ContainerDetail /></Protected>} />
               <Route path="/scan" element={<Protected><ScanContainer /></Protected>} />
+              <Route path="/containers/labels" element={<Protected><QRLabels /></Protected>} />
               <Route path="/drm" element={<Protected><DRM /></Protected>} />
             </Routes>
           </BrowserRouter>
