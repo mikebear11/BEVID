@@ -21,6 +21,7 @@ import MonthlyReview from "@/pages/MonthlyReview";
 import Pipeline from "@/pages/Pipeline";
 import Deals from "@/pages/Deals";
 import Connectors from "@/pages/Connectors";
+import PublicSignature from "@/pages/PublicSignature";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -38,6 +39,7 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/sign/:token" element={<PublicSignature />} />
               <Route path="/" element={<Protected><Dashboard /></Protected>} />
               <Route path="/clients" element={<Protected><Clients /></Protected>} />
               <Route path="/clients/:id" element={<Protected><ClientDetail /></Protected>} />

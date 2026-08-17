@@ -1093,6 +1093,174 @@ async def test_connector(cid: str, user=Depends(get_current_user)):
     await db.connectors.update_one({"id": cid}, {"$set": {"status": new_status, "last_sync": now_iso()}})
     return {"status": new_status, "message": "Connexion réussie (mode démo — l'appel API réel nécessite les specs du fournisseur)" if ok else "Credentials manquantes"}
 
+# ---------- AI COACH (deals) ----------
+@api_router.post("/deals/{did}/ai-coach")
+async def deal_coach(did: str, user=Depends(get_current_user)):
+    d = await db.deals.find_one({"id": did}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Deal introuvable")
+    c = await db.clients.find_one({"id": d["client_id"]}, {"_id": 0}) or {}
+    activities = await db.activities.find({"client_id": d["client_id"]}, {"_id": 0}).sort("created_at", -1).to_list(5)
+    ctx = f"DEAL: {d['title']} ({d['stage']}) - {d['amount']}€ - probabilité {d['probability']}%\n"
+    ctx += f"CLIENT: {c.get('name')} · {c.get('type')} · {c.get('city')} · statut {c.get('status')}\n"
+    ctx += f"Notes deal: {d.get('notes', 'aucune')}\n"
+    ctx += f"Activités récentes:\n"
+    for a in activities:
+        ctx += f"- {a.get('type')}: {a.get('content','')[:100]}\n"
+    req = AIRequest(
+        prompt="Tu es un coach commercial. Pour ce deal, propose LA MEILLEURE PROCHAINE ACTION en 2-3 phrases MAX. Sois concret et opérationnel (script d'appel, argument, promo, etc.). Format : action → raisonnement rapide.",
+        context=ctx, model="claude-sonnet-5"
+    )
+    return await ai_ask(req, user)
+
+# ---------- SALES FORECAST ----------
+@api_router.get("/forecast/sales")
+async def sales_forecast(days: int = 30, user=Depends(get_current_user)):
+    """Prévision naïve basée sur la moyenne mobile des 90 derniers jours par agent."""
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    since = (now - _td(days=90)).isoformat()
+    is_mgr = user["role"] == "manager"
+    q = {} if is_mgr else {"agent_id": user["id"]}
+    q["created_at"] = {"$gte": since}
+    orders = await db.orders.find(q, {"_id": 0}).to_list(10000)
+    from collections import defaultdict
+    by_agent = defaultdict(lambda: {"days": defaultdict(float), "total": 0.0, "count": 0})
+    for o in orders:
+        aid = o["agent_id"]
+        day = o["created_at"][:10]
+        by_agent[aid]["days"][day] += o.get("total", 0)
+        by_agent[aid]["total"] += o.get("total", 0)
+        by_agent[aid]["count"] += 1
+    result = []
+    for aid, stats in by_agent.items():
+        agent = await db.users.find_one({"id": aid}, {"_id": 0, "password": 0})
+        active_days = len(stats["days"]) or 1
+        daily_avg = stats["total"] / 90  # spread over full 90d
+        forecast_total = round(daily_avg * days, 2)
+        # daily trend for chart
+        chart = []
+        for i in range(days):
+            d = (now + _td(days=i)).strftime("%Y-%m-%d")
+            # weekend pattern: reduce
+            weekday = (now + _td(days=i)).weekday()
+            factor = 0.4 if weekday >= 5 else 1.15
+            chart.append({"date": d, "value": round(daily_avg * factor, 2)})
+        result.append({
+            "agent_id": aid,
+            "agent_name": agent["name"] if agent else "?",
+            "daily_avg": round(daily_avg, 2),
+            "forecast_total": forecast_total,
+            "history_orders": stats["count"],
+            "chart": chart[:14],  # 14d chart for compactness
+        })
+    result.sort(key=lambda x: -x["forecast_total"])
+    return result
+
+# ---------- SIGNATURE LINK PUBLIC ----------
+@api_router.post("/orders/{oid}/signature-link")
+async def create_signature_link(oid: str, user=Depends(get_current_user)):
+    o = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    token = uuid.uuid4().hex
+    await db.orders.update_one({"id": oid}, {"$set": {"sign_token": token, "sign_created": now_iso()}})
+    return {"token": token, "url_path": f"/sign/{token}"}
+
+@api_router.get("/public/signature/{token}")
+async def get_signature_info(token: str):
+    o = await db.orders.find_one({"sign_token": token}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Lien invalide")
+    return {
+        "id": o["id"], "client_name": o["client_name"],
+        "total": o["total"], "lines": o.get("lines", []),
+        "created_at": o.get("created_at"), "signed": bool(o.get("signature")),
+    }
+
+@api_router.post("/public/signature/{token}")
+async def submit_signature(token: str, data: dict):
+    o = await db.orders.find_one({"sign_token": token}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Lien invalide")
+    sig = data.get("signature", "")
+    if not sig.startswith("data:image"):
+        raise HTTPException(400, "Signature invalide")
+    await db.orders.update_one({"sign_token": token}, {"$set": {"signature": sig, "signed_at": now_iso()}})
+    await db.activities.insert_one(Activity(
+        client_id=o["client_id"], agent_id=o["agent_id"], type="note",
+        content=f"Commande #{o['id'][:8]} signée électroniquement par le client",
+        owner_id=o["owner_id"]
+    ).model_dump())
+    return {"ok": True}
+
+# ---------- GOOGLE DRIVE OAUTH ----------
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT = os.environ.get("GOOGLE_DRIVE_REDIRECT_URI", "")
+
+@api_router.get("/drive/connect")
+async def drive_connect(user=Depends(get_current_user)):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(400, "Google OAuth non configuré. Ajoutez GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET dans .env")
+    try:
+        from google_auth_oauthlib.flow import Flow
+    except Exception:
+        raise HTTPException(500, "Bibliothèque Google absente")
+    flow = Flow.from_client_config(
+        {"web": {"client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
+                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                 "token_uri": "https://oauth2.googleapis.com/token",
+                 "redirect_uris": [GOOGLE_REDIRECT]}},
+        scopes=['https://www.googleapis.com/auth/drive.readonly'],
+        redirect_uri=GOOGLE_REDIRECT,
+    )
+    auth_url, _ = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='consent', state=user["id"])
+    return {"authorization_url": auth_url}
+
+@api_router.get("/drive/callback")
+async def drive_callback(code: str, state: str):
+    from google_auth_oauthlib.flow import Flow
+    from fastapi.responses import RedirectResponse
+    flow = Flow.from_client_config(
+        {"web": {"client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
+                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                 "token_uri": "https://oauth2.googleapis.com/token",
+                 "redirect_uris": [GOOGLE_REDIRECT]}},
+        scopes=None,
+        redirect_uri=GOOGLE_REDIRECT,
+    )
+    flow.fetch_token(code=code)
+    creds = flow.credentials
+    await db.drive_credentials.update_one({"user_id": state}, {"$set": {
+        "user_id": state, "access_token": creds.token, "refresh_token": creds.refresh_token,
+        "token_uri": creds.token_uri, "client_id": creds.client_id, "client_secret": creds.client_secret,
+        "scopes": creds.scopes, "expiry": creds.expiry.isoformat() if creds.expiry else None,
+        "updated_at": now_iso()
+    }}, upsert=True)
+    frontend = os.environ.get("FRONTEND_URL", "/")
+    return RedirectResponse(url=f"{frontend}/connectors?drive_connected=1")
+
+@api_router.get("/drive/files")
+async def drive_list(user=Depends(get_current_user)):
+    doc = await db.drive_credentials.find_one({"user_id": user["id"]})
+    if not doc:
+        raise HTTPException(400, "Google Drive non connecté")
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request as GReq
+    from googleapiclient.discovery import build
+    creds = Credentials(token=doc["access_token"], refresh_token=doc.get("refresh_token"),
+                        token_uri=doc["token_uri"], client_id=doc["client_id"],
+                        client_secret=doc["client_secret"], scopes=doc.get("scopes"))
+    if creds.expired and creds.refresh_token:
+        creds.refresh(GReq())
+        await db.drive_credentials.update_one({"user_id": user["id"]}, {"$set": {"access_token": creds.token}})
+    svc = build('drive', 'v3', credentials=creds)
+    res = svc.files().list(pageSize=50, fields="files(id,name,mimeType,modifiedTime,webViewLink)",
+                           q="mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet' or mimeType='image/jpeg' or mimeType='image/png' or mimeType='application/pdf'"
+                          ).execute()
+    return res.get("files", [])
+
 @api_router.get("/")
 async def root():
     return {"service": "CRM Boisson API", "status": "ok"}

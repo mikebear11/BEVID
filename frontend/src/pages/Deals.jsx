@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2, X, Sparkles, Loader2 } from "lucide-react";
 
 const STAGES = [
   { key: "qualification", label: "Qualification", color: "#5C5C5C" },
@@ -17,6 +17,17 @@ export default function Deals() {
   const [dragId, setDragId] = useState(null);
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ title: "", client_id: "", amount: 1000, probability: 50, stage: "qualification", expected_close: "", notes: "" });
+  const [coaches, setCoaches] = useState({});
+  const [coachLoading, setCoachLoading] = useState(null);
+
+  const coach = async (id) => {
+    setCoachLoading(id);
+    try {
+      const { data } = await api.post(`/deals/${id}/ai-coach`);
+      setCoaches(prev => ({ ...prev, [id]: data.answer }));
+    } catch { toast.error("Erreur coach IA"); }
+    finally { setCoachLoading(null); }
+  };
 
   const load = async () => {
     const [{ data: d }, { data: c }] = await Promise.all([api.get("/deals"), api.get("/clients")]);
@@ -91,6 +102,15 @@ export default function Deals() {
                       <span className="font-display text-lg" style={{color: s.color}}>{d.amount.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €</span>
                       <span className="text-[10px] text-stone-500">{d.probability}%</span>
                     </div>
+                    <button onClick={() => coach(d.id)} disabled={coachLoading === d.id} className="w-full mt-2 text-[10px] text-[#4A154B] flex items-center justify-center gap-1 py-1 border-t border-stone-100 pt-1.5 hover:bg-stone-50 rounded" data-testid={`coach-${d.id}`}>
+                      {coachLoading === d.id ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                      Coach IA
+                    </button>
+                    {coaches[d.id] && (
+                      <div className="mt-2 p-2 bg-stone-50 rounded text-[11px] text-stone-700 border-l-2 border-[#4A154B]" data-testid={`coach-content-${d.id}`}>
+                        {coaches[d.id]}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

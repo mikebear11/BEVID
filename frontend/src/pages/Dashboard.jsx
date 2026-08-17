@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import FollowUpsWidget from "@/components/FollowUpsWidget";
 import GoalsWidget from "@/components/GoalsWidget";
 import TeamGoalGauge from "@/components/TeamGoalGauge";
+import SalesWeather from "@/components/SalesWeather";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -82,6 +83,7 @@ export default function Dashboard() {
       </div>
 
       <TeamGoalGauge />
+      <SalesWeather />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <FollowUpsWidget />

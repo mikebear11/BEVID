@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api, API } from "@/lib/api";
-import { Plus, X, Trash2, FileDown, PenLine, Repeat } from "lucide-react";
+import { Plus, X, Trash2, FileDown, PenLine, Repeat, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import SignaturePad from "@/components/SignaturePad";
 
@@ -35,6 +35,15 @@ export default function Orders() {
       await api.post(`/orders/reorder/${oid}`);
       toast.success("Recommande créée en 1 clic");
       load();
+    } catch { toast.error("Erreur"); }
+  };
+
+  const generateSignLink = async (oid) => {
+    try {
+      const { data } = await api.post(`/orders/${oid}/signature-link`);
+      const url = `${window.location.origin}${data.url_path}`;
+      await navigator.clipboard.writeText(url);
+      toast.success("Lien copié — envoyez-le au client par SMS/WhatsApp");
     } catch { toast.error("Erreur"); }
   };
 
@@ -92,7 +101,8 @@ export default function Orders() {
                 <td className="p-3 text-right">
                   <div className="inline-flex gap-1">
                     <button onClick={() => reorder(o.id)} className="text-stone-500 hover:text-[#2D5A4C] p-1" title="Recommander (1-clic)" data-testid={`reorder-btn-${o.id}`}><Repeat size={14} /></button>
-                    <button onClick={() => setSigOrderId(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="Signer" data-testid={`sign-btn-${o.id}`}><PenLine size={14} /></button>
+                    <button onClick={() => generateSignLink(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="Lien signature à distance" data-testid={`share-sign-btn-${o.id}`}><Link2 size={14} /></button>
+                    <button onClick={() => setSigOrderId(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="Signer sur place" data-testid={`sign-btn-${o.id}`}><PenLine size={14} /></button>
                     <button onClick={() => downloadPdf(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="PDF" data-testid={`pdf-btn-${o.id}`}><FileDown size={14} /></button>
                   </div>
                 </td>
