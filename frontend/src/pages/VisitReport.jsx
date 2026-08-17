@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { api } from "@/lib/api";
+import { api, postOffline } from "@/lib/api";
 import { useVoice } from "@/hooks/useVoice";
-import { Mic, Check, Sparkles, Loader2 } from "lucide-react";
+import { Mic, Check, Sparkles, Loader2, CloudOff } from "lucide-react";
 import { toast } from "sonner";
 
 const MOODS = [
@@ -60,9 +60,18 @@ export default function VisitReport() {
     if (!form.client_id) { toast.error("Sélectionnez un client"); return; }
     setSubmitting(true);
     try {
-      const payload = { ...form, voice_transcript: transcript, summary: form.summary || transcript };
-      await api.post("/visits", payload);
-      toast.success("Compte-rendu enregistré");
+      const payload = {
+        ...form,
+        voice_transcript: transcript,
+        summary: form.summary || transcript,
+        client_uuid: (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random()}`,
+      };
+      const res = await postOffline("/visits", payload);
+      if (res.offline) {
+        toast.success("Enregistré hors-ligne — sera synchronisé au retour du réseau", { icon: "📶" });
+      } else {
+        toast.success("Compte-rendu enregistré");
+      }
       nav(`/clients/${form.client_id}`);
     } catch { toast.error("Erreur"); }
     finally { setSubmitting(false); }

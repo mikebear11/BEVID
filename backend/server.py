@@ -117,6 +117,7 @@ class Order(BaseModel):
     notes: Optional[str] = ""
     agent_id: str
     owner_id: str
+    client_uuid: Optional[str] = None  # idempotence pour resync offline
     created_at: str = Field(default_factory=now_iso)
 
 class Tour(BaseModel):
@@ -265,6 +266,12 @@ async def list_orders(user=Depends(get_current_user)):
 
 @api_router.post("/orders")
 async def create_order(data: dict, user=Depends(get_current_user)):
+    # Idempotence pour resync offline : même client_uuid → renvoie l'existant
+    cu = data.get("client_uuid")
+    if cu:
+        existing = await db.orders.find_one({"client_uuid": cu}, {"_id": 0})
+        if existing:
+            return existing
     data["owner_id"] = user["id"]
     data["agent_id"] = data.get("agent_id") or user["id"]
     # auto-fill client_name if missing
@@ -276,8 +283,17 @@ async def create_order(data: dict, user=Depends(get_current_user)):
             raise HTTPException(422, "client_id introuvable")
     total = sum(l["quantity"] * l["unit_price"] for l in data.get("lines", []))
     data["total"] = total
+    # Signature inline (paquet commande complète depuis le mobile)
+    inline_sig = data.pop("signature_data_url", None)
+    inline_gps = data.pop("signature_gps", None)
+    inline_signed_at = data.pop("signature_signed_at", None)
     o = Order(**data)
-    await db.orders.insert_one(o.model_dump())
+    doc = o.model_dump()
+    if inline_sig:
+        doc["signature"] = inline_sig
+        doc["signature_gps"] = inline_gps
+        doc["signature_signed_at"] = inline_signed_at
+    await db.orders.insert_one(doc)
     # decrement stocks
     for line in o.lines:
         await db.products.update_one({"id": line.product_id}, {"$inc": {"stock": -line.quantity}})
@@ -286,7 +302,7 @@ async def create_order(data: dict, user=Depends(get_current_user)):
         client_id=o.client_id, agent_id=o.agent_id, type="commande",
         content=f"Commande {o.id[:8]} - {total:.2f}€", owner_id=user["id"]
     ).model_dump())
-    return o.model_dump()
+    return {k: v for k, v in doc.items() if k != "_id"}
 
 @api_router.put("/orders/{oid}")
 async def update_order(oid: str, data: dict, user=Depends(get_current_user)):
@@ -825,11 +841,19 @@ class VisitReport(BaseModel):
     next_date: Optional[str] = None
     summary: str = ""
     voice_transcript: Optional[str] = ""
+    gps: Optional[dict] = None
     owner_id: str
+    client_uuid: Optional[str] = None  # idempotence pour resync offline
     created_at: str = Field(default_factory=now_iso)
 
 @api_router.post("/visits")
 async def create_visit(data: dict, user=Depends(get_current_user)):
+    # Idempotence resync offline
+    cu = data.get("client_uuid")
+    if cu:
+        existing = await db.visits.find_one({"client_uuid": cu}, {"_id": 0})
+        if existing:
+            return existing
     data["owner_id"] = user["id"]
     data["agent_id"] = user["id"]
     cid = data.get("client_id")
@@ -839,7 +863,6 @@ async def create_visit(data: dict, user=Depends(get_current_user)):
     data["client_name"] = c["name"]
     v = VisitReport(**data)
     await db.visits.insert_one(v.model_dump())
-    # aussi comme activity
     content = f"Visite ({v.mood} · {v.interest}) → {v.next_action}. {v.summary[:120]}"
     await db.activities.insert_one(Activity(
         client_id=cid, agent_id=user["id"], type="visite",

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { api } from "@/lib/api";
+import { api, postOffline } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, Search, Minus, Plus, Trash2, ShoppingCart, MapPin, Clock, RotateCcw, Check, AlertOctagon, Loader2 } from "lucide-react";
 
@@ -126,6 +126,8 @@ export default function MobileOrder() {
           hecto_discount_pct: h.pct || 0,
         };
       });
+      const sig = canvasRef.current.toDataURL("image/png");
+      // Signature intégrée dans la même mutation → 1 seul POST, resyncable offline
       const payload = {
         client_id: id, client_name: est.name,
         lines,
@@ -135,16 +137,17 @@ export default function MobileOrder() {
         tva_amount: parseFloat(tva.toFixed(2)),
         total_ttc: parseFloat(total.toFixed(2)),
         gps: gps || null,
+        signature_data_url: sig,
+        signature_gps: gps || null,
+        signature_signed_at: new Date().toISOString(),
+        client_uuid: (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random()}`,
       };
-      const { data: order } = await api.post("/orders", payload);
-      // signature
-      const sig = canvasRef.current.toDataURL("image/png");
-      await api.post(`/orders/${order.id}/signature`, {
-        signature: sig,
-        gps: gps || null,
-        signed_at_client: new Date().toISOString(),
-      });
-      toast.success("Commande signée ✓");
+      const res = await postOffline("/orders", payload);
+      if (res.offline) {
+        toast.success("Commande + signature en file — synchro auto au retour du réseau", { icon: "📶" });
+      } else {
+        toast.success("Commande signée ✓");
+      }
       nav(`/etab/${id}`);
     } catch (err) {
       toast.error(err.response?.data?.detail || "Erreur commande");

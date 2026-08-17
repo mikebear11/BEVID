@@ -1,0 +1,37 @@
+{
+  "summary": "Iter 7: Tested offline-first mutations (postOffline+Dexie+syncQueue), backend idempotence via client_uuid on /orders and /visits, inline signature on /orders, PWA icons. 6/6 backend tests PASS. Frontend: login OK, /containers/labels loads clean, /visit online submit navigates to client page, /visit OFFLINE returns synthetic response in 0.59s with 'hors-ligne' toast (well under 3s target), IndexedDB 'bevid_offline' queues the mutation, on 'online' event syncQueue flushes (__SYNC_PENDING__ 1→0) and GET /api/visits returns the previously-offline visit. MobileOrder offline path was not driven end-to-end via UI (multi-step cart+signature is fragile in automation) but shares the same postOffline() layer as VisitReport and backend accepts signature_data_url + signature_gps + signature_signed_at inline (verified by pytest).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Dashboard/Client detail while offline", "issue": "Pre-existing (already noted iter6): dashboard/client GETs fire without .catch when navigator.onLine=false, producing 'Uncaught runtime errors' dev overlay (AxiosError Network Error). Not a crash, no user-facing impact in production (dev overlay only), but noisy.", "affected_selectors": ["React error overlay"]}
+    ],
+    "design_issues": [
+      {"screen": "VisitReport <select> options", "issues": ["React warning: <span> cannot be a child of <option> — caused by data-ve-dynamic instrumentation wrapping the option label in a <span> with display:contents. Cosmetic (renders fine) but pollutes console."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter7_idempotence_signature.py",
+    "/app/test_reports/pytest/iter7.xml"
+  ],
+  "action_items": [
+    "(Optional) Silence AxiosError network errors globally when navigator.onLine=false (dashboard/client GETs) to remove dev overlay noise — same recommendation as iter6.",
+    "(Optional) Full E2E of MobileOrder offline flow: main agent can self-test by opening /etab/{id}/commande, adding a product, going to recap, signing on canvas, DevTools→Offline, submitting; the postOffline path and backend inline-signature endpoint are already validated separately."
+  ],
+  "critical_code_review_comments": [
+    "server.py still ~3420 lines; extracting orders/visits/sync/admin into routers would improve maintainability.",
+    "Order idempotence check happens before body validation → OK; but `data.pop('signature_data_url', ...)` is done AFTER the Order(**data) construction — since Order.model_config uses extra='ignore', the popped fields are also filtered by pydantic. Current logic is correct because pop happens before Order(**data) call. Verified.",
+    "Frontend postOffline() enqueues on any non-response error including CORS/DNS; acceptable but log the URL for debug when enqueuing (aids diagnosing hidden failures).",
+    "VisitReport client select renders literal '{c.name} · {c.city}' inside <option> — with the ve-dynamic instrumentation adds a <span>. Consider rendering via template literal or via label attribute to silence HTML validation warning."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter7_idempotence_signature.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% of critical checks pass"},
+  "test_credentials": "guillaume@sulauze.com / Cellier2026! (manager)",
+  "seed_data_creation": "Created a few TEST_ prefixed visits/orders during idempotence tests. Stock of the first product was decremented by 3 across tests (2 for idempotence + 1 for inline signature + 1 backward-compat) — no cleanup performed to keep tests hermetic; not disruptive.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: pytest /app/backend/tests/test_iter7_idempotence_signature.py -v -o addopts=''. Dexie DB is 'bevid_offline'. window.__SYNC_PENDING__ reflects queue count. postOffline returns {offline:true,data:{pending:true,local_id,...payload}} when navigator.onLine=false OR on network error. syncQueue flushes on 'online' event via startSyncListener() (started once in App/root). VisitReport client select value MUST be a real client UUID (form.client_id guard is 'if(!form.client_id) return early with error toast'). Backend Order pops signature_data_url/gps/signed_at from data BEFORE Order(**data) then re-injects into the mongo doc (doc['signature']=inline_sig).",
+  "rca of the issue": "N/A — no blocking issues. All 4 requested backend behaviors (visit idempotence, order idempotence w/o double stock decrement, inline signature persisted, backward-compat without client_uuid) pass. Frontend offline flow on /visit passes end-to-end (queue + auto-flush on online event + verified via GET /api/visits). PWA manifest lists icon-192/icon-512/icon-maskable-512 with correct purposes; all three PNGs served with image/* content-type."
+}
