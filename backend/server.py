@@ -1339,6 +1339,49 @@ async def stripe_webhook(request: Request):
             {"$set": {"payment_status": "paid", "paid_at": now_iso()}})
     return {"status": "ok"}
 
+# ---------- OVERDUE PAYMENTS ----------
+@api_router.get("/alerts/overdue-payments")
+async def overdue_payments(days: int = 30, user=Depends(get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
+    cutoff = (datetime.now(timezone.utc) - _td(days=days)).isoformat()
+    is_mgr = user["role"] == "manager"
+    q = {"created_at": {"$lt": cutoff}, "payment_status": {"$nin": ["paid", "refunded"]}}
+    if not is_mgr:
+        q["agent_id"] = user["id"]
+    items = await db.orders.find(q, {"_id": 0}).sort("created_at", 1).to_list(500)
+    total_overdue = sum(o.get("total", 0) for o in items)
+    now = datetime.now(timezone.utc)
+    result = []
+    for o in items:
+        try:
+            created = _dt.fromisoformat(o["created_at"].replace("Z", "+00:00"))
+            days_late = (now - created).days
+        except Exception:
+            days_late = days
+        result.append({
+            "id": o["id"], "client_name": o["client_name"], "client_id": o["client_id"],
+            "total": o.get("total", 0), "created_at": o["created_at"][:10],
+            "days_late": days_late,
+        })
+    return {"count": len(result), "total": round(total_overdue, 2), "items": result}
+
+# ---------- RECEIPT ----------
+@api_router.get("/orders/{oid}/receipt-text")
+async def receipt_text(oid: str, user=Depends(get_current_user)):
+    o = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    lines_txt = "\n".join([f"- {l['product_name']} x{l['quantity']} : {l['quantity']*l['unit_price']:.2f}€" for l in o.get("lines", [])])
+    paid_flag = "✅ PAYÉE" if o.get("payment_status") == "paid" else "⏳ à régler"
+    txt = (f"🍾 Cellier · Reçu #{o['id'][:8].upper()}\n"
+           f"Client : {o['client_name']}\n"
+           f"Date : {o.get('created_at','')[:10]}\n"
+           f"Statut : {paid_flag}\n\n"
+           f"{lines_txt}\n\n"
+           f"TOTAL : {o.get('total',0):.2f}€\n\n"
+           f"Merci pour votre commande !")
+    return {"text": txt, "encoded": txt}
+
 @api_router.get("/")
 async def root():
     return {"service": "CRM Boisson API", "status": "ok"}

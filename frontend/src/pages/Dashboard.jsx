@@ -8,6 +8,7 @@ import FollowUpsWidget from "@/components/FollowUpsWidget";
 import GoalsWidget from "@/components/GoalsWidget";
 import TeamGoalGauge from "@/components/TeamGoalGauge";
 import SalesWeather from "@/components/SalesWeather";
+import OverdueBanner from "@/components/OverdueBanner";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -69,6 +70,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <OverdueBanner />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {cards.map((c) => (
