@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import VoiceFAB from "@/components/VoiceFAB";
 import SyncIndicator from "@/components/SyncIndicator";
 import BevidLogo from "@/components/BevidLogo";
+import OnboardingTour from "@/components/OnboardingTour";
 import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 
@@ -133,6 +134,7 @@ export default function Layout({ children }) {
       </nav>
 
       <VoiceFAB />
+      <OnboardingTour />
     </div>
   );
 }

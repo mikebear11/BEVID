@@ -12,6 +12,7 @@ import OverdueBanner from "@/components/OverdueBanner";
 import CashflowWidget from "@/components/CashflowWidget";
 import MorningChecklist from "@/components/MorningChecklist";
 import AnniversariesWidget from "@/components/AnniversariesWidget";
+import SyncFeed from "@/components/SyncFeed";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -76,6 +77,7 @@ export default function Dashboard() {
 
       <MorningChecklist />
       <OverdueBanner />
+      {user?.role === "manager" && <SyncFeed />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {cards.map((c) => (

@@ -274,16 +274,23 @@ async def create_order(data: dict, user=Depends(get_current_user)):
             return existing
     data["owner_id"] = user["id"]
     data["agent_id"] = data.get("agent_id") or user["id"]
-    # auto-fill client_name if missing
     if not data.get("client_name") and data.get("client_id"):
         c = await db.clients.find_one({"id": data["client_id"]}, {"_id": 0})
         if c:
             data["client_name"] = c["name"]
         else:
             raise HTTPException(422, "client_id introuvable")
+    # Détection conflits au resync : credit_status devenu rouge ou stock insuffisant
+    conflicts = []
+    est = await db.establishments.find_one({"id": data.get("client_id")}, {"_id": 0})
+    if est and est.get("credit_status") == "rouge":
+        conflicts.append({"type": "credit_red", "detail": "Établissement passé rouge entre-temps"})
+    for line in data.get("lines", []):
+        p = await db.products.find_one({"id": line["product_id"]}, {"_id": 0})
+        if p and (p.get("stock") or 0) < line["quantity"]:
+            conflicts.append({"type": "stock", "detail": f"Stock insuffisant pour {p['name']} : {p.get('stock', 0)} < {line['quantity']}"})
     total = sum(l["quantity"] * l["unit_price"] for l in data.get("lines", []))
     data["total"] = total
-    # Signature inline (paquet commande complète depuis le mobile)
     inline_sig = data.pop("signature_data_url", None)
     inline_gps = data.pop("signature_gps", None)
     inline_signed_at = data.pop("signature_signed_at", None)
@@ -293,15 +300,19 @@ async def create_order(data: dict, user=Depends(get_current_user)):
         doc["signature"] = inline_sig
         doc["signature_gps"] = inline_gps
         doc["signature_signed_at"] = inline_signed_at
+    if conflicts:
+        doc["has_conflict"] = True
+        doc["conflict_reasons"] = conflicts
     await db.orders.insert_one(doc)
-    # decrement stocks
     for line in o.lines:
         await db.products.update_one({"id": line.product_id}, {"$inc": {"stock": -line.quantity}})
-    # add activity
     await db.activities.insert_one(Activity(
         client_id=o.client_id, agent_id=o.agent_id, type="commande",
         content=f"Commande {o.id[:8]} - {total:.2f}€", owner_id=user["id"]
     ).model_dump())
+    # trace conflit pour le manager (server-wins, mais visible)
+    for c in conflicts:
+        await log_conflict("order", o.id, c["detail"], {"client_id": o.client_id, "client_name": o.client_name, "total": total, "reason_type": c["type"]})
     return {k: v for k, v in doc.items() if k != "_id"}
 
 @api_router.put("/orders/{oid}")
@@ -3401,6 +3412,52 @@ async def cron_voice_purge():
         {"$set": {"voice_transcript": ""}}
     )
     return {"ok": True, "purged": r.modified_count, "cutoff_days": days, "ran_at": now_iso()}
+
+# ==========================================================
+# SYNC LOG — feed manager des mutations arrivées du terrain hors-ligne
+# ==========================================================
+@api_router.get("/dashboard/sync-feed")
+async def sync_feed(minutes: int = 60, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+    visits = await db.visits.find(
+        {"created_at": {"$gte": cutoff}, "client_uuid": {"$exists": True, "$ne": None}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    orders = await db.orders.find(
+        {"created_at": {"$gte": cutoff}, "client_uuid": {"$exists": True, "$ne": None}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    conflicts = await db.conflicts.find({"at": {"$gte": cutoff}}, {"_id": 0}).sort("at", -1).to_list(50)
+    return {
+        "window_minutes": minutes,
+        "visits": [{
+            "id": v["id"], "client_id": v.get("client_id"), "client_name": v.get("client_name"),
+            "agent_id": v.get("agent_id"), "mood": v.get("mood"), "next_action": v.get("next_action"),
+            "created_at": v.get("created_at"),
+        } for v in visits],
+        "orders": [{
+            "id": o["id"], "client_id": o.get("client_id"), "client_name": o.get("client_name"),
+            "agent_id": o.get("agent_id"), "total": o.get("total"),
+            "has_signature": bool(o.get("signature")),
+            "created_at": o.get("created_at"),
+        } for o in orders],
+        "conflicts": conflicts,
+    }
+
+# Enregistrement d'un conflit détecté au moment du resync
+async def log_conflict(kind: str, entity_id: str, reason: str, extra: dict):
+    doc = {"id": str(uuid.uuid4()), "kind": kind, "entity_id": entity_id,
+           "reason": reason, "extra": extra, "at": now_iso(), "seen": False}
+    await db.conflicts.insert_one(doc)
+
+@api_router.post("/conflicts/{cid}/dismiss")
+async def dismiss_conflict(cid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    await db.conflicts.update_one({"id": cid}, {"$set": {"seen": True, "dismissed_by": user["id"], "dismissed_at": now_iso()}})
+    return {"ok": True}
 
 app.include_router(api_router)
 

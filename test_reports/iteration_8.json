@@ -1,0 +1,29 @@
+{
+  "summary": "Iter 8 — Tested sync-feed dashboard, conflict detection on order create, dismiss endpoint, PWA icons, SyncFeed component, OnboardingTour (3 steps + skip + finish + localStorage persistence), containers/labels regression. Backend 10/10 pytest passing. Frontend all critical flows OK.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (Recharts)", "issues": ["Repeated warnings 'width(-1) and height(-1) of chart should be greater than 0' — chart containers are being rendered with no dimensions (probably a hidden/collapsed responsive container). Cosmetic but noisy in console."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_iter8_sync_feed.py", "/app/test_reports/pytest/iter8_results.xml"],
+  "action_items": [
+    "Optional: fix Recharts ResponsiveContainer parents that produce width(-1)/height(-1) warnings on Dashboard.",
+    "Optional: /api/admin/users response key is 'temp_password' (not 'temporary_password') — document/standardize."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 3477 lines — should be split into modules (orders, sync, dashboard, auth) per SRP / file-size guideline (>700 lines).",
+    "OrderLine requires product_name in payload but conflict-detection payload in offline flow may omit it — frontend must always include product_name (currently OK, verified in SyncFeed).",
+    "Order conflict logging always inserts a new document even for the same client_uuid resubmit — POST /orders returns existing doc BEFORE conflict-check, which is correct; but a resubmit with different lines under same client_uuid silently returns the first order (idempotency by client_uuid ignores payload diff). Fine for offline resync but potentially confusing."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter8_sync_feed.py"],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (onboarding 3 steps + skip + syncfeed + regression all OK)"},
+  "test_credentials": "Manager: guillaume@sulauze.com / Cellier2026! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created 1 TEST_ client, 2 TEST_ products (stock 0 and 100), several orders (with and without stock conflict) and 1 TEST_ commercial user via /api/admin/users. Left in DB — safe cleanup recommended by prefix TEST_.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter8 delivery is functionally complete. Backend test file /app/backend/tests/test_iter8_sync_feed.py can be re-run any time (pytest -o addopts=''). Login endpoint returns 'token' not 'access_token'. Client type values: bar|restaurant|caviste|supermarche|hotel|autre (not 'cave'). Product uses 'price' not 'unit_price'. OrderLine requires product_name. Emails using .test TLD are rejected by pydantic EmailStr — use realistic-looking domain like bevid-test.example.com.",
+  "rca of the issue": "N/A — no functional bugs found for this iteration."
+}
