@@ -71,11 +71,12 @@ export default function ClientDetail() {
         <div>
           <p className="overline capitalize">{c.type}</p>
           <h1 className="font-display text-4xl md:text-5xl mt-1">{c.name}</h1>
-          <div className="mt-3 flex flex-wrap gap-2 text-sm text-stone-600">
+          <div className="mt-3 flex flex-wrap gap-2 text-sm text-stone-600 items-center">
             <span className={`badge badge-${c.status}`}>{c.status}</span>
             {c.city && <span>· {c.city}</span>}
             {c.contact_name && <span>· {c.contact_name}</span>}
-            {c.phone && <span>· {c.phone}</span>}
+            {c.phone && <a href={`tel:${c.phone.replace(/\s/g,'')}`} data-testid="phone-link" className="text-[#4A154B] font-medium underline decoration-dotted underline-offset-4 hover:text-[#6B2D5C]">📞 {c.phone}</a>}
+            {c.email && <a href={`mailto:${c.email}?subject=${encodeURIComponent('Cellier · ' + c.name)}`} data-testid="email-link" className="text-[#4A154B] font-medium underline decoration-dotted underline-offset-4 hover:text-[#6B2D5C]">✉ {c.email}</a>}
           </div>
         </div>
         <div className="flex gap-2">

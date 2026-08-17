@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { api, API } from "@/lib/api";
-import { Plus, X, Trash2, FileDown, PenLine, Repeat, Link2 } from "lucide-react";
+import { Plus, X, Trash2, FileDown, PenLine, Repeat, Link2, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import SignaturePad from "@/components/SignaturePad";
+import PaymentModal from "@/components/PaymentModal";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -13,6 +14,7 @@ export default function Orders() {
   const [lines, setLines] = useState([]);
   const [notes, setNotes] = useState("");
   const [sigOrderId, setSigOrderId] = useState(null);
+  const [payOrderId, setPayOrderId] = useState(null);
 
   const downloadPdf = async (oid) => {
     const token = localStorage.getItem("crm_token");
@@ -100,6 +102,7 @@ export default function Orders() {
                 <td className="p-3 text-right font-display text-[#2D5A4C]">{o.total.toLocaleString('fr-FR')} €</td>
                 <td className="p-3 text-right">
                   <div className="inline-flex gap-1">
+                    <button onClick={() => setPayOrderId(o.id)} className="text-stone-500 hover:text-[#2D5A4C] p-1" title="Encaisser (Apple Pay / Google Pay)" data-testid={`pay-btn-${o.id}`}><CreditCard size={14} /></button>
                     <button onClick={() => reorder(o.id)} className="text-stone-500 hover:text-[#2D5A4C] p-1" title="Recommander (1-clic)" data-testid={`reorder-btn-${o.id}`}><Repeat size={14} /></button>
                     <button onClick={() => generateSignLink(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="Lien signature à distance" data-testid={`share-sign-btn-${o.id}`}><Link2 size={14} /></button>
                     <button onClick={() => setSigOrderId(o.id)} className="text-stone-500 hover:text-[#4A154B] p-1" title="Signer sur place" data-testid={`sign-btn-${o.id}`}><PenLine size={14} /></button>
@@ -154,6 +157,7 @@ export default function Orders() {
       )}
 
       {sigOrderId && <SignaturePad onSave={saveSignature} onClose={() => setSigOrderId(null)} />}
+      {payOrderId && <PaymentModal orderId={payOrderId} onClose={() => setPayOrderId(null)} onPaid={load} />}
     </div>
   );
 }

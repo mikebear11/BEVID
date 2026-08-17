@@ -1,5 +1,5 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Request
+from fastapi.responses import StreamingResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Literal
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-import httpx
+import httpx, stripe
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1221,7 +1221,6 @@ async def drive_connect(user=Depends(get_current_user)):
 @api_router.get("/drive/callback")
 async def drive_callback(code: str, state: str):
     from google_auth_oauthlib.flow import Flow
-    from fastapi.responses import RedirectResponse
     flow = Flow.from_client_config(
         {"web": {"client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
                  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -1260,6 +1259,85 @@ async def drive_list(user=Depends(get_current_user)):
                            q="mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet' or mimeType='image/jpeg' or mimeType='image/png' or mimeType='application/pdf'"
                           ).execute()
     return res.get("files", [])
+
+# ---------- STRIPE PAYMENTS ----------
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+@api_router.post("/orders/{oid}/payment-link")
+async def create_payment_link(oid: str, request: Request, user=Depends(get_current_user)):
+    o = await db.orders.find_one({"id": oid}, {"_id": 0})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    origin = os.environ.get("FRONTEND_URL", str(request.base_url).rstrip("/"))
+    try:
+        session = stripe.checkout.Session.create(
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "product_data": {"name": f"Commande Cellier #{oid[:8]} · {o['client_name']}"},
+                    "unit_amount": int(round(o.get("total", 0) * 100)),
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{origin}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin}/payment/cancel",
+            metadata={"order_id": oid, "client_id": o["client_id"]},
+            payment_method_types=["card"],
+        )
+        await db.payment_transactions.insert_one({
+            "session_id": session.id, "order_id": oid, "client_id": o["client_id"],
+            "amount": o.get("total", 0), "currency": "eur",
+            "status": "initiated", "payment_status": "pending",
+            "created_at": now_iso(), "updated_at": now_iso(),
+        })
+        await db.orders.update_one({"id": oid}, {"$set": {"payment_session_id": session.id, "payment_status": "pending"}})
+        return {"checkout_url": session.url, "session_id": session.id, "amount": o.get("total", 0)}
+    except Exception as e:
+        raise HTTPException(500, f"Erreur Stripe: {str(e)}")
+
+@api_router.get("/payments/status/{session_id}")
+async def payment_status(session_id: str):
+    record = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(404, "Transaction introuvable")
+    if record.get("payment_status") != "paid":
+        try:
+            s = stripe.checkout.Session.retrieve(session_id)
+            if s.payment_status == "paid" or s.status == "complete":
+                await db.payment_transactions.update_one(
+                    {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+                    {"$set": {"status": "completed", "payment_status": "paid",
+                              "stripe_payment_intent_id": s.payment_intent, "updated_at": now_iso()}})
+                await db.orders.update_one(
+                    {"payment_session_id": session_id, "payment_status": {"$ne": "paid"}},
+                    {"$set": {"payment_status": "paid", "paid_at": now_iso()}})
+                record["payment_status"] = "paid"
+                record["status"] = "completed"
+        except Exception:
+            pass
+    return {"session_id": record["session_id"], "status": record["status"], "payment_status": record["payment_status"], "amount": record.get("amount")}
+
+@api_router.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except Exception:
+        raise HTTPException(400, "Signature invalide")
+    obj = event["data"]["object"]
+    t = event["type"]
+    if t == "checkout.session.completed":
+        await db.payment_transactions.update_one(
+            {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
+            {"$set": {"status": "completed", "payment_status": obj.get("payment_status", "paid"),
+                      "stripe_payment_intent_id": obj.get("payment_intent"), "updated_at": now_iso()}})
+        await db.orders.update_one(
+            {"payment_session_id": obj["id"], "payment_status": {"$ne": "paid"}},
+            {"$set": {"payment_status": "paid", "paid_at": now_iso()}})
+    return {"status": "ok"}
 
 @api_router.get("/")
 async def root():
