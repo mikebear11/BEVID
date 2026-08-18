@@ -31,6 +31,16 @@
           (function(){try{var t=localStorage.getItem("bevid.theme")||"system";var h=document.documentElement;h.classList.remove("dark","sun");var eff=t;if(t==="system"){eff=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";}if(eff==="dark"){h.classList.add("dark");h.style.colorScheme="dark";}else if(eff==="sun"){h.classList.add("sun");h.style.colorScheme="light";}else{h.style.colorScheme="light";}}catch(e){}})();
         </script>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+        <script>
+          // Enregistre le Service Worker pour l'offline complet + cache API
+          if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function() {
+              navigator.serviceWorker.register("/sw.js").catch(function(err) {
+                console.warn("SW registration failed:", err);
+              });
+            });
+          }
+        </script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
     </head>
     <body>

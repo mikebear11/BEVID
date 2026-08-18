@@ -2,57 +2,95 @@ import { db, pendingCount } from "./db";
 import { api } from "./api";
 
 /**
- * Sync queue : rejoue les mutations enfilées quand la connexion revient.
- * Conflict resolution : SERVER WINS. Si le serveur renvoie 409, l'entrée est marquée `conflict`.
- * Idempotence côté serveur assumée (les endpoints POST /visits, /orders acceptent un `client_uuid`).
+ * Rejoue les mutations ET les enregistrements audio en attente quand la connexion revient.
+ * Conflict resolution : SERVER WINS. 409 → status "conflict". Idempotence côté serveur assumée
+ * via les client_uuid transmis par les mutations.
  */
 let flushing = false;
 
-export async function flushQueue({ onProgress } = {}) {
-  if (flushing || typeof navigator !== "undefined" && !navigator.onLine) return { flushed: 0 };
-  flushing = true;
+async function flushMutations() {
+  const items = await db.sync_queue.where("status").equals("pending").toArray();
   let flushed = 0, failed = 0, conflict = 0;
-  try {
-    const items = await db.sync_queue.where("status").equals("pending").toArray();
-    for (const it of items) {
-      try {
-        await api.request({ url: it.url, method: it.method || "POST", data: it.data });
-        await db.sync_queue.update(it.id, { status: "synced", synced_at: new Date().toISOString() });
-        flushed++;
-      } catch (err) {
-        const status = err?.response?.status;
-        const tries = (it.tries || 0) + 1;
-        if (status === 409) {
-          await db.sync_queue.update(it.id, { status: "conflict", tries, last_error: err.response?.data?.detail || "conflict" });
-          conflict++;
-        } else if (tries >= 5) {
-          await db.sync_queue.update(it.id, { status: "failed", tries, last_error: err.message });
-          failed++;
-        } else {
-          await db.sync_queue.update(it.id, { tries, last_error: err.message });
-          break; // stop et réessaiera au prochain online
-        }
+  for (const it of items) {
+    try {
+      await api.request({ url: it.url, method: it.method || "POST", data: it.data });
+      await db.sync_queue.update(it.id, { status: "synced", synced_at: new Date().toISOString() });
+      flushed++;
+    } catch (err) {
+      const status = err?.response?.status;
+      const tries = (it.tries || 0) + 1;
+      if (status === 409) {
+        await db.sync_queue.update(it.id, { status: "conflict", tries, last_error: err.response?.data?.detail || "conflict" });
+        conflict++;
+      } else if (tries >= 5) {
+        await db.sync_queue.update(it.id, { status: "failed", tries, last_error: err.message });
+        failed++;
+      } else {
+        await db.sync_queue.update(it.id, { tries, last_error: err.message });
+        break;
       }
-      onProgress?.({ flushed, failed, conflict });
     }
-  } finally {
-    flushing = false;
-    // maj compteur global
-    try { window.__SYNC_PENDING__ = await pendingCount(); } catch {}
   }
   return { flushed, failed, conflict };
+}
+
+async function flushVoice() {
+  const items = await db.voice_recordings.where("status").equals("pending").toArray().catch(() => []);
+  let flushed = 0, failed = 0;
+  for (const v of items) {
+    try {
+      const fd = new FormData();
+      const ext = (v.mime || "audio/webm").split("/")[1]?.split(";")[0] || "webm";
+      fd.append("audio", v.blob, `recording-${v.id}.${ext}`);
+      fd.append("lang", v.lang || "fr-FR");
+      fd.append("recorded_at", v.at || "");
+      const { data } = await api.post("/voice/transcribe", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      await db.voice_recordings.update(v.id, {
+        status: "synced",
+        transcript: data?.transcript || "",
+        synced_at: new Date().toISOString(),
+      });
+      flushed++;
+    } catch (err) {
+      const tries = (v.tries || 0) + 1;
+      if (tries >= 5) {
+        await db.voice_recordings.update(v.id, { status: "failed", tries, last_error: err.message });
+        failed++;
+      } else {
+        await db.voice_recordings.update(v.id, { tries, last_error: err.message });
+        break;
+      }
+    }
+  }
+  return { flushed, failed };
+}
+
+export async function flushQueue({ onProgress } = {}) {
+  if (flushing || (typeof navigator !== "undefined" && !navigator.onLine)) return { flushed: 0 };
+  flushing = true;
+  let result = { flushed: 0, failed: 0, conflict: 0, voice_flushed: 0, voice_failed: 0 };
+  try {
+    const m = await flushMutations();
+    const v = await flushVoice();
+    result = {
+      flushed: m.flushed, failed: m.failed, conflict: m.conflict,
+      voice_flushed: v.flushed, voice_failed: v.failed,
+    };
+    onProgress?.(result);
+  } finally {
+    flushing = false;
+    try { window.__SYNC_PENDING__ = await pendingCount(); } catch {}
+  }
+  return result;
 }
 
 export function startSyncListener() {
   const trigger = () => { flushQueue().catch(() => {}); };
   window.addEventListener("online", trigger);
-  // toutes les 60s en background
   const iv = setInterval(trigger, 60000);
-  // maj pending count 2x/sec
   const cIv = setInterval(async () => {
     try { window.__SYNC_PENDING__ = await pendingCount(); } catch {}
   }, 2000);
-  // premier flush si en ligne au démarrage
   if (typeof navigator !== "undefined" && navigator.onLine) trigger();
   return () => { window.removeEventListener("online", trigger); clearInterval(iv); clearInterval(cIv); };
 }

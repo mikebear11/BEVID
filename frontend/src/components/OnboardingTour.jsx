@@ -45,7 +45,16 @@ export default function OnboardingTour() {
       const r = el.getBoundingClientRect();
       setPos({ top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.width, height: r.height });
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-    } else { setPos(null); }
+    } else {
+      // Cible absente du DOM (page pas encore rendue, permission absente, taille écran…)
+      // → on saute l'étape plutôt que de pointer dans le vide
+      setPos(null);
+      const skip = setTimeout(() => {
+        if (step < STEPS.length - 1) setStep(step + 1);
+        else { localStorage.setItem("bevid_onboarded", "1"); setActive(false); }
+      }, 250);
+      return () => clearTimeout(skip);
+    }
   }, [step, active]);
 
   if (!active) return null;
