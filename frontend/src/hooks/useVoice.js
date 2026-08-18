@@ -5,6 +5,7 @@ export function useVoice(lang = "fr-FR") {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const recogRef = useRef(null);
+  const finalTextRef = useRef("");
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -15,11 +16,20 @@ export function useVoice(lang = "fr-FR") {
     r.continuous = true;
     r.interimResults = true;
     r.onresult = (e) => {
-      let final = "";
+      let interim = "";
+      // Parcours de TOUS les résultats depuis resultIndex, en séparant final/intérim.
+      // On ne pousse dans finalTextRef que les résultats marqués final.
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        final += e.results[i][0].transcript;
+        const res = e.results[i];
+        const text = res[0].transcript;
+        if (res.isFinal) {
+          finalTextRef.current = (finalTextRef.current + " " + text).replace(/\s+/g, " ").trim();
+        } else {
+          interim += text;
+        }
       }
-      setTranscript(prev => prev + " " + final);
+      const combined = (finalTextRef.current + " " + interim).replace(/\s+/g, " ").trim();
+      setTranscript(combined);
     };
     r.onerror = () => setListening(false);
     r.onend = () => setListening(false);
@@ -29,6 +39,7 @@ export function useVoice(lang = "fr-FR") {
 
   const start = () => {
     if (!recogRef.current) return;
+    finalTextRef.current = "";
     setTranscript("");
     try { recogRef.current.start(); setListening(true); } catch(e) {}
   };
@@ -37,7 +48,7 @@ export function useVoice(lang = "fr-FR") {
     try { recogRef.current.stop(); } catch(e) {}
     setListening(false);
   };
-  const reset = () => setTranscript("");
+  const reset = () => { finalTextRef.current = ""; setTranscript(""); };
 
   return { supported, listening, transcript, start, stop, reset, setTranscript };
 }

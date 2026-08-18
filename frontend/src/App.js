@@ -40,6 +40,7 @@ import ContainerDetail from "@/pages/ContainerDetail";
 import ScanContainer from "@/pages/ScanContainer";
 import DRM from "@/pages/DRM";
 import QRLabels from "@/pages/QRLabels";
+import Rapprochement from "@/pages/Rapprochement";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -90,6 +91,7 @@ function App() {
               <Route path="/scan" element={<Protected><ScanContainer /></Protected>} />
               <Route path="/containers/labels" element={<Protected><QRLabels /></Protected>} />
               <Route path="/drm" element={<Protected><DRM /></Protected>} />
+              <Route path="/rapprochement" element={<Protected><Rapprochement /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

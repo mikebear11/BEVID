@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Request, Query, Header, Response
 from fastapi.responses import StreamingResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
@@ -77,6 +77,14 @@ class Client(BaseModel):
     notes: Optional[str] = ""
     status: Literal["prospect", "actif", "inactif", "vip"] = "prospect"
     assigned_to: Optional[str] = None
+    # === Banking / KYB ===
+    iban: Optional[str] = ""
+    bic: Optional[str] = ""
+    siret: Optional[str] = ""
+    siren: Optional[str] = ""
+    tva_intra: Optional[str] = ""
+    kbis_path: Optional[str] = None
+    rib_path: Optional[str] = None
     owner_id: str
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
@@ -1654,7 +1662,6 @@ async def cashflow(days: int = 60, user=Depends(get_current_user)):
     }
 
 # ---------- CRON PAYMENT REMINDERS ----------
-from fastapi import Header
 WEBHOOK_CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET", "")
 
 async def _process_reminders():
@@ -3453,6 +3460,456 @@ async def log_conflict(kind: str, entity_id: str, reason: str, extra: dict):
     doc = {"id": str(uuid.uuid4()), "kind": kind, "entity_id": entity_id,
            "reason": reason, "extra": extra, "at": now_iso(), "seen": False}
     await db.conflicts.insert_one(doc)
+
+# =============================================================
+# BANKING / RECONCILIATION — Iter 10a
+# Object storage (Kbis/RIB) + IBAN validation + Bank imports +
+# Reconciliation engine (4 confidence levels) + réversible lettrage
+# =============================================================
+from bank import storage as _bank_storage
+from bank.validators import (
+    clean_iban, is_valid_iban, is_valid_siren, is_valid_siret,
+    normalize_name as _norm_name,
+)
+from bank.importers import PARSERS as _BANK_PARSERS, sniff_format as _bank_sniff
+from bank.reconciliation import propose as _bank_propose, AUTO_LETTRAGE_THRESHOLD
+
+BANK_APP = "bevid"
+
+
+# ---------- Kbis / RIB upload ----------
+@api_router.post("/clients/{cid}/documents")
+async def upload_client_document(
+    cid: str,
+    kind: str = Query(..., pattern="^(kbis|rib)$"),
+    file: UploadFile = File(...),
+    user=Depends(get_current_user),
+):
+    """Upload PDF Kbis ou RIB pour un client. Manager only."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    c = await db.clients.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Client introuvable")
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(413, "Fichier > 10 Mo")
+    ct = file.content_type or "application/pdf"
+    if ct not in ("application/pdf", "image/png", "image/jpeg"):
+        raise HTTPException(415, "Format accepté : PDF, PNG, JPEG")
+    ext = (file.filename or "").split(".")[-1].lower() or "pdf"
+    path = f"{BANK_APP}/clients/{cid}/{kind}-{uuid.uuid4().hex[:12]}.{ext}"
+    try:
+        result = _bank_storage.put_object(path, data, ct)
+    except RuntimeError as e:
+        raise HTTPException(503, f"Stockage indisponible: {e}")
+    stored_path = result["path"]
+    field = "kbis_path" if kind == "kbis" else "rib_path"
+    await db.clients.update_one({"id": cid}, {"$set": {
+        field: stored_path,
+        f"{kind}_filename": file.filename,
+        f"{kind}_uploaded_at": now_iso(),
+        "updated_at": now_iso(),
+    }})
+    await db.files.insert_one({
+        "id": str(uuid.uuid4()),
+        "storage_path": stored_path,
+        "original_filename": file.filename,
+        "content_type": ct,
+        "size": len(data),
+        "owner_client_id": cid,
+        "kind": kind,
+        "is_deleted": False,
+        "created_at": now_iso(),
+    })
+    await audit_log(user["id"], "client_doc_upload", {"client_id": cid, "kind": kind, "path": stored_path})
+    return {"ok": True, "path": stored_path, "size": len(data)}
+
+
+@api_router.get("/files/{file_path:path}")
+async def download_stored_file(file_path: str, authorization: Optional[str] = Header(None), auth: Optional[str] = Query(None)):
+    """Télécharge un fichier stocké — auth via header ou query param (pour img src)."""
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(None, 1)[1]
+    elif auth:
+        token = auth
+    if not token:
+        raise HTTPException(401, "Auth requise")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.PyJWTError:
+        raise HTTPException(401, "Token invalide")
+    u = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+    if not u or not u.get("active", True):
+        raise HTTPException(403, "Compte inactif")
+    rec = await db.files.find_one({"storage_path": file_path, "is_deleted": False}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "Fichier introuvable")
+    # ACL : manager voit tout ; commercial voit uniquement fichiers de ses clients
+    if u["role"] != "manager":
+        cid = rec.get("owner_client_id")
+        if cid:
+            c = await db.clients.find_one({"id": cid, "$or": [
+                {"owner_id": u["id"]}, {"assigned_to": u["id"]}
+            ]}, {"_id": 0})
+            if not c:
+                raise HTTPException(403, "Accès refusé")
+    try:
+        content, ct = _bank_storage.get_object(file_path)
+    except FileNotFoundError:
+        raise HTTPException(404, "Fichier absent du stockage")
+    except RuntimeError as e:
+        raise HTTPException(503, f"Stockage indisponible: {e}")
+    return Response(content=content, media_type=rec.get("content_type", ct))
+
+
+# ---------- Client banking validation (hook update) ----------
+@api_router.post("/clients/{cid}/banking")
+async def update_client_banking(cid: str, data: dict, user=Depends(get_current_user)):
+    """Met à jour uniquement les champs bancaires du client avec validation stricte."""
+    c = await db.clients.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Client introuvable")
+    if user["role"] != "manager" and c.get("owner_id") != user["id"] and c.get("assigned_to") != user["id"]:
+        raise HTTPException(403, "Accès refusé")
+
+    updates = {}
+    iban = clean_iban(data.get("iban", ""))
+    if iban:
+        if not is_valid_iban(iban):
+            raise HTTPException(400, "IBAN invalide (clé mod-97 non valide)")
+        updates["iban"] = iban
+    elif "iban" in data:
+        updates["iban"] = ""
+
+    if "bic" in data:
+        updates["bic"] = (data.get("bic") or "").strip().upper()
+
+    siret = re.sub(r"\s+", "", data.get("siret", "") or "")
+    if siret:
+        if not is_valid_siret(siret):
+            raise HTTPException(400, "SIRET invalide (clé Luhn non valide)")
+        updates["siret"] = siret
+        updates["siren"] = siret[:9]
+    elif "siret" in data:
+        updates["siret"] = ""
+
+    siren = re.sub(r"\s+", "", data.get("siren", "") or "")
+    if siren and "siret" not in data:
+        if not is_valid_siren(siren):
+            raise HTTPException(400, "SIREN invalide (clé Luhn non valide)")
+        updates["siren"] = siren
+
+    if "tva_intra" in data:
+        updates["tva_intra"] = (data.get("tva_intra") or "").strip().upper()
+
+    updates["updated_at"] = now_iso()
+    await db.clients.update_one({"id": cid}, {"$set": updates})
+    await audit_log(user["id"], "client_banking_update", {"client_id": cid, "fields": list(updates.keys())})
+    return {"ok": True, "updated": updates}
+
+
+# ---------- Bank statement import (CSV / CAMT.053 / CFONB 120) ----------
+@api_router.post("/banque/imports")
+async def import_bank_statement(
+    file: UploadFile = File(...),
+    account_label: Optional[str] = Query(None, description="Libellé libre du compte source"),
+    user=Depends(get_current_user),
+):
+    """Upload d'un relevé bancaire. Détecte le format, parse, insère idempotent, propose auto-lettrage.
+    Retour : {import_id, format, total_lines, new, duplicates, auto_lettrages}
+    """
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    content = await file.read()
+    try:
+        fmt = _bank_sniff(file.filename or "", content)
+    except ValueError:
+        raise HTTPException(400, "Format non reconnu (CSV, CAMT.053, CFONB 120 attendus)")
+    parser = _BANK_PARSERS[fmt]
+    try:
+        rows = parser(content, filename=file.filename or "")
+    except Exception as e:
+        raise HTTPException(400, f"Erreur parsing: {e}")
+
+    import_id = str(uuid.uuid4())
+    now = now_iso()
+    await db.bank_imports.insert_one({
+        "id": import_id, "format": fmt, "account_label": account_label or "",
+        "filename": file.filename, "total_lines": len(rows),
+        "uploaded_by": user["id"], "uploaded_at": now,
+    })
+
+    new_count = 0
+    dup_count = 0
+    inserted_ids = []
+    for row in rows:
+        ext_id = row["external_id"]
+        existing = await db.bank_transactions.find_one({"external_id": ext_id}, {"_id": 0, "id": 1})
+        if existing:
+            dup_count += 1
+            continue
+        tx_id = str(uuid.uuid4())
+        # Contreparties dans base isolée (règle 4.2 : cloisonnement DSP2)
+        if row.get("counterparty_name"):
+            await db.bank_counterparties.update_one(
+                {"normalized_name": row["counterparty_name"]},
+                {"$setOnInsert": {"first_seen": now}, "$inc": {"seen_count": 1}, "$set": {"last_seen": now}},
+                upsert=True,
+            )
+        await db.bank_transactions.insert_one({
+            "id": tx_id, "import_id": import_id, "external_id": ext_id,
+            "value_date": row.get("value_date"), "operation_date": row.get("operation_date"),
+            "amount": row.get("amount", 0), "currency": row.get("currency", "EUR"),
+            "counterparty_name": row.get("counterparty_name", ""),
+            "counterparty_iban": row.get("counterparty_iban"),
+            "label": row.get("label", ""), "reference": row.get("reference"),
+            "raw": row.get("raw", {}),
+            "matched_amount": 0.0, "status": "open",
+            "created_at": now,
+        })
+        inserted_ids.append(tx_id)
+        new_count += 1
+
+    # Auto-lettrage sur les nouvelles écritures (score >= threshold)
+    auto_count = 0
+    if inserted_ids:
+        auto_count = await _run_auto_lettrage(inserted_ids, user["id"])
+
+    return {
+        "import_id": import_id, "format": fmt,
+        "total_lines": len(rows), "new": new_count, "duplicates": dup_count,
+        "auto_lettrages": auto_count,
+    }
+
+
+async def _fetch_open_orders() -> list[dict]:
+    """Charge les commandes non payées + remaining_amount + client_name normalisé."""
+    orders = await db.orders.find(
+        {"payment_status": {"$nin": ["paid", "refunded"]}},
+        {"_id": 0, "id": 1, "total": 1, "created_at": 1, "client_id": 1,
+         "client_name": 1, "payment_status": 1, "rf_reference": 1, "emitted_e2e_id": 1}
+    ).to_list(5000)
+    # somme des lettrages déjà appliqués sur cette commande
+    letts = await db.bank_lettrages.find(
+        {"status": "active"}, {"_id": 0, "order_id": 1, "amount": 1}
+    ).to_list(50000)
+    applied = {}
+    for l in letts:
+        applied[l["order_id"]] = applied.get(l["order_id"], 0) + l["amount"]
+    for o in orders:
+        o["client_name_normalized"] = _norm_name(o.get("client_name") or "")
+        o["remaining_amount"] = round((o.get("total") or 0) - applied.get(o["id"], 0), 2)
+    return [o for o in orders if o["remaining_amount"] > 0.005]
+
+
+async def _run_auto_lettrage(tx_ids: list[str], user_id: str) -> int:
+    open_orders = await _fetch_open_orders()
+    count = 0
+    for tid in tx_ids:
+        tx = await db.bank_transactions.find_one({"id": tid}, {"_id": 0})
+        if not tx or tx.get("status") != "open":
+            continue
+        propositions = _bank_propose(tx, open_orders)
+        if propositions and propositions[0]["confidence"] >= AUTO_LETTRAGE_THRESHOLD:
+            top = propositions[0]
+            await _apply_lettrage(tid, top["order_ids"], top["amount_applied"],
+                                  method="auto", confidence=top["confidence"],
+                                  reason=top["reason"], user_id=user_id)
+            # refresh open_orders car les montants restants ont changé
+            open_orders = await _fetch_open_orders()
+            count += 1
+    return count
+
+
+async def _apply_lettrage(tx_id: str, order_ids: list[str], amount_applied: float,
+                          method: str, confidence: int, reason: str, user_id: str):
+    """Crée les lignes de lettrage, marque la tx, met à jour payment_status si soldée."""
+    tx = await db.bank_transactions.find_one({"id": tx_id}, {"_id": 0})
+    if not tx:
+        raise HTTPException(404, "Écriture bancaire introuvable")
+    # split proportionnel si plusieurs commandes
+    orders = await db.orders.find({"id": {"$in": order_ids}}, {"_id": 0}).to_list(50)
+    if len(orders) != len(order_ids):
+        raise HTTPException(404, "Une ou plusieurs commandes introuvables")
+
+    # calcul des montants restants par commande
+    letts = await db.bank_lettrages.find(
+        {"order_id": {"$in": order_ids}, "status": "active"}, {"_id": 0}
+    ).to_list(1000)
+    applied_map = {oid: 0.0 for oid in order_ids}
+    for l in letts:
+        applied_map[l["order_id"]] = applied_map.get(l["order_id"], 0) + l["amount"]
+    remainings = {o["id"]: round(o.get("total", 0) - applied_map.get(o["id"], 0), 2) for o in orders}
+
+    now = now_iso()
+    total_to_split = amount_applied
+    for oid in order_ids:
+        rem = remainings[oid]
+        alloc = min(rem, total_to_split) if len(order_ids) > 1 else amount_applied
+        if len(order_ids) == 1:
+            alloc = min(amount_applied, rem)
+        letrage = {
+            "id": str(uuid.uuid4()),
+            "tx_id": tx_id, "order_id": oid,
+            "amount": round(alloc, 2),
+            "method": method, "confidence": confidence, "reason": reason,
+            "status": "active",
+            "created_by": user_id, "created_at": now,
+        }
+        await db.bank_lettrages.insert_one(letrage)
+        total_to_split -= alloc
+        # payment_status
+        new_applied = applied_map.get(oid, 0) + alloc
+        order = next(x for x in orders if x["id"] == oid)
+        if new_applied >= order.get("total", 0) - 0.005:
+            await db.orders.update_one({"id": oid}, {"$set": {
+                "payment_status": "paid", "paid_at": now, "paid_via": "bank_reconciliation",
+            }})
+        else:
+            await db.orders.update_one({"id": oid}, {"$set": {
+                "payment_status": "partial", "paid_amount": round(new_applied, 2),
+            }})
+
+    # met à jour la tx
+    total_matched = tx.get("matched_amount", 0) + amount_applied
+    tx_status = "matched" if abs(total_matched - abs(tx.get("amount", 0))) < 0.01 else "partial"
+    await db.bank_transactions.update_one({"id": tx_id}, {"$set": {
+        "matched_amount": round(total_matched, 2), "status": tx_status,
+        "last_letrage_at": now,
+    }})
+    await audit_log(user_id, "bank_lettrage", {
+        "tx_id": tx_id, "order_ids": order_ids, "amount": amount_applied,
+        "method": method, "confidence": confidence,
+    })
+
+
+@api_router.get("/banque/transactions")
+async def list_bank_transactions(
+    status: Optional[str] = Query(None, description="open|matched|partial|all"),
+    limit: int = 200,
+    user=Depends(get_current_user),
+):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    q = {}
+    if status and status != "all":
+        q["status"] = status
+    txs = await db.bank_transactions.find(q, {"_id": 0}).sort("value_date", -1).limit(limit).to_list(limit)
+    return txs
+
+
+@api_router.get("/banque/transactions/{tid}/propose")
+async def propose_lettrage(tid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    tx = await db.bank_transactions.find_one({"id": tid}, {"_id": 0})
+    if not tx:
+        raise HTTPException(404, "Écriture introuvable")
+    open_orders = await _fetch_open_orders()
+    propositions = _bank_propose(tx, open_orders)
+    # enrichit chaque proposition avec les commandes et clients pour l'UI
+    for p in propositions:
+        p["orders"] = []
+        for oid in p["order_ids"]:
+            o = next((x for x in open_orders if x["id"] == oid), None)
+            if o:
+                p["orders"].append({
+                    "id": o["id"], "total": o["total"],
+                    "remaining_amount": o["remaining_amount"],
+                    "client_id": o.get("client_id"), "client_name": o.get("client_name"),
+                    "created_at": o.get("created_at"),
+                })
+    return {"tx": tx, "propositions": propositions[:5]}
+
+
+@api_router.post("/banque/transactions/{tid}/lettrer")
+async def create_lettrage(tid: str, data: dict, user=Depends(get_current_user)):
+    """Body: { order_ids: [str], amount_applied: float, confidence?: int, reason?: str }"""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    order_ids = data.get("order_ids") or []
+    amount = float(data.get("amount_applied") or 0)
+    if not order_ids or amount <= 0:
+        raise HTTPException(400, "order_ids et amount_applied requis")
+    await _apply_lettrage(
+        tid, order_ids, amount,
+        method="manual", confidence=int(data.get("confidence", 100)),
+        reason=data.get("reason") or "Lettrage manuel",
+        user_id=user["id"],
+    )
+    return {"ok": True}
+
+
+@api_router.post("/banque/lettrages/{lid}/delettrer")
+async def delete_lettrage(lid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    lett = await db.bank_lettrages.find_one({"id": lid, "status": "active"}, {"_id": 0})
+    if not lett:
+        raise HTTPException(404, "Lettrage introuvable ou déjà annulé")
+    now = now_iso()
+    await db.bank_lettrages.update_one({"id": lid}, {"$set": {
+        "status": "reversed", "reversed_by": user["id"], "reversed_at": now,
+    }})
+    # recalcule le statut de la commande et de la transaction
+    order = await db.orders.find_one({"id": lett["order_id"]}, {"_id": 0})
+    if order:
+        other = await db.bank_lettrages.find(
+            {"order_id": lett["order_id"], "status": "active"}, {"_id": 0, "amount": 1}
+        ).to_list(1000)
+        applied = sum(x["amount"] for x in other)
+        total = order.get("total", 0)
+        if applied >= total - 0.005:
+            new_status = "paid"
+        elif applied > 0:
+            new_status = "partial"
+        else:
+            new_status = "pending"
+        await db.orders.update_one({"id": lett["order_id"]}, {"$set": {
+            "payment_status": new_status,
+            "paid_amount": round(applied, 2),
+        }})
+    tx = await db.bank_transactions.find_one({"id": lett["tx_id"]}, {"_id": 0})
+    if tx:
+        others = await db.bank_lettrages.find(
+            {"tx_id": lett["tx_id"], "status": "active"}, {"_id": 0, "amount": 1}
+        ).to_list(1000)
+        matched = sum(x["amount"] for x in others)
+        tx_status = "matched" if abs(matched - abs(tx.get("amount", 0))) < 0.01 else ("partial" if matched > 0 else "open")
+        await db.bank_transactions.update_one({"id": lett["tx_id"]}, {"$set": {
+            "matched_amount": round(matched, 2), "status": tx_status,
+        }})
+    await audit_log(user["id"], "bank_delettrage", {"lettrage_id": lid, "order_id": lett["order_id"]})
+    return {"ok": True}
+
+
+@api_router.get("/banque/lettrages")
+async def list_lettrages(status: str = "active", limit: int = 200, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    q = {} if status == "all" else {"status": status}
+    return await db.bank_lettrages.find(q, {"_id": 0}).sort("created_at", -1).limit(limit).to_list(limit)
+
+
+@api_router.get("/banque/summary")
+async def bank_summary(user=Depends(get_current_user)):
+    """KPIs pour la page rapprochement."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    total_tx = await db.bank_transactions.count_documents({})
+    open_tx = await db.bank_transactions.count_documents({"status": "open"})
+    matched_tx = await db.bank_transactions.count_documents({"status": "matched"})
+    active_letts = await db.bank_lettrages.count_documents({"status": "active"})
+    auto_letts = await db.bank_lettrages.count_documents({"status": "active", "method": "auto"})
+    return {
+        "total_tx": total_tx, "open_tx": open_tx, "matched_tx": matched_tx,
+        "matched_pct": round(matched_tx / total_tx * 100, 1) if total_tx else 0,
+        "active_lettrages": active_letts, "auto_lettrages": auto_letts,
+        "auto_rate_pct": round(auto_letts / active_letts * 100, 1) if active_letts else 0,
+    }
+
 
 @api_router.post("/conflicts/{cid}/dismiss")
 async def dismiss_conflict(cid: str, user=Depends(get_current_user)):

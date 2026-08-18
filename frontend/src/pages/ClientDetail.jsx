@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { ArrowLeft, Sparkles, Plus, Loader2, Trash2, Repeat, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+import ClientBankingPanel from "@/components/ClientBankingPanel";
 
 export default function ClientDetail() {
   const { id } = useParams();
@@ -116,6 +117,8 @@ export default function ClientDetail() {
           <div className="text-sm whitespace-pre-wrap text-stone-800 leading-relaxed">{insight}</div>
         </div>
       )}
+
+      <ClientBankingPanel client={c} onUpdate={load} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card-crm p-6">

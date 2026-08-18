@@ -6,7 +6,7 @@ import VoiceFAB from "@/components/VoiceFAB";
 import SyncIndicator from "@/components/SyncIndicator";
 import BevidLogo from "@/components/BevidLogo";
 import OnboardingTour from "@/components/OnboardingTour";
-import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText } from "lucide-react";
+import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText, Landmark } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 
 const navAll = [
@@ -25,6 +25,7 @@ const navAll = [
   { to: "/drm", key: "drm", icon: FileText, roles: ["manager"] },
   { to: "/reports", key: "reports", icon: BarChart3, roles: ["manager"] },
   { to: "/paiements", key: "payments", icon: Banknote, roles: ["manager"] },
+  { to: "/rapprochement", key: "reconciliation", icon: Landmark, roles: ["manager"] },
   { to: "/monthly-review", key: "monthly", icon: Trophy, roles: ["manager"] },
   { to: "/smart-goals", key: "smart", icon: Sparkles, roles: ["manager", "commercial"] },
   { to: "/agents", key: "agents", icon: UserCog, roles: ["manager"] },
