@@ -26,6 +26,10 @@
         Learn how to configure a non-root public URL by running `npm run build`.
         -->
         <title>BEVID · CRM Boisson</title>
+        <script>
+          // Applique le thème AVANT le rendu pour éviter le flash (FOUC)
+          (function(){try{var t=localStorage.getItem("bevid.theme")||"system";var h=document.documentElement;h.classList.remove("dark","sun");var eff=t;if(t==="system"){eff=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";}if(eff==="dark"){h.classList.add("dark");h.style.colorScheme="dark";}else if(eff==="sun"){h.classList.add("sun");h.style.colorScheme="light";}else{h.style.colorScheme="light";}}catch(e){}})();
+        </script>
         <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
     </head>

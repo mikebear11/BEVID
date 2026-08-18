@@ -1,8 +1,10 @@
 import { useEffect } from "react";
+import "@/design-system/tokens.css";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/contexts/I18nContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -47,6 +49,7 @@ import Radar from "@/pages/Radar";
 import Veille from "@/pages/Veille";
 import Bouclier from "@/pages/Bouclier";
 import AdminPermissions from "@/pages/AdminPermissions";
+import DesignSystem from "@/pages/DesignSystem";
 import { PermProvider } from "@/contexts/PermContext";
 
 function Protected({ children }) {
@@ -59,7 +62,8 @@ function Protected({ children }) {
 function App() {
   return (
     <div className="App font-body">
-      <I18nProvider>
+      <ThemeProvider>
+        <I18nProvider>
         <AuthProvider>
           <PermProvider>
             <BrowserRouter>
@@ -106,12 +110,14 @@ function App() {
               <Route path="/veille" element={<Protected><Veille /></Protected>} />
               <Route path="/bouclier" element={<Protected><Bouclier /></Protected>} />
               <Route path="/admin/permissions" element={<Protected><AdminPermissions /></Protected>} />
+              <Route path="/design-system" element={<Protected><DesignSystem /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />
           </PermProvider>
         </AuthProvider>
-      </I18nProvider>
+        </I18nProvider>
+      </ThemeProvider>
     </div>
   );
 }

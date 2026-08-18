@@ -9,6 +9,7 @@ import BevidLogo from "@/components/BevidLogo";
 import OnboardingTour from "@/components/OnboardingTour";
 import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText, Landmark, Compass, Radio, AlertOctagon, Shield, Database } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeToggle from "@/components/ThemeToggle";
 
 // key = clé i18n label, feature = clé permission serveur (source de vérité pour visibilité)
 const navAll = [
@@ -44,8 +45,6 @@ const navAll = [
   { to: "/admin/couts", key: "costs", feature: "product:view_cost", icon: Coins },
   { to: "/connectors", key: "connectors", feature: "page:integrations", icon: Plug },
 ];
-import NotificationBell from "@/components/NotificationBell";
-
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
@@ -62,9 +61,9 @@ export default function Layout({ children }) {
   return (
     <div className="flex min-h-screen">
       {/* Sidebar desktop */}
-      <aside className="hidden md:flex md:flex-col w-64 border-r border-stone-200 bg-white/60 backdrop-blur-md" data-testid="sidebar">
-        <div className="p-6 border-b border-stone-200 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#4A154B]">
+      <aside className="hidden md:flex md:flex-col w-64 border-r border-stone-200 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 backdrop-blur-md" data-testid="sidebar">
+        <div className="p-6 border-b border-stone-200 dark:border-stone-700 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[#4A154B] dark:text-[#B076B4]">
             <BevidLogo size={28} />
             <div>
               <h1 className="font-display text-2xl leading-none">BEVID</h1>
@@ -78,25 +77,26 @@ export default function Layout({ children }) {
             const active = loc.pathname === to || (to !== "/" && loc.pathname.startsWith(to));
             return (
               <Link key={to} to={to} data-testid={`nav-${key}`}
-                className={`flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-sm transition-colors duration-200 ${active ? "bg-[#4A154B] text-white" : "text-stone-700 hover:bg-stone-100"}`}>
+                className={`flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-sm transition-colors duration-200 ${active ? "bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900" : "text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800"}`}>
                 <Icon size={18} strokeWidth={1.5} />
                 <span>{t(key)}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="p-3 border-t border-stone-200 space-y-2">
-          <div className="flex items-center justify-between text-xs text-stone-500 px-2">
+        <div className="p-3 border-t border-stone-200 dark:border-stone-700 space-y-2">
+          <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 px-2">
             <span className="truncate">{user?.name}</span>
             <div className="flex items-center gap-2">
               <NotificationBell />
               <span className="badge badge-vip">{user?.role}</span>
             </div>
           </div>
+          <ThemeToggle variant="sidebar" />
           <select
             value={lang}
             onChange={(e) => setLanguage(e.target.value)}
-            className="w-full text-sm border border-stone-300 rounded-lg px-2 py-1.5 min-h-[44px] bg-white"
+            className="w-full text-sm border border-stone-300 dark:border-stone-600 rounded-lg px-2 py-1.5 min-h-[44px] bg-white dark:bg-stone-800 dark:text-stone-200"
             data-testid="lang-select"
           >
             {languages.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
@@ -108,23 +108,24 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-stone-200 flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3 text-[#4A154B]">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-stone-200 dark:border-stone-700 flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-3 text-[#4A154B] dark:text-[#B076B4]">
           <BevidLogo size={22} />
           <h1 className="font-display text-xl">BEVID</h1>
           <SyncIndicator />
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-1 items-center">
+          <ThemeToggle variant="icon" />
           <NotificationBell />
           <select
             value={lang}
             onChange={(e) => setLanguage(e.target.value)}
-            className="text-xs font-medium px-2 py-1 border rounded min-h-[36px]"
+            className="text-xs font-medium px-2 py-1 border rounded min-h-[36px] bg-white dark:bg-stone-800 dark:text-stone-200 dark:border-stone-600"
             data-testid="lang-select-mobile"
           >
             {languages.map(l => <option key={l.code} value={l.code}>{l.flag}</option>)}
           </select>
-          <button onClick={logout} data-testid="logout-mobile" className="min-w-[44px] min-h-[44px] flex items-center justify-center"><LogOut size={18} /></button>
+          <button onClick={logout} data-testid="logout-mobile" className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-700 dark:text-stone-300"><LogOut size={18} /></button>
         </div>
       </div>
 
@@ -136,12 +137,12 @@ export default function Layout({ children }) {
       </main>
 
       {/* Mobile bottom tab bar (5 primary actions, thumb-zone) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 flex justify-around py-2 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-700 flex justify-around py-2 pb-safe">
         {nav.slice(0, 5).map(({ to, key, icon: Icon }) => {
           const active = loc.pathname === to;
           return (
             <button key={to} onClick={() => nav_(to)} data-testid={`nav-mobile-${key}`}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 min-w-[48px] min-h-[48px] ${active ? "text-[#4A154B]" : "text-stone-500"}`}>
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 min-w-[48px] min-h-[48px] ${active ? "text-[#4A154B] dark:text-[#B076B4]" : "text-stone-500 dark:text-stone-400"}`}>
               <Icon size={22} strokeWidth={1.75} />
               <span className="text-[10px] font-medium">{t(key)}</span>
             </button>

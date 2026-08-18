@@ -19,6 +19,13 @@ RATE_LIMITS = {
     "recherche-entreprises": 7.0,     # /sec - limite officielle
     "rappelconso": 5.0,               # /sec - opendata
     "insee-melodi": 0.5,              # 30/min
+    "insee-sirene": 0.5,              # 30/min (compte gratuit)
+    "inpi-rne": 1.0,                  # conservateur
+    "ban": 5.0,                       # api-adresse.data.gouv.fr - libre
+    "societe-com": 1.0,               # 60/min plafond officiel
+    "pappers": 3.0,                   # conservateur (offre payante)
+    "osm-overpass": 0.2,              # 1 req/5s recommandé
+    "google-places": 5.0,             # côté navigateur usuel, on borne serveur
     "datatourisme": 0.2,              # 1000/heure ~ 0.27/s, on reste sous
     "meteofrance": 1.0,
     "vies": 0.5,

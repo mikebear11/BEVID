@@ -1,0 +1,258 @@
+/* =========================================================================
+   BEVID · SYSTÈME DE DESIGN — JETONS (charte utilisateur)
+   Fichier UNIQUE contenant toutes les valeurs hexadécimales de l'application.
+   Toute autre feuille de style référence ces jetons par leur rôle via var(--…).
+   3 thèmes : clair (défaut) · sombre · soleil (plein soleil, 21:1).
+   ------------------------------------------------------------------------- */
+
+/* ---------- CLAIR (défaut) ------------------------------------------------ */
+:root {
+  /* Surfaces */
+  --ds-bg-app:            #f7f6f3;  /* Plan de page */
+  --ds-bg-surface:        #fdfcfa;  /* Surface carte */
+  --ds-bg-surface-alt:    #f0eee8;  /* léger creux */
+  --ds-bg-elevated:       #ffffff;
+
+  /* Texte (contraste 18,3:1 sur plan de page) */
+  --ds-text-primary:      #121210;  /* Encre principale */
+  --ds-text-secondary:    #56544d;  /* Encre secondaire — 7,4:1 */
+  --ds-text-muted:        #8a8880;
+  --ds-text-on-accent:    #ffffff;
+
+  /* Bordures */
+  --ds-border:            #e3e1da;  /* Filet */
+  --ds-border-strong:     #c8c5bc;
+
+  /* Accent unique — cliquable et rien d'autre (6,3:1 sur plan de page) */
+  --ds-accent:            #1f5fa8;
+  --ds-accent-hover:      #174579;
+  --ds-accent-fg:         #ffffff;
+  --ds-accent-veil:       #eaf1fb;  /* Voile d'accent — voile de survol / focus soft */
+
+  /* Focus */
+  --ds-focus-ring:        #1f5fa8;
+  --ds-focus-ring-alpha:  rgba(31, 95, 168, 0.35);
+
+  /* --- États (tricolore + info neutre, jamais utilisés pour les graphiques) --- */
+  --ds-state-success:         #0ca30c;  /* À jour (vert) */
+  --ds-state-success-soft-bg: #e5f4e5;
+  --ds-state-success-soft-fg: #0a5a0a;
+  --ds-state-success-solid-bg:#0ca30c;
+  --ds-state-success-solid-fg:#000000;  /* règle : noir sur vert plein (5,6:1) */
+
+  --ds-state-info:            #5a6f8c;  /* Neutre — jamais l'accent, jamais un bleu de série */
+  --ds-state-info-soft-bg:    #eaeef4;
+  --ds-state-info-soft-fg:    #2f3e57;
+  --ds-state-info-solid-bg:   #5a6f8c;
+  --ds-state-info-solid-fg:   #ffffff;
+
+  --ds-state-warning:         #fab219;  /* Vigilance (ambre) */
+  --ds-state-warning-soft-bg: #fdf0d6;
+  --ds-state-warning-soft-fg: #7a5300;
+  --ds-state-warning-solid-bg:#fab219;
+  --ds-state-warning-solid-fg:#000000;  /* règle : noir sur ambre plein (10,2:1) */
+
+  --ds-state-danger:          #d03b3b;  /* Bloqué (rouge) */
+  --ds-state-danger-soft-bg:  #fbe2e2;
+  --ds-state-danger-soft-fg:  #7d1f1f;
+  --ds-state-danger-solid-bg: #d03b3b;
+  --ds-state-danger-solid-fg: #ffffff;  /* règle : blanc sur rouge plein (4,8:1) */
+  --ds-state-danger-text:     #b02c2c;  /* Texte d'alerte inline sur fond clair (6,3:1) */
+
+  /* --- Graphiques (ordre imposé, jamais utilisés pour un état) --- */
+  --ds-chart-1: #2a78d6;  /* Série 1 — bleu */
+  --ds-chart-2: #eb6834;  /* Série 2 — orange */
+  --ds-chart-3: #1baf7a;  /* Série 3 — vert d'eau · étiquettes requises en clair */
+  --ds-chart-4: #4a3aa7;  /* Série 4 — violet */
+  --ds-chart-ink:  #56544d;
+  --ds-chart-grid: #e3e1da;
+  --ds-chart-axis: #8a8880;
+  /* Étiquette obligatoire sur la série verte en mode clair */
+  --ds-chart-3-label-bg: #fdfcfa;
+  --ds-chart-3-label-fg: #121210;
+
+  /* --- Couleurs produit (bières — hors palette d'état & graphique) --- */
+  --ds-produit-supernova: #1f5fa8;
+  --ds-produit-tropicool: #eb6834;
+  --ds-produit-blonde:    #1baf7a;
+  --ds-produit-ambree:    #4a3aa7;
+
+  /* --- Typographie --- */
+  --ds-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+  --ds-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --ds-font-size-xs:   0.75rem;
+  --ds-font-size-sm:   0.875rem;
+  --ds-font-size-base: 1rem;
+  --ds-font-size-lg:   1.125rem;
+  --ds-font-size-xl:   1.5rem;
+  --ds-font-size-2xl:  2rem;
+  --ds-font-size-3xl:  2.5rem;
+
+  /* --- Rayons --- */
+  --ds-radius-sm: 4px;
+  --ds-radius-md: 8px;
+  --ds-radius-lg: 12px;
+  --ds-radius-pill: 999px;
+
+  /* --- Bordures selon thème (soleil = 2 px) --- */
+  --ds-border-width: 1px;
+
+  /* --- Espacement --- */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+
+  /* --- Cibles tactiles --- */
+  --ds-touch-min: 48px;
+}
+
+/* ---------- SOMBRE (dérivé — nuit / cristallin opacifié) ----------------- */
+html.dark {
+  --ds-bg-app:            #100f0d;
+  --ds-bg-surface:        #1a1917;
+  --ds-bg-surface-alt:    #23211d;
+  --ds-bg-elevated:       #2a2823;
+
+  --ds-text-primary:      #f3f2ee;
+  --ds-text-secondary:    #b0ada4;
+  --ds-text-muted:        #7d7a72;
+  --ds-text-on-accent:    #ffffff;
+
+  --ds-border:            #2b2925;
+  --ds-border-strong:     #423f39;
+
+  --ds-accent:            #5b9ee6;   /* accent éclairci pour lisibilité sur fond sombre */
+  --ds-accent-hover:      #7cb1eb;
+  --ds-accent-fg:         #0a1220;
+  --ds-accent-veil:       #17263c;
+
+  --ds-focus-ring:        #5b9ee6;
+  --ds-focus-ring-alpha:  rgba(91, 158, 230, 0.45);
+
+  --ds-state-success:         #4fbf4f;
+  --ds-state-success-soft-bg: #14261a;
+  --ds-state-success-soft-fg: #94dc94;
+  --ds-state-success-solid-bg:#4fbf4f;
+  --ds-state-success-solid-fg:#000000;
+
+  --ds-state-info:            #8892a3;
+  --ds-state-info-soft-bg:    #1e2028;
+  --ds-state-info-soft-fg:    #b8bfcc;
+  --ds-state-info-solid-bg:   #8892a3;
+  --ds-state-info-solid-fg:   #0a0e14;
+
+  --ds-state-warning:         #fbc45c;
+  --ds-state-warning-soft-bg: #2b2110;
+  --ds-state-warning-soft-fg: #f7cf80;
+  --ds-state-warning-solid-bg:#fbc45c;
+  --ds-state-warning-solid-fg:#000000;
+
+  --ds-state-danger:          #e26060;
+  --ds-state-danger-soft-bg:  #2c1616;
+  --ds-state-danger-soft-fg:  #f0a1a1;
+  --ds-state-danger-solid-bg: #e26060;
+  --ds-state-danger-solid-fg: #ffffff;
+  --ds-state-danger-text:     #f08585;
+
+  --ds-chart-1: #5b9ee6;
+  --ds-chart-2: #f39264;
+  --ds-chart-3: #4fc79a;
+  --ds-chart-4: #8574d1;
+  --ds-chart-ink:  #b0ada4;
+  --ds-chart-grid: #2b2925;
+  --ds-chart-axis: #7d7a72;
+  /* En sombre, le vert d'eau atteint le contraste ; l'étiquette forcée peut être absente
+     mais on la garde optionnelle avec un fond élevé pour cohérence. */
+  --ds-chart-3-label-bg: #2a2823;
+  --ds-chart-3-label-fg: #f3f2ee;
+
+  --ds-produit-supernova: #5b9ee6;
+  --ds-produit-tropicool: #f39264;
+  --ds-produit-blonde:    #4fc79a;
+  --ds-produit-ambree:    #8574d1;
+}
+
+/* ---------- SOLEIL (plein soleil — 21:1 texte, bordures 2 px, aplats) --- */
+html.sun {
+  --ds-bg-app:            #ffffff;
+  --ds-bg-surface:        #ffffff;
+  --ds-bg-surface-alt:    #ededed;
+  --ds-bg-elevated:       #ffffff;
+
+  --ds-text-primary:      #000000;
+  --ds-text-secondary:    #1a1a1a;
+  --ds-text-muted:        #333333;
+  --ds-text-on-accent:    #ffffff;
+
+  --ds-border:            #000000;
+  --ds-border-strong:     #000000;
+
+  --ds-accent:            #143f70;   /* accent renforcé pour saillir sous forte lumière */
+  --ds-accent-hover:      #0b2c56;
+  --ds-accent-fg:         #ffffff;
+  --ds-accent-veil:       #d9e4f3;
+
+  --ds-focus-ring:        #000000;
+  --ds-focus-ring-alpha:  rgba(0, 0, 0, 0.7);
+
+  --ds-state-success:         #0a7a0a;
+  --ds-state-success-soft-bg: #d0eed0;
+  --ds-state-success-soft-fg: #000000;
+  --ds-state-success-solid-bg:#0a7a0a;
+  --ds-state-success-solid-fg:#000000;
+
+  --ds-state-info:            #2f3e57;
+  --ds-state-info-soft-bg:    #dee4ed;
+  --ds-state-info-soft-fg:    #000000;
+  --ds-state-info-solid-bg:   #2f3e57;
+  --ds-state-info-solid-fg:   #ffffff;
+
+  --ds-state-warning:         #b57a00;
+  --ds-state-warning-soft-bg: #f8dfa8;
+  --ds-state-warning-soft-fg: #000000;
+  --ds-state-warning-solid-bg:#f0b040;   /* aplat plein pour lisibilité */
+  --ds-state-warning-solid-fg:#000000;
+
+  --ds-state-danger:          #a01f1f;
+  --ds-state-danger-soft-bg:  #f5c8c8;
+  --ds-state-danger-soft-fg:  #000000;
+  --ds-state-danger-solid-bg: #a01f1f;
+  --ds-state-danger-solid-fg: #ffffff;
+  --ds-state-danger-text:     #7a1616;
+
+  --ds-chart-1: #143f70;
+  --ds-chart-2: #a94515;
+  --ds-chart-3: #0d6e50;
+  --ds-chart-4: #2f1f7a;
+  --ds-chart-ink:  #000000;
+  --ds-chart-grid: #000000;
+  --ds-chart-axis: #000000;
+  --ds-chart-3-label-bg: #ffffff;
+  --ds-chart-3-label-fg: #000000;
+
+  --ds-produit-supernova: #143f70;
+  --ds-produit-tropicool: #a94515;
+  --ds-produit-blonde:    #0d6e50;
+  --ds-produit-ambree:    #2f1f7a;
+
+  /* Bordures épaissies en soleil */
+  --ds-border-width: 2px;
+}
+
+/* ---------- Utilitaires système ------------------------------------------ */
+.ds-font-sans   { font-family: var(--ds-font-sans); }
+.ds-tabular     { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* Cible tactile mobile 48 px */
+@media (max-width: 767px) {
+  .ds-tap        { min-width: var(--ds-touch-min); min-height: var(--ds-touch-min); }
+}
+
+/* Anneau de focus toujours visible sur les cibles interactives .ds-focus */
+.ds-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring-alpha), 0 0 0 5px var(--ds-focus-ring);
+}
