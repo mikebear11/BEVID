@@ -37,14 +37,13 @@ const navAll = [
   { to: "/sources-donnees", key: "sources", feature: "page:sources-donnees", icon: Database },
   { to: "/admin/users", key: "users", feature: "page:users", icon: UserCog },
   { to: "/admin/permissions", key: "permissions", feature: "page:users", icon: ShieldCheck },
-  { to: "/integrations", key: "integrations", feature: "page:integrations", icon: Plug },
+  { to: "/connectors", key: "connectors", feature: "page:integrations", icon: Plug },
   { to: "/settings", key: "settings", feature: "page:settings", icon: SettingsIcon },
-  { to: "/privacy", key: "privacy", feature: "page:privacy", icon: ShieldCheck },
+  { to: "/confidentialite", key: "privacy", feature: "page:privacy", icon: ShieldCheck },
   { to: "/monthly-review", key: "monthly", feature: "page:reports", icon: Trophy },
   { to: "/smart-goals", key: "smart", feature: "page:dashboard", icon: Sparkles },
   { to: "/agents", key: "agents", feature: "page:users", icon: UserCog },
   { to: "/admin/couts", key: "costs", feature: "product:view_cost", icon: Coins },
-  { to: "/connectors", key: "connectors", feature: "page:integrations", icon: Plug },
 ];
 export default function Layout({ children }) {
   const { user, logout } = useAuth();

@@ -1,0 +1,54 @@
+{
+  "summary": "LOT 1 backend security audit (P0+P1+11bis+6). 11 tests exécutés — 8 PASS, 3 FAIL. Register (rôle forcé commercial, password_confirm, accept_terms, password<10), rate-limit login (6e=429 Retry-After), rate-limit forgot-password (4e=429), voice/transcribe (avec field 'audio') : TOUS OK. 3 échecs critiques identifiés : (1) comptes demo manager.demo/commercial.demo INEXISTANTS en base, (2) message 422 email login = 'Valeur invalide.' au lieu de 'Adresse email invalide.'.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "seed / bootstrap accounts",
+        "issue": "Les comptes manager.demo@bevidcrm.fr (Manager!2026Demo) et commercial.demo@bevidcrm.fr (Commercial!2026Demo) N'EXISTENT PAS en base. Aucun code de seed startup ne les crée. La revue demande explicitement leur existence. Seuls demo@cellier.fr et guillaume@sulauze.com existent — et AUCUN utilisateur avec role='commercial' n'est présent comme compte demo. Vérifié via requête directe MongoDB users.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "POST /api/auth/login (email invalide)",
+        "issue": "Retourne {errors:{email:'Valeur invalide.'}} au lieu de {errors:{email:'Adresse email invalide.'}}. RCA : dans server.py L92-100 _friendly_message(), la clé Pydantic v2 pour un email invalide est 'value_error' — qui est PRÉSENTE dans FIELD_MESSAGES_FR et matche AVANT le check spécifique email (ligne 96 `if 'email' in t or 'email' in msg`). Le bloc email-specific est unreachable pour ce type. Fix: réordonner — checker msg/loc contient 'email' AVANT la lookup FIELD_MESSAGES_FR, ou retirer 'value_error' du dict générique.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/register",
+        "issue": "Réponse d'erreur : incohérence de format. Le handler global RequestValidationError renvoie {errors:{...}} au root. Mais register endpoint lève HTTPException(422, detail={'errors':{...}}) → réponse au format {detail:{errors:{...}}}. Frontend doit gérer les 2 formats. Recommandation : uniformiser via un helper qui renvoie JSONResponse(422, {'errors': errs}) directement au lieu de HTTPException."
+      },
+      {
+        "endpoint": "Rate limit IP",
+        "issue": "Le compteur IP est partagé — 5 échecs login depuis n'importe quelle IP bloque TOUTE tentative depuis cette IP pendant 15 min, y compris login légitimes. En prod derrière un reverse-proxy (K8s ingress), tous les utilisateurs partagent la même IP source si x-forwarded-for est mal configuré → risque de blocage massif. À valider en prod: vérifier que _client_ip() lit bien le vrai client IP depuis x-forwarded-for."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_auth_security.py",
+    "/app/test_reports/pytest/iteration_14.xml"
+  ],
+  "action_items": [
+    "CRITIQUE : Créer un seed startup idempotent pour manager.demo@bevidcrm.fr / Manager!2026Demo (role=manager) et commercial.demo@bevidcrm.fr / Commercial!2026Demo (role=commercial). Sans ces comptes, la revue LOT 1 ne peut pas être validée.",
+    "HAUTE : Corriger server.py _friendly_message() pour renvoyer 'Adresse email invalide.' quand la validation Pydantic échoue sur un EmailStr — actuellement bloqué par le match générique 'value_error' dans FIELD_MESSAGES_FR.",
+    "MINEURE : Uniformiser le format des réponses 422 entre le handler global (root {errors:...}) et les HTTPException manuelles (nested {detail:{errors:...}})."
+  ],
+  "critical_code_review_comments": [
+    "server.py L74-100 : FIELD_MESSAGES_FR contient 'value_error' comme clé générique — masque toute détection spécifique en aval (email, url, etc.). Réordonner : détections spécifiques d'abord, dict générique en fallback.",
+    "server.py L272 : `raise HTTPException(status_code=422, detail={'errors': errors})` produit une réponse {'detail':{'errors':...}} alors que le handler global renvoie {'errors':...}. Incohérence.",
+    "server.py taille 5336 lignes — dépasse largement le seuil recommandé (>700 lignes). Le module devrait être découpé (auth, clients, orders, integrations, etc.).",
+    "Aucun seed idempotent pour les comptes demo/test — la doc PRD et les credentials mentionnent des comptes qui n'existent pas. Ajouter _seed_demo_users_on_startup() analogue à _seed_integrations_on_startup().",
+    "rate_limit.py est in-memory + mono-process — noter en clair que scale horizontal (>1 pod) casse la limite. Migrer vers Redis avant prod multi-pod."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter14_auth_security.py"
+  ],
+  "success_rate": {"backend": "73% (8/11)", "frontend": "N/A (backend-only)"},
+  "test_credentials": "manager.demo@bevidcrm.fr/Manager!2026Demo (MANQUANT), commercial.demo@bevidcrm.fr/Commercial!2026Demo (MANQUANT), demo@cellier.fr/demo1234 (OK, manager), guillaume@sulauze.com/Cellier2026! (OK, manager)",
+  "seed_data_creation": "Aucune donnée seed créée. 5 utilisateurs TEST_reg_/TEST_ok_ créés par les tests register avec succès (à nettoyer ultérieurement).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Le rate-limit IP est en-mémoire — chaque exécution des tests pollue le compteur pour l'IP courante. Un `sudo supervisorctl restart backend` reset tout. Les tests sont ordonnés par nom de classe (Test1..Test5) pour que les 2 login demo (qui polluent l'IP si échec) tournent avant les tests rate-limit. Le voice/transcribe utilise le field name 'audio' (pas 'file'). Le TLD .test est bloqué par Pydantic — utiliser .fr ou .com.",
+  "rca_of_the_issue": "Bug demo accounts : aucun mécanisme de seed startup pour ces 2 comptes. Vérifié via `db.users.find({email:{$regex:'demo|bevidcrm'}})` → 0 match. Reproduction : POST /api/auth/login avec ces credentials → 401 Identifiants invalides. Mitigation : ajouter une fonction async `_seed_demo_users()` appelée dans @app.on_event('startup'), idempotente via find_one avant insert_one, avec bcrypt hash des passwords depuis constantes en clair (ou via env vars). Bug message 'Adresse email invalide.' : Pydantic v2 remonte le type 'value_error' pour un EmailStr invalide (pas 'value_error.email'). Dans _friendly_message L94, `if t in FIELD_MESSAGES_FR` est True immédiatement → retourne 'Valeur invalide.' avant d'atteindre le check email L96-97. Fix trivial : inverser l'ordre — d'abord tester email/loc pour email, puis fallback dict."
+}

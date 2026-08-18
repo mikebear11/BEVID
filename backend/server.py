@@ -19,6 +19,40 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+# ---------- Rate limiter (in-memory, sliding window) ----------
+from rate_limit import check as _rl_check, record as _rl_record, clear as _rl_clear
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit_check(kind: str, ip: str, email: str, max_attempts: int, window_min: int) -> None:
+    """Vérifie 2 clés indépendantes (IP + email) et lève 429 si dépassement."""
+    for key in (f"ip:{ip}", f"email:{email}"):
+        allowed, retry_after = _rl_check(kind, key, max_attempts, window_min)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Trop de tentatives. Réessaie dans {retry_after} secondes.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+
+def _rate_limit_record(kind: str, ip: str, email: str) -> None:
+    _rl_record(kind, f"ip:{ip}")
+    _rl_record(kind, f"email:{email}")
+
+
+def _rate_limit_clear(kind: str, ip: str, email: str) -> None:
+    _rl_clear(kind, f"ip:{ip}")
+    _rl_clear(kind, f"email:{email}")
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -36,6 +70,53 @@ app = FastAPI(title="CRM Boisson API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
+
+# ---------- Gestionnaire 422 : message court, par champ, sans détail Pydantic ----------
+FIELD_MESSAGES_FR = {
+    "value_error.email": "Adresse email invalide.",
+    "value_error.missing": "Champ requis.",
+    "value_error.any_str.min_length": "Trop court.",
+    "value_error.const": "Valeur non autorisée.",
+    "value_error.enum": "Valeur non autorisée.",
+    "type_error.bool": "Doit être vrai ou faux.",
+    "type_error.str": "Doit être du texte.",
+    "type_error.integer": "Doit être un nombre entier.",
+    "type_error.float": "Doit être un nombre.",
+    "value_error.jsondecode": "Format invalide.",
+    "missing": "Champ requis.",
+    "string_too_short": "Trop court.",
+    "value_error": "Valeur invalide.",
+}
+
+
+def _friendly_message(err: dict) -> str:
+    t = err.get("type", "")
+    msg = (err.get("msg") or "").lower()
+    loc = err.get("loc", [])
+    # 1) Détections spécifiques d'abord — avant tout fallback générique
+    if "email" in msg or "email" in [str(l) for l in loc] or t == "value_error.email":
+        return "Adresse email invalide."
+    # 2) Fallback via table de mapping
+    if t in FIELD_MESSAGES_FR:
+        return FIELD_MESSAGES_FR[t]
+    if "missing" in t:
+        return "Champ requis."
+    return "Valeur invalide."
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    """Convertit toute erreur Pydantic en réponse propre :
+       { errors: { field: "message court" } } — jamais de détail technique."""
+    errors: dict[str, str] = {}
+    for e in exc.errors():
+        loc = e.get("loc", [])
+        # Retire le préfixe "body"/"query"/"path"
+        field_parts = [str(p) for p in loc if p not in ("body", "query", "path")]
+        field = field_parts[-1] if field_parts else "form"
+        errors[field] = _friendly_message(e)
+    return JSONResponse(status_code=422, content={"errors": errors})
+
 # ---------- MODELS ----------
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -43,9 +124,12 @@ def now_iso():
 class UserRegister(BaseModel):
     email: EmailStr
     password: str
+    password_confirm: str
     name: str
-    role: Literal["manager", "commercial"] = "commercial"
     language: Literal["fr", "en", "es", "de"] = "fr"
+    accept_terms: bool = False
+    # NOTE : le rôle n'est PLUS accepté depuis le payload public.
+    # Tout compte créé via l'endpoint public est FORCÉ à "commercial".
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -173,13 +257,36 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(401, "Token invalide")
 
 @api_router.post("/auth/register")
-async def register(data: UserRegister):
+async def register(data: UserRegister, request: Request):
+    # Vérifie le rate limit AVANT tout traitement (par IP + email)
+    ip = _client_ip(request)
+    _rate_limit_check(kind="register", ip=ip, email=data.email.lower(), max_attempts=5, window_min=15)
+
+    # Règles serveur (répliquées par le frontend)
+    errors: dict[str, str] = {}
+    if len(data.password) < 10:
+        errors["password"] = "Le mot de passe doit contenir au moins 10 caractères."
+    if data.password != data.password_confirm:
+        errors["password_confirm"] = "Les deux mots de passe ne correspondent pas."
+    if not data.accept_terms:
+        errors["accept_terms"] = "Vous devez accepter les CGU et la politique de confidentialité."
+    if not data.name or not data.name.strip():
+        errors["name"] = "Nom requis."
+    if errors:
+        # Format unifié avec le gestionnaire global : {errors:{field:msg}} au root
+        return JSONResponse(status_code=422, content={"errors": errors})
+
     existing = await db.users.find_one({"email": data.email})
     if existing:
         raise HTTPException(400, "Email déjà utilisé")
-    user = User(email=data.email, name=data.name, role=data.role, language=data.language)
+
+    # SÉCURITÉ CRITIQUE : le rôle est ignoré depuis le payload public.
+    # Un compte manager ne peut être créé que via une page d'administration protégée.
+    user = User(email=data.email, name=data.name, role="commercial", language=data.language)
     doc = user.model_dump()
     doc["password"] = hash_password(data.password)
+    doc["terms_accepted_at"] = now_iso()
+    doc["terms_accepted_ip"] = ip
     await db.users.insert_one(doc)
     token = create_token(user.id)
     return {"token": token, "user": user.model_dump()}
@@ -193,10 +300,20 @@ async def update_language(data: dict, user=Depends(get_current_user)):
     return {"language": lang}
 
 @api_router.post("/auth/login")
-async def login(data: UserLogin):
-    doc = await db.users.find_one({"email": data.email.strip().lower()})
+async def login(data: UserLogin, request: Request):
+    # Rate limit : 5 échecs / 15 min par IP ET par email
+    ip = _client_ip(request)
+    email_norm = data.email.strip().lower()
+    _rate_limit_check(kind="login", ip=ip, email=email_norm, max_attempts=5, window_min=15)
+
+    doc = await db.users.find_one({"email": email_norm})
     if not doc or not verify_password(data.password, doc["password"]):
+        # Compte l'échec pour le rate limiter (n'enregistre que sur échec)
+        _rate_limit_record(kind="login", ip=ip, email=email_norm)
+        # Message générique — ne révèle jamais quel champ est faux
         raise HTTPException(401, "Identifiants invalides")
+    # Succès : purge le compteur pour ce couple IP+email
+    _rate_limit_clear(kind="login", ip=ip, email=email_norm)
     token = create_token(doc["id"])
     doc.pop("password", None)
     doc.pop("_id", None)
@@ -2652,10 +2769,13 @@ async def admin_reset_password(uid: str, user=Depends(get_current_user)):
 # ==========================================================
 @api_router.post("/auth/forgot-password")
 async def forgot_password(data: dict, request: Request):
-    """Envoi d'un email avec lien de réinitialisation (Emergent Resend)."""
+    """Envoi d'un email avec lien de réinitialisation (Emergent Resend). Rate-limité 3/15 min."""
     email = (data.get("email") or "").strip().lower()
     if not email:
         raise HTTPException(422, "Email requis")
+    ip = _client_ip(request)
+    _rate_limit_check(kind="forgot", ip=ip, email=email, max_attempts=3, window_min=15)
+    _rate_limit_record(kind="forgot", ip=ip, email=email)
     u = await db.users.find_one({"email": email})
     # Réponse identique pour ne pas divulguer l'existence du compte
     if u:
@@ -5178,9 +5298,72 @@ async def cron_enrichissement_comptes_rne(request: Request, authorization: Optio
     return {"ok": True, "sirens_scanned": scanned, "fields_updated": updated, "errors": errors}
 
 
+# ---------- Voice transcribe (offline queue endpoint) ----------
+@api_router.post("/voice/transcribe")
+async def voice_transcribe(
+    audio: UploadFile = File(...),
+    lang: str = "fr-FR",
+    recorded_at: str = "",
+    user=Depends(get_current_user),
+):
+    """Reçoit un enregistrement audio issu de la file offline. Stocke les métadonnées
+    et le blob binaire dans `voice_uploads`. La transcription réelle (Whisper) est
+    branchée à part quand la clé LLM est configurée — l'endpoint retourne 200 pour
+    vider la file côté client dès que le fichier est reçu.
+    """
+    try:
+        payload = await audio.read()
+    except Exception:
+        raise HTTPException(400, "Audio illisible")
+    doc_id = str(uuid.uuid4())
+    doc = {
+        "id": doc_id,
+        "user_id": user["id"],
+        "lang": lang,
+        "recorded_at": recorded_at or now_iso(),
+        "received_at": now_iso(),
+        "mime": audio.content_type or "audio/webm",
+        "size": len(payload),
+        "audio_b64": base64.b64encode(payload).decode("ascii") if len(payload) < 10 * 1024 * 1024 else None,
+        "status": "received",
+        "transcript": None,
+    }
+    await db.voice_uploads.insert_one(doc)
+    return {"ok": True, "id": doc_id, "transcript": ""}
+
+
 app.include_router(api_router)
 
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+# ---------- Seed démo idempotent (manager + commercial) ----------
+async def _seed_demo_users_on_startup():
+    """Garantit l'existence des comptes de démo. Idempotent : ne recrée jamais si présent."""
+    demo_users = [
+        {"email": "manager.demo@bevidcrm.fr",    "password": "Manager!2026Demo",   "name": "Marie Manager",     "role": "manager"},
+        {"email": "commercial.demo@bevidcrm.fr", "password": "Commercial!2026Demo","name": "Thomas Commercial", "role": "commercial"},
+    ]
+    for a in demo_users:
+        existing = await db.users.find_one({"email": a["email"]})
+        if existing:
+            continue
+        doc = {
+            "id": str(uuid.uuid4()), "email": a["email"], "name": a["name"],
+            "role": a["role"], "language": "fr", "active": True, "must_reset": False,
+            "created_at": now_iso(), "password": hash_password(a["password"]),
+            "terms_accepted_at": now_iso(),
+        }
+        await db.users.insert_one(doc)
+        logger.info(f"[seed] demo user created: {a['email']} → {a['role']}")
+
+
+@app.on_event("startup")
+async def _startup_seed_demo():
+    try:
+        await _seed_demo_users_on_startup()
+    except Exception as e:
+        logger.warning(f"[seed] demo users skipped: {e}")

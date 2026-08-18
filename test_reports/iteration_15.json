@@ -1,0 +1,35 @@
+{
+  "summary": "LOT 1 retest après corrections iteration_14 : 11/11 tests PASS (100%). Les 3 fixes sont validés : (1) seed startup idempotent crée manager.demo@bevidcrm.fr (role=manager) et commercial.demo@bevidcrm.fr (role=commercial) — login 200 OK avec bons rôles. (2) _friendly_message() réordonné renvoie bien 'Adresse email invalide.' (plus 'Valeur invalide.') et aucune fuite de détails Pydantic techniques. (3) register endpoint renvoie {errors:{...}} au root (plus de nested detail). Régression OK : role forcé commercial, rate-limit login 5/15min avec Retry-After et message FR, rate-limit forgot-password 3/15min, /voice/transcribe 200 avec field 'audio'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "Test scheduler",
+        "issue": "Quand pytest-xdist exécute Test2VoiceTranscribe sur un worker après Test4Login rate-limit test (mêmes IP+email pool), le login demo peut être bloqué par IP rate-limit résiduel → SKIP. Contournement : restart backend avant test voice isolé, ou déplacer Test2 dans une classe de scope plus tôt. Non-bloquant fonctionnellement."
+      },
+      {
+        "endpoint": "Rate limit IP en prod",
+        "issue": "Reporté d'iteration_14 — le rate-limit IP est partagé, en prod derrière ingress K8s vérifier que _client_ip() lit x-forwarded-for correctement pour éviter blocage massif."
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_auth_security.py",
+    "/app/test_reports/pytest/iteration_15.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Reporté d'iteration_14 — server.py fait 5300+ lignes, à découper (auth, clients, orders, integrations) en modules dédiés.",
+    "rate_limit.py in-memory + mono-process — migrer vers Redis avant scale horizontal (>1 pod).",
+    "Aucun test de charge/concurrence sur les rate-limits — vérifier qu'un burst simultané ne contourne pas la limite (race condition sur le compteur in-memory)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "N/A (backend-only)"},
+  "test_credentials": "manager.demo@bevidcrm.fr/Manager!2026Demo (OK, role=manager), commercial.demo@bevidcrm.fr/Commercial!2026Demo (OK, role=commercial), demo@cellier.fr/demo1234 (OK, manager)",
+  "seed_data_creation": "Seed startup a créé manager.demo et commercial.demo automatiquement au restart. Tests register ont créé ~5 comptes TEST_* additionnels (à nettoyer si besoin).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Rate-limit in-memory persiste entre les tests → toujours restart backend avant un run complet. pytest-xdist workers=2 est OK sauf que Test2VoiceTranscribe peut être scheduled après Test4 rate-limit — dans ce cas re-runner isolément avec restart. Tous les fixes P0/P1 LOT 1 sont validés côté backend.",
+  "rca_of_the_issue": "N/A — tous les bugs iteration_14 sont fixés. Fix 1 (seed) : _seed_demo_users_on_startup() idempotent via find_one avant insert_one confirmé opérationnel. Fix 2 (_friendly_message) : le check email/loc désormais AVANT le lookup FIELD_MESSAGES_FR — 'Adresse email invalide.' renvoyée. Fix 3 (register 422) : JSONResponse(422, {'errors': errs}) direct — le format matche le handler global."
+}
