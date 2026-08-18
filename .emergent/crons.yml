@@ -48,3 +48,24 @@ crons:
     endpoint: "{{BASE_URL}}/api/cron/rappels/scan"
     method: POST
     enabled: true
+  - name: enrichissement-sirene-refresh
+    description: "Rafraîchit mensuellement l'identité Sirene (Couche A) sur tout le portefeuille — respecte les verrous utilisateur"
+    cron: "0 3 1 * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/enrichissement/sirene-refresh"
+    method: POST
+    enabled: true
+  - name: enrichissement-scoring-mensuel
+    description: "Scoring mensuel via le port anonymisé (Couche B) sur tout le portefeuille. Bascule Couche A si crédits épuisés."
+    cron: "0 4 1 * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/enrichissement/scoring-mensuel"
+    method: POST
+    enabled: true
+  - name: enrichissement-comptes-annuels-rne
+    description: "Chargement annuel des comptes annuels et dirigeants depuis le RNE INPI (avril)"
+    cron: "0 5 15 4 *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/enrichissement/comptes-annuels-rne"
+    method: POST
+    enabled: true

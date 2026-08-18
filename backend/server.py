@@ -5073,6 +5073,111 @@ async def osm_places_search(lat: float, lng: float, radius_deg: float = 0.02, li
     return {"results": results, "attribution": "© OpenStreetMap contributors"}
 
 
+# ---------- Crons enrichissement planifiés ----------
+async def _iter_portefeuille_sirens():
+    """Itère les SIREN du portefeuille (établissements avec siren enriched ou siret raw)."""
+    async for e in db.establishments.find({}, {"_id": 0, "id": 1, "siret": 1, "siren": 1, "enrichissement": 1, "address": 1}):
+        siren_field = (e.get("enrichissement") or {}).get("siren") or {}
+        siren = siren_field.get("valeur") or e.get("siren") or (e.get("siret") or "")[:9]
+        if siren and len(siren) == 9 and siren.isdigit():
+            yield e, siren
+
+
+async def _cron_auth(authorization: Optional[str]):
+    if not WEBHOOK_CRON_SECRET or not authorization or authorization.split(" ", 1)[-1] != WEBHOOK_CRON_SECRET:
+        raise HTTPException(401, "Cron secret invalide")
+
+
+@api_router.post("/cron/enrichissement/sirene-refresh")
+async def cron_enrichissement_sirene_refresh(request: Request, authorization: Optional[str] = Header(None)):
+    """Rafraîchit mensuellement identité + adresse via Couche A. Respecte les verrous."""
+    await _cron_auth(authorization)
+    scanned = 0
+    updated = 0
+    errors = 0
+    async for est, siren in _iter_portefeuille_sirens():
+        scanned += 1
+        try:
+            fields = await _layer_a_run(siren, db=db, adresse_saisie=est.get("address"))
+            if not fields.get("_error"):
+                result = await _apply_layer_result(est["id"], source="sirene", fields=fields)
+                updated += result.get("changed", 0)
+        except Exception as e:
+            errors += 1
+            logging.warning(f"[cron sirene-refresh] {siren} → {e}")
+    return {"ok": True, "sirens_scanned": scanned, "fields_updated": updated, "errors": errors}
+
+
+@api_router.post("/cron/enrichissement/scoring-mensuel")
+async def cron_enrichissement_scoring_mensuel(request: Request, authorization: Optional[str] = Header(None)):
+    """Scoring mensuel Couche B avec bascule automatique Couche A si crédits épuisés."""
+    await _cron_auth(authorization)
+    port = _resolve_enrich_port()
+    guard = await CreditsGuard.check(db, port.provider_key)
+    scanned = 0
+    scored = 0
+    fallback = 0
+    errors = 0
+    async for est, siren in _iter_portefeuille_sirens():
+        scanned += 1
+        try:
+            if not guard.allowed:
+                # bascule douce vers Couche A (rafraîchit identité)
+                fields = await _layer_a_run(siren, db=db)
+                await _apply_layer_result(est["id"], source="sirene", fields=fields)
+                fallback += 1
+                continue
+            scoring = await port.score(siren, db=db)
+            if scoring.get("_available"):
+                merged = {k: v for k, v in scoring.items() if not k.startswith("_") and v is not None}
+                if merged:
+                    await _apply_layer_result(est["id"], source="layer_b", fields=merged)
+                    await guard.consume(db, 1)
+                    scored += 1
+            else:
+                fallback += 1
+        except Exception as e:
+            errors += 1
+            logging.warning(f"[cron scoring-mensuel] {siren} → {e}")
+    return {"ok": True, "sirens_scanned": scanned, "scored": scored, "fallback_to_layer_a": fallback, "errors": errors}
+
+
+@api_router.post("/cron/enrichissement/comptes-annuels-rne")
+async def cron_enrichissement_comptes_rne(request: Request, authorization: Optional[str] = Header(None)):
+    """Charge annuellement (avril) les comptes annuels et dirigeants depuis le RNE INPI."""
+    await _cron_auth(authorization)
+    from enrichissement import rne as _rne
+    scanned = 0
+    updated = 0
+    errors = 0
+    async for est, siren in _iter_portefeuille_sirens():
+        scanned += 1
+        try:
+            formalite = await _rne.fetch_formalite(siren, db=db)
+            if not formalite:
+                continue
+            comptes = (
+                formalite.get("formality", {}).get("content", {}).get("personneMorale", {}).get("comptesAnnuels")
+                or []
+            )
+            fields = {}
+            dirigeants = _rne.extract_dirigeants(formalite)
+            if dirigeants:
+                fields["dirigeants"] = dirigeants
+            benefs = _rne.extract_beneficiaires(formalite)
+            if benefs:
+                fields["beneficiaires_effectifs"] = benefs
+            if comptes:
+                fields["comptes_annuels"] = comptes
+            if fields:
+                res = await _apply_layer_result(est["id"], source="rne-inpi", fields=fields)
+                updated += res.get("changed", 0)
+        except Exception as e:
+            errors += 1
+            logging.warning(f"[cron comptes-rne] {siren} → {e}")
+    return {"ok": True, "sirens_scanned": scanned, "fields_updated": updated, "errors": errors}
+
+
 app.include_router(api_router)
 
 
