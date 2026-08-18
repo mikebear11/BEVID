@@ -68,7 +68,27 @@ db = client[DB_NAME]
 
 app = FastAPI(title="CRM Boisson API")
 api_router = APIRouter(prefix="/api")
-security = HTTPBearer()
+# auto_error=False : on tolère l'absence de Bearer et on retombera sur le cookie httpOnly.
+security = HTTPBearer(auto_error=False)
+
+# ---------- Cookie httpOnly d'authentification ----------
+AUTH_COOKIE_NAME = "bevid_auth"
+AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 90  # 90 jours, aligné sur la durée du JWT
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    """Pose la cookie httpOnly, Secure, SameSite=Lax."""
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        max_age=AUTH_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/",
+    )
+
+def _clear_auth_cookie(response: Response) -> None:
+    response.delete_cookie(key=AUTH_COOKIE_NAME, path="/")
 
 
 # ---------- Gestionnaire 422 : message court, par champ, sans détail Pydantic ----------
@@ -245,9 +265,19 @@ def create_token(user_id: str) -> str:
     payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=90)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    # 1) Priorité au Bearer explicite (utile pour les clients API, tests, curl)
+    token = credentials.credentials if credentials and credentials.credentials else None
+    # 2) Fallback sur la cookie httpOnly posée à la connexion
+    if not token:
+        token = request.cookies.get(AUTH_COOKIE_NAME)
+    if not token:
+        raise HTTPException(401, "Non authentifié")
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGO])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
         user_id = payload.get("sub")
         user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
         if not user:
@@ -257,7 +287,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(401, "Token invalide")
 
 @api_router.post("/auth/register")
-async def register(data: UserRegister, request: Request):
+async def register(data: UserRegister, request: Request, response: Response):
     # Vérifie le rate limit AVANT tout traitement (par IP + email)
     ip = _client_ip(request)
     _rate_limit_check(kind="register", ip=ip, email=data.email.lower(), max_attempts=5, window_min=15)
@@ -289,6 +319,7 @@ async def register(data: UserRegister, request: Request):
     doc["terms_accepted_ip"] = ip
     await db.users.insert_one(doc)
     token = create_token(user.id)
+    _set_auth_cookie(response, token)
     return {"token": token, "user": user.model_dump()}
 
 @api_router.put("/auth/language")
@@ -300,7 +331,7 @@ async def update_language(data: dict, user=Depends(get_current_user)):
     return {"language": lang}
 
 @api_router.post("/auth/login")
-async def login(data: UserLogin, request: Request):
+async def login(data: UserLogin, request: Request, response: Response):
     # Rate limit : 5 échecs / 15 min par IP ET par email
     ip = _client_ip(request)
     email_norm = data.email.strip().lower()
@@ -315,9 +346,72 @@ async def login(data: UserLogin, request: Request):
     # Succès : purge le compteur pour ce couple IP+email
     _rate_limit_clear(kind="login", ip=ip, email=email_norm)
     token = create_token(doc["id"])
+    _set_auth_cookie(response, token)
     doc.pop("password", None)
     doc.pop("_id", None)
     return {"token": token, "user": doc}
+
+
+@api_router.post("/auth/logout")
+async def logout(response: Response):
+    """Efface la cookie d'authentification. Idempotent : ne renvoie jamais d'erreur."""
+    _clear_auth_cookie(response)
+    return {"ok": True}
+
+
+# ---------- Reporting d'erreurs client (ErrorBoundary / fetch keepalive) ----------
+class ErrorReport(BaseModel):
+    message: str = ""
+    stack: str = ""
+    url: str = ""
+    user_agent: str = ""
+
+
+def _scrub_pii(text: str) -> str:
+    """Retire emails, JWTs, headers Authorization avant persistance."""
+    if not text:
+        return ""
+    t = re.sub(r"[\w.+-]+@[\w-]+\.[\w.-]+", "[email]", text)
+    t = re.sub(r"eyJ[A-Za-z0-9_\-\.]+", "[token]", t)
+    t = re.sub(r"Bearer\s+\S+", "Bearer [token]", t, flags=re.I)
+    return t[:4000]
+
+
+@api_router.post("/errors")
+async def report_error(data: ErrorReport, request: Request):
+    """Réceptionne les erreurs frontend, tronquées et anonymisées.
+
+    - Rate limité : 20 rapports / 15 min par IP.
+    - PII scrubbée avant écriture (emails, JWT, Bearer tokens).
+    - Si SENTRY_DSN est défini côté serveur, un hook Sentry peut prendre le relais.
+    """
+    ip = _client_ip(request)
+    _rate_limit_check(kind="errors", ip=ip, email="", max_attempts=20, window_min=15)
+    _rate_limit_record(kind="errors", ip=ip, email="")
+
+    import hashlib
+    doc = {
+        "id": str(uuid.uuid4()),
+        "created_at": now_iso(),
+        "ip_hash": hashlib.sha256(ip.encode()).hexdigest()[:12],
+        "message": _scrub_pii(data.message)[:500],
+        "stack": _scrub_pii(data.stack)[:4000],
+        "url": _scrub_pii(data.url)[:500],
+        "user_agent": (data.user_agent or "")[:200],
+    }
+    # Hook Sentry — désactivé tant que SENTRY_DSN n'est pas défini
+    sentry_dsn = os.environ.get("SENTRY_DSN", "").strip()
+    if sentry_dsn:
+        # Point d'intégration : si le DSN est là un jour, brancher sentry_sdk ici.
+        # Pour ne pas ajouter de dépendance externe non désirée, on log simplement.
+        logging.getLogger("bevid.errors").warning(
+            "sentry-would-send %s %s", doc["message"][:80], doc["url"]
+        )
+    try:
+        await db.error_reports.insert_one(doc)
+    except Exception:
+        pass
+    return {"ok": True, "id": doc["id"]}
 
 @api_router.get("/auth/me")
 async def me(user=Depends(get_current_user)):

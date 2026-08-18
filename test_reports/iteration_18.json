@@ -1,0 +1,50 @@
+{
+  "summary": "Lot 3 test complet (Service Worker v3, cookie httpOnly, /api/errors, rate limits, sidebar 6 sections, palette Cmd+K, Register/ForgotPassword split panel, PostHog consent opt-in, ErrorBoundary, mobile 375px audit, i18n fr+en). Backend : 8/8 tests PASS (test_iter18_lot3.py). PII scrubbing vérifiée en DB : email → [email], 'Bearer eyJxxx' → 'Bearer [token]'. Frontend : tous les items du review_request validés (SW v3+SKIP_WAITING, cookie bevid_auth HttpOnly+Secure+SameSite=Lax + document.cookie vide côté JS, bevid_session=1, crm_token absent, 4 sections repliables pour commercial [Field/Sales/Steering/Growth] avec persistance localStorage bevid_nav_open_sections, palette Ctrl+K ouvre/filtre/Esc ferme, Register + ForgotPassword affichent bien le split-panel avec côté marque BEVID, favicon.svg 200 + og:image dans <head>, langues [fr,en] uniquement sur login-lang-select ET top-bar lang-select, mobile 375 scrollWidth==innerWidth==375, mobile-bottom-nav avec 5 boutons {tournee, visit, scan, clients, dashboard}, libellés fr corrects après switch : Ma tournée / Cycle client / Opportunités / Plans de tournée, consent banner s'affiche avec Accepter+Refuser meme prominence). Une UX-issue notable : le onboarding-tour modal (backdrop plein écran, z-index supérieur) intercepte les clics sur le consent banner tant qu'il n'est pas fermé. Ce n'est pas un bug fonctionnel (le click direct sur consent-accept via dispatch_event → localStorage.bevid_analytics_consent='granted' et banner supprimé), mais un utilisateur devra d'abord fermer l'onboarding pour cliquer sur Accepter/Refuser en conditions réelles.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Premier login → PostHog consent",
+        "issue": "L'onboarding tour (Radix Dialog avec backdrop overlay z-index élevé) est monté au-dessus du consent banner [data-testid='posthog-consent-banner']. Les clics sur [data-testid='consent-accept'] et [data-testid='consent-deny'] sont interceptés par l'overlay tant que l'onboarding n'est pas complété ou fermé. Le user peut fermer l'onboarding (bouton X) puis interagir avec la bannière — mais l'ordre d'apparition est confus (deux couches modales simultanées). Recommandation : soit retarder le consent banner jusqu'à la fermeture de l'onboarding, soit mettre le consent banner en portal plus haut (z-index > onboarding), soit fusionner les deux dans un flow guidé.",
+        "affected_selectors": ["[data-testid='consent-accept']", "[data-testid='consent-deny']", "[data-testid='posthog-consent-banner']"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "/register et /forgot-password",
+        "issues": [
+          "Le split-panel visuel est bien présent (constaté screenshot : côté sombre gauche avec 'La distribution de boissons, simplifiée.' pour /register et 'Un lien sécurisé, valable 60 minutes.' pour /forgot-password), mais aucun data-testid='brand-panel' n'est exposé — les tests e2e ne peuvent le cibler que par contenu textuel. Ajout d'un data-testid='brand-panel' sur le <aside> gauche recommandé.",
+          "Sur /register, le sélecteur de langue en haut à droite affiche 'English' comme valeur par défaut (langue de l'utilisateur invité) — cohérent avec i18n fr+en uniquement."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter18_lot3.py",
+    "/app/test_reports/pytest/iter18_lot3.xml"
+  ],
+  "action_items": [
+    "P2 UX : résoudre le conflit d'affichage simultané OnboardingTour + PostHogConsent au premier login (voir integration_issues). Le consent banner doit être atteignable au clavier/souris avant tout autre pop-in.",
+    "P3 testabilité : ajouter data-testid='brand-panel' sur le côté gauche des pages /register, /login et /forgot-password pour faciliter les assertions sur le split-panel.",
+    "P3 nice-to-have : og:image utilise le chemin relatif '/icon-512.png'. Pour un partage social propre, préférer une URL absolue (ex : https://drink-sales-hub-8.preview.emergentagent.com/icon-512.png) ou une image dédiée 1200x630."
+  ],
+  "critical_code_review_comments": [
+    "PostHogConsent.jsx (135 lignes) : impeccable — opt-in strict + revokeAnalytics + disable_session_recording=true + purge cookies ph_/posthog_. Le hook loaded appelle stopSessionRecording et opt_in_capturing dans le bon ordre.",
+    "server.py _scrub_pii : regex compact et correct pour email + 'eyJ*' JWT + 'Bearer *'. Testé en DB — persistance nette. Un ajout possible : masquer aussi les numéros de téléphone FR (+33...) et IBAN si l'app en logue un jour.",
+    "server.py get_current_user : la logique Bearer-then-cookie est propre, HTTPBearer(auto_error=False) est bien utilisé — pas de 403 parasite côté FastAPI.",
+    "Layout.jsx : les 6 sections const SECTIONS + le filtrage par permissions (Stock/Admin masqués pour commercial) fonctionne comme attendu ; persistance localStorage bevid_nav_open_sections OK avec un array JSON des sections OUVERTES.",
+    "sw.js v3 : NetworkFirst sur JS/CSS règle le problème critique de bundles périmés. Le fait que skipWaiting soit désormais commandé par l'utilisateur (postMessage) évite d'interrompre une saisie — bonne pratique."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (19/19 items du review_request)"},
+  "test_credentials": "commercial.demo@bevidcrm.fr / Commercial!2026Demo (utilisé) ; manager.demo@bevidcrm.fr / Manager!2026Demo (non utilisé — le review_request ne nécessite pas d'accès manager pour valider les 4 sections visibles au commercial).",
+  "seed_data_creation": "Aucune. Registres de test dans db.error_reports (id 54f73874-...) et échecs de login sur IP 10.0.55.x — auto-purgés par fenêtre 15 min du rate limiter.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend Lot 3 revalidé end-to-end. Cookie httpOnly bevid_auth fonctionne côté /auth/me sans Bearer. /api/errors + rate limit 20/15min OK, PII scrubbing OK en DB. Frontend : pour tester le consent banner en Playwright, utiliser .dispatch_event('click') sur [data-testid='consent-accept'] plutôt que .click(force=True) — l'onboarding tour Radix Dialog intercepte les coordonnées sinon. Les libellés sidebar sont en français uniquement après switch de la langue via [data-testid='lang-select'] (top-bar) ; l'utilisateur commercial.demo a probablement sa language DB à 'en'. Aucune régression LOT1/LOT2 constatée sur les endpoints touchés.",
+  "rca of the issue": "N/A — aucun bug bloquant identifié. Une seule UX-issue non-critique : conflit d'affichage OnboardingTour vs PostHogConsent au premier login (documentée dans integration_issues + action_items)."
+}

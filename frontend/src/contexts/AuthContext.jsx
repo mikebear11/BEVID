@@ -9,7 +9,7 @@ async function bootstrapOffline() {
   try {
     const { data } = await api.get("/sync/bootstrap");
     await saveSnapshot(data);
-  } catch (e) { /* silencieux — le cache existe peut-être déjà */ }
+  } catch { /* silencieux — cache probable */ }
 }
 
 async function getSnapshotAt() {
@@ -23,8 +23,16 @@ async function loadCachedUser() {
 }
 
 async function cacheUser(u) {
-  try { await db.meta.put({ key: "cached_user", value: u }); } catch {}
+  try { await db.meta.put({ key: "cached_user", value: u }); } catch { /* noop */ }
 }
+
+// Flag non-sensible côté client : indique juste qu'une session pourrait exister,
+// pour éviter d'appeler /auth/me à froid sans raison (et pour le mode hors-ligne).
+// Le vrai auth se fait via cookie httpOnly `bevid_auth`.
+const SESSION_FLAG = "bevid_session";
+function markSession()   { try { localStorage.setItem(SESSION_FLAG, "1"); } catch {} }
+function clearSession()  { try { localStorage.removeItem(SESSION_FLAG); } catch {} }
+function hasSessionFlag(){ try { return !!localStorage.getItem(SESSION_FLAG); } catch { return false; } }
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -33,39 +41,47 @@ export function AuthProvider({ children }) {
   const [snapshotAt, setSnapshotAt] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("crm_token");
     const stop = startSyncListener();
     const onOffline = () => setOfflineMode(true);
     const onOnline = () => {
       setOfflineMode(false);
-      // Tente une revalidation silencieuse au retour du réseau
-      if (localStorage.getItem("crm_token")) {
-        api.get("/auth/me").then(async r => { setUser(r.data); await cacheUser(r.data); bootstrapOffline(); }).catch(() => {});
+      if (hasSessionFlag() || localStorage.getItem("crm_token")) {
+        api.get("/auth/me").then(async (r) => {
+          setUser(r.data);
+          await cacheUser(r.data);
+          markSession();
+          bootstrapOffline();
+        }).catch(() => {});
       }
     };
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
 
-    if (!token) { setLoading(false); return () => { stop(); window.removeEventListener("offline", onOffline); window.removeEventListener("online", onOnline); }; }
+    // Aucun indice de session ET pas de legacy → on n'appelle même pas /auth/me.
+    if (!hasSessionFlag() && !localStorage.getItem("crm_token")) {
+      setLoading(false);
+      return () => { stop(); window.removeEventListener("offline", onOffline); window.removeEventListener("online", onOnline); };
+    }
 
     api.get("/auth/me")
-       .then(async r => {
+       .then(async (r) => {
          setUser(r.data);
          await cacheUser(r.data);
+         markSession();
          setOfflineMode(false);
          bootstrapOffline();
          flushQueue().catch(() => {});
        })
        .catch(async (err) => {
-         // Distinguer une réponse d'auth serveur d'une panne réseau
          const status = err?.response?.status;
          if (status === 401 || status === 403) {
-           // Le serveur a explicitement rejeté le token → nettoyage
+           // Rejet serveur explicite — nettoyage
+           clearSession();
            localStorage.removeItem("crm_token");
            await db.meta.delete("cached_user").catch(() => {});
            setUser(null);
          } else {
-           // Pas de réponse serveur (zone blanche, DNS KO, timeout…) → mode hors-ligne
+           // Panne réseau → mode hors-ligne à partir du cache
            const cached = await loadCachedUser();
            const snap = await getSnapshotAt();
            if (cached) {
@@ -82,7 +98,9 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    localStorage.setItem("crm_token", data.token);
+    // Le backend a posé la cookie httpOnly. On retire le legacy token éventuel.
+    localStorage.removeItem("crm_token");
+    markSession();
     setUser(data.user);
     await cacheUser(data.user);
     setOfflineMode(false);
@@ -92,7 +110,8 @@ export function AuthProvider({ children }) {
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
-    localStorage.setItem("crm_token", data.token);
+    localStorage.removeItem("crm_token");
+    markSession();
     setUser(data.user);
     await cacheUser(data.user);
     setOfflineMode(false);
@@ -100,7 +119,9 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try { await api.post("/auth/logout"); } catch { /* silencieux */ }
+    clearSession();
     localStorage.removeItem("crm_token");
     db.meta.delete("cached_user").catch(() => {});
     setUser(null);

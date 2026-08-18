@@ -49,7 +49,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      <div className="hidden md:flex md:w-1/2 relative bg-[#4A154B] text-white p-12 flex-col justify-between overflow-hidden">
+      <div data-testid="brand-panel" className="hidden md:flex md:w-1/2 relative bg-[#4A154B] text-white p-12 flex-col justify-between overflow-hidden">
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1562601579-599dec564e06?w=1200')", backgroundSize: "cover", backgroundPosition: "center", mixBlendMode: "multiply" }} />
         <div className="relative z-10 flex items-center gap-2">
           <BevidLogo size={28} />

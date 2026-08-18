@@ -1,31 +1,159 @@
-# BEVID — CRM Distribution de Boissons
+# BEVID — PRD
 
-## Implemented — v15.0 (18/02/2026) — Lot 1 finition + Lot 2 (P2 + P3 partiel)
+## Problème d'origine
+CRM mobile-first pour la distribution de boissons (bars, restaurants, cavistes, hôtels).
+Objectif : maximiser le temps terrain des commerciaux, réduire le DSO, éliminer la double saisie
+au retour de tournée. Cœur = tournée hors-ligne, dictée vocale, DRM douane, DSO temps réel.
 
-### Lot 1 — Vérification des régressions signalées par l'utilisateur
-- **A. Layout.jsx `MOBILE_NAV`** : le fichier avait été rétabli sur une version antérieure lors d'un tour précédent. Désormais : constante littérale exportable, **jamais dérivée** de navAll/slice ; entrées fixes `Ma tournée · Visite · Scanner · Clients · Tableau` ; ordre invariable, indépendant des permissions. `/tournee` ajouté à navAll pour le desktop.
-- **B. `OfflineBanner`** : composant présent + importé + monté en haut de `<main>`. Affiche "Mode hors-ligne — données du <snapshotAt>" quand `AuthContext.offlineMode=true`.
+Langue produit : **français**. Utilisateur final : commerciaux itinérants + managers de PME
+brassicoles/distribution.
 
-### Lot 2 — Fiabilité + Accessibilité
-- **4. Page 404 chartée** : `/app/frontend/src/pages/NotFound.jsx`. Route catch-all `*` en fin de `<Routes>`. CTA contextuel : "Retour au tableau de bord" si authentifié, "Retour à la connexion" sinon. Charte 100 % via jetons `--ds-*`.
-- **5. Deep-link login** : `<Protected>` passe `state={{ from: location }}` à `Navigate("/login")`. `Login.submit()` lit `location.state?.from?.pathname` et redirige vers l'URL demandée après connexion (au lieu de `/`).
-- **7. Erreurs réseau login** : distinction status HTTP vs `!err.response` (panne réseau). Bandeau charté `login-net-error` avec message "Connexion impossible. Vérifie ton réseau et réessaie.", plus de page blanche/écran figé. 429 relayé en toast propre.
-- **8. Viewport WCAG 1.4.4** : `<meta viewport>` corrigé — retire `maximum-scale=1, user-scalable=no`, ajoute `viewport-fit=cover`. Zoom pincé actif partout.
-- **9. Accessibilité formulaires (Login + Register)** : `id` unique + `htmlFor` sur label, `autocomplete="username email"` / `"current-password"` / `"new-password"`, `aria-invalid` et `aria-describedby` liés aux messages d'erreur inline. Cibles ≥ 44 px (via `min-h-[44px]`/`min-h-[48px]`). Focus visible partout via `.ds-focus`.
-- **10. `<html lang>` dynamique** : `I18nProvider` applique `document.documentElement.setAttribute("lang", lang)` à chaque changement, persisté dans `localStorage["crm_lang"]`, initialisé depuis `navigator.language` ou "fr".
-- **11sexies. `window.confirm` → `ConfirmDialog`** : composant `<ConfirmProvider>` + hook `useConfirm()` dans `App.js`. Les 5 `window.confirm` de `Products`, `Confidentialite` (×2) et `Couts` (×2) remplacés par des dialogues chartés (Enter/Escape/ARIA modal, tone `danger` pour la suppression).
-- **13 partiel** : `<meta description>` réelle + Open Graph title/description/type/site_name (favicon + OG image reportés).
+## Personas
+- **Commercial terrain** : itinérant, souvent en zone blanche, prise de commande + rapport de
+  visite + saisie vocale + signature client. Priorité : robustesse hors-ligne, gestes rapides.
+- **Manager** : pilote la flotte commerciale, valide les prospects, contrôle les paiements
+  (DSO, mauvais payeurs), gère les intégrations douane (DRM). Priorité : agrégats, revue mensuelle.
+- **Livreur (P1 backlog)** : interface ultra-simplifiée (<10s par arrêt, scan QR contenants).
 
-### Reportés au Lot 3
-- 11 (audit 375 px exhaustif) — nécessite revue écran par écran
-- 11ter (nav desktop 6 sections repliables + palette Cmd/Ctrl+K) — refonte majeure
-- 11quater · 11quinquies · 12 · 14 · 15 · 16 · 17
+## Requis principaux
+- **PWA hors-ligne complète** : Service Worker versionné (v3), Dexie IndexedDB, file de sync,
+  idempotence, restauration de session offline via cookie httpOnly + flag `bevid_session`.
+- **Établissement 360°** : credit status tricolore, SIREN autocomplete, 3-Layer Enrichment
+  (Couche A gratuit / Couche B payant Societe+Pappers / Couche C OSM+Google Places).
+- **Prise de commande** : catalogue offline, dictée vocale (MediaRecorder + sync), signature GPS.
+- **Manager dashboard** : volume, classement agents, contribution marge, logs sync.
+- **Intégrations avancées** : Rapprochement bancaire, ingestion APIs FR (BODACC, Recherche
+  Entreprises, RappelConso, VIES, INPI RNE), enrichissement 3 couches.
+- **Sécurité & permissions** : RBAC, isolation manager vs commercial, rate limiting sliding
+  window, httpOnly cookie auth, ErrorBoundary + /api/errors.
+- **Design system strict** : `tokens.css` unique source de couleur, 3 thèmes (clair/sombre/soleil),
+  `PuceEtat` standardisé, ESLint bannit les hex hors tokens.
 
-### Enrichissement — Dégradé propre pour clés absentes
-- Google Places : sans `GOOGLE_PLACES_KEY` OU si Places API New désactivée → l'onglet affiche "Données Google indisponibles (http_403)", `place_id` reste stocké
-- INPI RNE : sans identifiants → cron annuel scanne mais `0 mis à jour` sans erreur
+## Ce qui est implémenté (au 18 août 2026)
 
-## Credentials
-- Manager : `manager.demo@bevidcrm.fr` / `Manager!2026Demo`
-- Commercial : `commercial.demo@bevidcrm.fr` / `Commercial!2026Demo`
-- Seed idempotent au démarrage.
+### Lot 0 — Infrastructure hors-ligne (livré)
+- Service Worker v3 : cache versionné, NetworkFirst sur JS/CSS (fix bundle périmé v2),
+  message-based SKIP_WAITING (bandeau utilisateur), pas de coupure en pleine saisie.
+- Dexie DB + syncQueue + bootstrap snapshot.
+- Cookie httpOnly Secure SameSite=Lax, flag `bevid_session` non-sensible pour reprendre offline.
+
+### Lot 1 — Nav + offline banner (livré)
+- `MOBILE_NAV` fixe 5 gestes métier, non dérivé de la nav desktop.
+- `OfflineBanner` monté globalement au-dessus du contenu.
+
+### Lot 2 — A11Y + UX auth (livré)
+- Page 404 avec CTA contextuel, deep-linking après login, gestion erreur réseau,
+  ARIA labels sur formulaires, `<html lang>` dynamique, viewport zoom débloqué,
+  `ConfirmProvider` remplace `window.confirm` globalement.
+
+### Lot 3 — Production readiness (livré 18 août 2026)
+- **P0 SW fix** : versioning par CACHE_VERSION, purge activate, NetworkFirst pour JS/CSS,
+  bandeau applicatif "Nouvelle version — Recharger" non-intrusif (composant UpdateBanner).
+- **11ter** : sidebar desktop en 6 sections repliables (Terrain/Ventes/Stock & Douanes/
+  Pilotage/Acquisition/Administration), persistance dans localStorage,
+  section active auto-ouverte, palette Cmd/Ctrl+K globale (CommandPalette).
+- **11quater** : décision documentée — Tours vs Tournee et Deals vs Pipeline ne sont **pas**
+  des doublons. Renommage des libellés pour lever l'ambiguïté :
+  `Tours → Plans de tournée`, `Tournee → Ma tournée`,
+  `Deals → Opportunités`, `Pipeline → Cycle client`.
+- **11quinquies** : sélecteur de langue réduit à **fr + en uniquement** (es et de retirés,
+  infrastructure i18n conservée). Module `lib/i18n.js` importable hors React
+  (intercepteurs axios, ErrorBoundary, SW). Extraction initiale des toasts critiques
+  (`toast.login_*`, `toast.tour_*`, `toast.deal_*`) — le reste des ~130 toasts est à
+  extraire progressivement (backlog).
+- **12** : Register + ForgotPassword uniformisés avec Login (même panneau de marque à gauche).
+- **13** : favicon SVG + og:image (icon-512.png), Twitter Card.
+- **14** : React.lazy sur toutes les routes protégées + Suspense.
+- **15** : cookie httpOnly `bevid_auth` Secure SameSite=Lax, endpoint `/api/auth/logout`,
+  `get_current_user` accepte Bearer OU cookie, migration douce (legacy `crm_token`
+  toléré temporairement puis purgé). Flag non-sensible `bevid_session=1` pour préserver
+  le démarrage hors-ligne.
+- **16** : bandeau PostHog opt-in strict, `disable_session_recording: true` en dur (même
+  après acceptation, jamais de replay sur pages authentifiées), `autocapture: false`,
+  révocation depuis `/confidentialite` avec purge cookies.
+- **17** : ErrorBoundary global (composant + écran de secours), endpoint `POST /api/errors`
+  rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
+  sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.
+
+## Intégrations 3rd party
+- **Emergent LLM Key** : ✅ actif (Claude Sonnet pour coach IA, dictée voix)
+- **Twilio (WhatsApp/SMS)** : ✅ config user
+- **Stripe (test)** : ✅ config env
+- **Resend (emails)** : ✅ Emergent managed
+- **Google Drive OAuth** : ⚠️ bloqué (attente credentials user, mode dégradé actif)
+- **Google Places API (New)** : ⚠️ bloqué GCP côté user (mode dégradé actif)
+- **INPI RNE** : ⚠️ credentials manquantes (mode dégradé actif)
+- **Sentry** : hook conditionnel `SENTRY_DSN`, non requis en attendant
+
+## Backlog priorisé
+
+### P1 — Prochain
+- Interface livreur ultra-simplifiée (<10s/arrêt, scan QR contenants retournés).
+- Contenants consignés (génération QR par contenant, tracking caution).
+- Fraîcheur du stock client (estimation probabiliste DLC).
+- Extraction complète des ~130 toasts vers `lib/i18n.js` (les 20 principaux sont faits).
+- Audit systématique 375px sur les 45 écrans (test automatisé de non-régression `scrollWidth == innerWidth`).
+
+### P2 — Ensuite
+- Marge accises comprises (calculateur taxe douane).
+- Intelligence territoriale (indice de potentiel INSEE).
+- Fusion réelle Tours/Tournee et Deals/Pipeline **si** l'usage terrain confirme la redondance
+  (décision reportée post-observation, cf. Lot 3 11quater).
+
+### P3 — Backlog long
+- Migration `Sentry` réelle si DSN fourni (variable env `SENTRY_DSN`).
+- Débit `server.py` (>5000 lignes) en modules routes/models/tests.
+- Support langues supplémentaires (es, de, it, nl) — infrastructure prête, contenu à traduire.
+
+## Architecture code
+
+```
+/app/
+├── backend/
+│   ├── server.py                    (FastAPI monolithique — à découper)
+│   ├── rate_limit.py                (sliding window, mono-process)
+│   ├── enrichissement/              (layer_a, port, sirene, rne, places, adapters/)
+│   ├── integrations/
+│   └── bank/
+└── frontend/
+    ├── public/
+    │   ├── sw.js                    (v3 — cache versionné, NetworkFirst statique)
+    │   ├── manifest.json
+    │   └── favicon.svg
+    └── src/
+        ├── App.js                   (React.lazy + ErrorBoundary + PostHogConsent + UpdateBanner)
+        ├── design-system/tokens.css (source unique de couleurs)
+        ├── contexts/                (Auth, I18n, Theme, Perm, Confirm)
+        ├── components/
+        │   ├── Layout.jsx           (6 sections repliables + palette Cmd+K)
+        │   ├── CommandPalette.jsx
+        │   ├── ErrorBoundary.jsx
+        │   ├── UpdateBanner.jsx
+        │   ├── PostHogConsent.jsx
+        │   └── OfflineBanner.jsx
+        ├── lib/
+        │   ├── api.js               (withCredentials, migration crm_token)
+        │   ├── db.js                (Dexie)
+        │   ├── syncQueue.js
+        │   └── i18n.js              (module + dict fr/en + t())
+        └── pages/                   (45 pages)
+```
+
+## Endpoints clés
+- `POST /api/auth/login` — 200 + cookie httpOnly + JSON `{token, user}` (token pour compat)
+- `POST /api/auth/register` — idem, force role=commercial
+- `POST /api/auth/logout` — supprime cookie
+- `POST /api/errors` — reporting erreurs client, rate-limité, PII scrubbée
+- `GET /api/me/permissions` — perms par feature pour le user courant
+
+## Décisions techniques notables
+- **Cookie httpOnly + flag localStorage** : le vrai auth est via cookie non-lisible en JS,
+  mais un flag `bevid_session=1` reste pour permettre à AuthContext de savoir qu'il faut
+  tenter `/auth/me` au boot (utile hors-ligne quand l'endpoint échoue et qu'on doit charger
+  depuis Dexie).
+- **PostHog session_recording désactivé en dur** : même après opt-in, jamais de replay sur
+  pages authentifiées (données personnelles gérants/clients).
+- **Nav sections en 6 blocs, pas 4** : après discussion utilisateur "5-6 sections", 6 offre
+  la meilleure séparation métier (Terrain/Ventes/Stock/Pilotage/Growth/Admin).
+- **es/de retirés du sélecteur** : plutôt que promettre une langue non-traduite,
+  on n'affiche que fr+en. Infrastructure prête pour rajout ultérieur.
