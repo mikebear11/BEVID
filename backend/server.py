@@ -5019,6 +5019,60 @@ async def enrichissement_credits(user=Depends(get_current_user)):
     return {"providers": await get_credits_report(db)}
 
 
+# ---------- Couche C — Google Places (live uniquement) + OSM (socle isolé) ----------
+from enrichissement import places as _places
+
+
+@api_router.post("/establishments/{eid}/link-place")
+async def link_google_place_id(eid: str, data: dict, user=Depends(get_current_user)):
+    """Enregistre UNIQUEMENT le place_id Google. Aucune donnée Google en base."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0, "id": 1})
+    if not est:
+        raise HTTPException(404, "Établissement introuvable")
+    pid = (data or {}).get("place_id", "").strip()
+    if not pid:
+        raise HTTPException(400, "place_id requis")
+    return await _places.link_google_place(db, eid, pid)
+
+
+@api_router.get("/establishments/{eid}/google-place")
+async def get_google_place_ref(eid: str, user=Depends(get_current_user)):
+    ref = await _places.get_place_ref(db, eid)
+    if not ref:
+        raise HTTPException(404, "Aucun place_id lié")
+    return ref
+
+
+@api_router.delete("/establishments/{eid}/google-place")
+async def unlink_google_place_id(eid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    await _places.unlink_google_place(db, eid)
+    return {"ok": True}
+
+
+@api_router.get("/establishments/{eid}/place-preview")
+async def google_place_preview(eid: str, user=Depends(get_current_user)):
+    """Appel LIVE à Google Places — jamais stocké, jamais caché.
+    Aucune colonne note_google n'existe en base ; c'est bien un appel direct à chaque ouverture.
+    """
+    ref = await _places.get_place_ref(db, eid)
+    if not ref:
+        raise HTTPException(404, "Aucun place_id lié")
+    return await _places.fetch_google_place_live(ref["place_id"])
+
+
+@api_router.get("/osm-places/search")
+async def osm_places_search(lat: float, lng: float, radius_deg: float = 0.02, limit: int = 50, user=Depends(get_current_user)):
+    """Recherche géographique dans le socle OSM stocké — jamais joint aux établissements."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    results = await _places.search_osm_places(db, lat, lng, radius_deg, limit)
+    return {"results": results, "attribution": "© OpenStreetMap contributors"}
+
+
 app.include_router(api_router)
 
 

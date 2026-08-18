@@ -50,6 +50,7 @@ import Veille from "@/pages/Veille";
 import Bouclier from "@/pages/Bouclier";
 import AdminPermissions from "@/pages/AdminPermissions";
 import DesignSystem from "@/pages/DesignSystem";
+import Enrichissement from "@/pages/Enrichissement";
 import { PermProvider } from "@/contexts/PermContext";
 
 function Protected({ children }) {
@@ -96,6 +97,7 @@ function App() {
               <Route path="/smart-goals" element={<Protected><SmartGoals /></Protected>} />
               <Route path="/tournee" element={<Protected><Tournee /></Protected>} />
               <Route path="/etab/:id" element={<Protected><Etablissement360 /></Protected>} />
+              <Route path="/etab/:id/enrichissement" element={<Protected><Enrichissement /></Protected>} />
               <Route path="/etab/:id/commande" element={<Protected><MobileOrder /></Protected>} />
               <Route path="/stock" element={<Protected><Stock /></Protected>} />
               <Route path="/containers" element={<Protected><Containers /></Protected>} />

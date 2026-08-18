@@ -1,102 +1,76 @@
 # BEVID — CRM Distribution de Boissons
 
 ## Architecture
-FastAPI + MongoDB + React 19 + Tailwind + Dexie + Emergent Resend/Storage + Leaflet + reportlab + cairosvg + recharts.
+FastAPI + MongoDB + React 19 + Tailwind + Dexie + Emergent Resend/Storage + Leaflet + reportlab + recharts.
 
 **Sous-packages isolés :**
 - `/app/backend/bank/` — validators, storage, importers, reconciliation
-- `/app/backend/integrations/` — http_client, bodacc, recherche_entreprises, rappelconso, vies, naf_chr
-- `/app/backend/enrichissement/` — models, layer_a, sirene, rne, ban, port, credits, adapters/{societe_com, pappers}
-- `/app/backend/permissions.py` — registry features + `has_feature()` + `require_feature()` decorator
-- `/app/frontend/src/design-system/` — jetons CSS uniques (source de vérité couleurs)
+- `/app/backend/integrations/` — http_client, bodacc, recherche_entreprises, rappelconso, vies
+- `/app/backend/enrichissement/` — models, layer_a, sirene, rne, ban, port, credits, places, adapters/{societe_com, pappers}
+- `/app/backend/permissions.py` — registry features + `has_feature()`
+- `/app/frontend/src/design-system/tokens.css` — source unique des jetons couleur (3 thèmes)
 - `/app/frontend/src/components/system/` — composants système partagés (PuceEtat)
 
-## Implemented — v11.0 (18/02/2026) — Enrichissement 3-couches + migration PuceEtat + lint anti-hex
+## Implemented — v12.0 (18/02/2026)
 
-### Enrichissement établissement (règle stricte : verrou utilisateur intouchable)
-- **Modèle uniforme `EnrichedField`** `{valeur, source, date_maj, fiabilite, verrouille_par_utilisateur, hash}`
-- **`apply_enriched_update()`** : ne modifie jamais un champ verrouillé, détecte les non-changements via hash
-- **`user_locked_update()`** : édition manuelle → verrou automatique (source=user)
-- **Registre 25 champs autorisés** (`CHAMPS_ENRICHIS_AUTORISES`) — clé hors registre rejetée en 400
-- **Couche A (gratuite)** : Recherche-Entreprises → Sirene INSEE → RNE INPI → BAN → VIES
-  - `layer_a.enrichir_couche_a(siren, db, adresse_saisie)` retourne dict de champs normalisés
-  - Fallback BAN si RE ne fournit pas de GPS
-  - Calcul TVA FR automatique (algorithme officiel clé mod 97)
-- **Couche B (payante, port anonymisé)** :
-  - `EnrichissementPort` abstrait, `resolve_port()` lit `ENRICHISSEMENT_PROVIDER` env
-  - `SocieteComAdapter` (défaut, X-Authorization: socapi {token}, 60 req/min, source="societe-com")
-  - `PappersAdapter` (manuel, source="pappers", 3 req/s)
-  - **Le nom du fournisseur n'apparaît NULLE PART dans server.py** — juste `_layer_b_run`, `provider_key`
-  - `CreditsGuard` : compteur mensuel + plafond `ENRICHISSEMENT_CREDITS_LIMIT_*`, bascule auto sur Couche A si épuisé ou provider indisponible
-- **Endpoints** :
-  - `GET  /api/enrichissement/autocomplete?q=` (Recherche-Entreprises)
-  - `POST /api/establishments/{id}/enrichir` (Couche A)
-  - `POST /api/establishments/{id}/enrichir-plus` (Couche B via port, fallback A)
-  - `GET  /api/establishments/{id}/enriched`
-  - `PUT  /api/establishments/{id}/enriched-field/{field}` (édition user → verrou)
-  - `POST /api/establishments/{id}/enriched-field/{field}/lock`
-  - `GET  /api/enrichissement/credits`
-- **Env variables** : `SOCIETE_COM_TOKEN` (fourni), `PAPPERS_TOKEN`, `INSEE_SIRENE_TOKEN`, `INPI_RNE_LOGIN/PASSWORD`, `GOOGLE_PLACES_KEY`, `ENRICHISSEMENT_PROVIDER`, `ENRICHISSEMENT_CREDITS_LIMIT_SOCIETE=1000`, `ENRICHISSEMENT_CREDITS_LIMIT_PAPPERS=100`
-- **Permissions** ajoutées : `page:enrichissement`, `enrichissement:layer_b`, `enrichissement:lock`
-- **Rate-limits** ajoutés dans http_client : insee-sirene, inpi-rne, ban, societe-com, pappers, osm-overpass, google-places
-- **Tests unitaires validés** : création, verrou, hash identique/différent, resolve port, fmt TVA (Danone → FR27552032534)
-- **Test end-to-end** : autocomplete "danone" → 8 résultats, enrichir applique correctement les champs, verrou utilisateur intouchable après re-run
+### Couche C — Places (isolation stricte)
+- **`osm_places`** : table stockable OSM, jamais jointe aux `establishments`, attribution "© OpenStreetMap contributors"
+- **`google_place_refs`** : `{establishment_id, place_id, linked_at}` — RIEN d'autre en base
+- **`/api/establishments/{id}/link-place`** enregistre uniquement le place_id
+- **`/api/establishments/{id}/place-preview`** appelle Google Places v1 en LIVE, aucune persistance, aucun cache serveur
+- Champs Google autorisés en lecture directe : displayName, formattedAddress, rating, userRatingCount, priceLevel, openingHours, phone, websiteUri, photos, attributions, editorialSummary
+- Vérifié en base : ZÉRO colonne `note_google` / `rating` / `reviews` dans `establishments`
 
-### Migration PuceEtat (unification badges)
-- 11 fichiers migrés : `Clients`, `ClientDetail`, `Agents`, `AdminUsers`, `Confidentialite`, `Paiements`, `Layout`, `OverdueBanner`, `AnniversariesWidget`, `FollowUpsWidget`
-- Mapping statut client : `actif→succes`, `vip→info`, `prospect→vigilance`, `inactif→info`
-- Suppression des hex codés en dur remplacés par `var(--ds-*)` (OverdueBanner, AnniversariesWidget)
+### UI Enrichissement `/etab/:id/enrichissement`
+- Groupes : Identité légale · Adresse · Fiscal · Scoring · Google Places
+- Chaque champ affiche : valeur, source, date_maj, fiabilité %, bouton verrou/déverrou
+- Édition inline : passe automatiquement le champ en `verrouille_par_utilisateur=true` (source="user")
+- Boutons d'enrichissement : Couche A (gratuit) · Couche B (défaut) · Couche B Pappers (manuel)
+- Panneau Google Places : lecture directe live, mention "Non stocké" affichée, bouton "Recharger en direct"
+- Compteur de crédits Couche B affiché par provider (non-nommé côté UI — c'est la clé, pas la marque)
 
-### Lint anti-hex
-- `/app/frontend/.eslintrc.js` : `no-restricted-syntax` interdit les literal `#[0-9a-f]{3,8}` dans src/**/*, hors `src/design-system/`
-- Alerte aussi sur les template strings contenant un hex
+### Ajustements thème sombre (5 corrections validées)
+- `--ds-border` : `#2b2925` → `#3a3630` (cartes mieux dessinées)
+- `--ds-border-strong` : `#423f39` → `#4f4a42`
+- `--ds-text-muted` : `#7d7a72` → `#948e83` (contraste ≥ 5:1 sur libellés)
+- `--ds-accent` : `#5b9ee6` → `#7fb0e8` (moins agressif la nuit)
+- `--ds-state-info-solid-bg` : `#8892a3` → `#3f4a5c` + fg blanc (contraste correct)
+- `--grid-dot-*` : transparent (fond uni en sombre)
 
-### Système de design (v10.0)
-- Fichier unique `src/design-system/tokens.css` — TOUTES les valeurs hex
-- 3 thèmes : clair (défaut) · sombre · soleil (21:1, bordures 2 px)
-- ThemeContext + ThemeToggle (4 états : clair/sombre/soleil/système)
-- Route `/design-system` — page démo 7 sections
+### v11.0 (rappel) — Enrichissement 3-couches
+- `EnrichedField` avec hash + verrou utilisateur, `apply_enriched_update()`, `user_locked_update()`
+- Couche A : Recherche-Entreprises + Sirene + RNE + BAN + VIES
+- Couche B : `EnrichissementPort` + adaptateurs Societe.com / Pappers, `CreditsGuard` avec bascule auto
+- Test e2e Danone : 16 champs remplis, TVA `FR27552032534`, verrou respecté au re-run
+- Migration PuceEtat sur 11 fichiers
+- Lint `.eslintrc.js` warn sur hex hors `src/design-system/`
 
-### Historique
-- v10.0 : Système de design 3-thèmes
-- v9.0 Iter 13 : RBAC + per-user overrides
-- v8.0 Iter 12 : Traçabilité lot + Relevés terrain + VIES
-- v7.0 Iter 11 : Phase 1 intégrations FR
-- v6.0 Iter 10a : Rapprochement bancaire
-- v5.5 Iter 9 : Conflict Playbook + PDF email
-
-## Tests
-- Enrichissement : tests unitaires OK + e2e curl OK
-- `test_iter13_permissions.py` — 9/9
-- `test_iter12_phase2.py` — 5/5
-- `test_iter11_public_apis.py` — 16/16
-- `test_iter10a_banking.py` — 15/15
-- `test_iter9_playbook_pdf_email.py` — 10/10
+### v10.0 — Système de design
+- Tokens uniques CSS, 3 thèmes (clair/sombre/soleil), PuceEtat, page démo `/design-system`
 
 ## Backlog
 
-### Couche C (non commencée)
-- Table `osm_places` isolée + import batch OSM
-- Table `google_place_refs` : `{establishment_id, place_id}` uniquement, jamais de note/avis/horaires stockés
-- Proxy endpoint `GET /api/establishments/{id}/place-preview` : appel Google Places live à l'ouverture, aucune persistance
-- Attribution "© OpenStreetMap contributors" + attributions Google requises
+### Enrichissement — restant
+- Autocomplete SIREN à la création (endpoint `/api/enrichissement/autocomplete` déjà OK, à câbler côté UI création)
+- Crons planifiés à ajouter dans `.emergent/crons.yml` : sirene-refresh mensuel J1, scoring-mensuel J1, comptes-annuels annuel avril
+- Import OSM batch (Overpass API) — infra prête (`upsert_osm_place`, `search_osm_places`), lanceur à écrire
+- INPI RNE : nécessite `INPI_RNE_LOGIN` + `INPI_RNE_PASSWORD` pour activer dirigeants + comptes annuels
+- Google Places : nécessite `GOOGLE_PLACES_KEY` pour activer la lecture live
 
-### UI Enrichissement
-- Onglet `/etab/:id/enrichissement` : badges source/date/fiabilité par champ, bouton verrou/déverrou, bouton "Enrichir Pappers"
-- Autocomplete SIREN à la création d'établissement
-
-### Crons enrichissement
-- Ajouter à `.emergent/crons.yml` : `cron-enrichissement-sirene-refresh` (mensuel J1), `cron-enrichissement-scoring-mensuel` (J1), `cron-enrichissement-comptes-annuels` (avril)
-- BODACC portefeuille : déjà présent via `bouclier-encours`
-
-### Application du système de design
-- Continuer la migration des couleurs codées en dur (Dashboard, Etablissement360, autres widgets)
-- Faire tourner ESLint en CI pour bloquer les nouveaux hex
+### Purge Hex Legacy
+- Migrer Dashboard, Etablissement360, Pipeline, Bouclier, Radar vers `var(--ds-*)`
+- Passer ESLint en `error` (aujourd'hui `warn`) une fois le code propre
 
 ### Phase 2 restante
-- Interface livreur ultra-simplifiée
-- Contenants consignés (QR, immobilisation)
+- Interface livreur ultra-simplifiée (< 10 s)
+- Contenants consignés (QR + valeur immobilisée)
 - Fraîcheur stock client (DLC probabiliste)
+- Marge accises 2026
+
+### Phase 3-4
+- Intelligence territoriale (INSEE Melodi, DATAtourisme, météo)
+- Observatoire mutualisé anonymisé
+- Assistant terrain (briefing + dictée structurée)
 
 ## Credentials
 Voir `/app/memory/test_credentials.md`.

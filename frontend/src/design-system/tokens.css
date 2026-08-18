@@ -118,19 +118,19 @@ html.dark {
 
   --ds-text-primary:      #f3f2ee;
   --ds-text-secondary:    #b0ada4;
-  --ds-text-muted:        #7d7a72;
+  --ds-text-muted:        #948e83;
   --ds-text-on-accent:    #ffffff;
 
-  --ds-border:            #2b2925;
-  --ds-border-strong:     #423f39;
+  --ds-border:            #3a3630;
+  --ds-border-strong:     #4f4a42;
 
-  --ds-accent:            #5b9ee6;   /* accent éclairci pour lisibilité sur fond sombre */
-  --ds-accent-hover:      #7cb1eb;
+  --ds-accent:            #7fb0e8;
+  --ds-accent-hover:      #9ac1ee;
   --ds-accent-fg:         #0a1220;
   --ds-accent-veil:       #17263c;
 
-  --ds-focus-ring:        #5b9ee6;
-  --ds-focus-ring-alpha:  rgba(91, 158, 230, 0.45);
+  --ds-focus-ring:        #7fb0e8;
+  --ds-focus-ring-alpha:  rgba(127, 176, 232, 0.45);
 
   --ds-state-success:         #4fbf4f;
   --ds-state-success-soft-bg: #14261a;
@@ -141,8 +141,8 @@ html.dark {
   --ds-state-info:            #8892a3;
   --ds-state-info-soft-bg:    #1e2028;
   --ds-state-info-soft-fg:    #b8bfcc;
-  --ds-state-info-solid-bg:   #8892a3;
-  --ds-state-info-solid-fg:   #0a0e14;
+  --ds-state-info-solid-bg:   #3f4a5c;
+  --ds-state-info-solid-fg:   #ffffff;
 
   --ds-state-warning:         #fbc45c;
   --ds-state-warning-soft-bg: #2b2110;
@@ -162,10 +162,8 @@ html.dark {
   --ds-chart-3: #4fc79a;
   --ds-chart-4: #8574d1;
   --ds-chart-ink:  #b0ada4;
-  --ds-chart-grid: #2b2925;
-  --ds-chart-axis: #7d7a72;
-  /* En sombre, le vert d'eau atteint le contraste ; l'étiquette forcée peut être absente
-     mais on la garde optionnelle avec un fond élevé pour cohérence. */
+  --ds-chart-grid: #3a3630;
+  --ds-chart-axis: #948e83;
   --ds-chart-3-label-bg: #2a2823;
   --ds-chart-3-label-fg: #f3f2ee;
 
@@ -173,6 +171,10 @@ html.dark {
   --ds-produit-tropicool: #f39264;
   --ds-produit-blonde:    #4fc79a;
   --ds-produit-ambree:    #8574d1;
+
+  /* Fond parfaitement uni en sombre — pas de motif de points */
+  --grid-dot-1: transparent;
+  --grid-dot-2: transparent;
 }
 
 /* ---------- SOLEIL (plein soleil — 21:1 texte, bordures 2 px, aplats) --- */
