@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { TrendingDown, TrendingUp, AlertTriangle, RefreshCw, Bell } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import PuceEtat from "@/components/system/PuceEtat";
 
 export default function Paiements() {
   const { user } = useAuth();
@@ -151,7 +152,7 @@ export default function Paiements() {
                     <td className={`p-3 ${gc}`}>{gap == null ? "—" : `${gap > 0 ? "+" : ""}${gap}j`}</td>
                     <td className="p-3 font-medium">{b.overdue_amount.toFixed(2)} €</td>
                     <td className="p-3">{b.overdue_oldest_days}j</td>
-                    <td className="p-3"><span className="badge badge-vip">{b.score}</span></td>
+                    <td className="p-3"><PuceEtat etat="info" variante="douce" libelle={b.score} /></td>
                   </tr>
                 );
               })}

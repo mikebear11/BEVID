@@ -41,6 +41,10 @@ FEATURES = [
     {"key": "bank:lettrer", "label": "Lettrer / dé-lettrer", "category": "Trésorerie", "default": {"manager": True, "commercial": False}},
     {"key": "cron:trigger", "label": "Déclencher scans (radar, bouclier, veille)", "category": "Admin", "default": {"manager": True, "commercial": False}},
     {"key": "settings:departments", "label": "Configurer les départements surveillés", "category": "Admin", "default": {"manager": True, "commercial": False}},
+    # === Enrichissement établissement ===
+    {"key": "page:enrichissement", "label": "Enrichissement fiche établissement", "category": "Pages", "default": {"manager": True, "commercial": False}},
+    {"key": "enrichissement:layer_b", "label": "Déclencher enrichissement Couche B (payant)", "category": "Admin", "default": {"manager": True, "commercial": False}},
+    {"key": "enrichissement:lock", "label": "Verrouiller / éditer un champ enrichi", "category": "Admin", "default": {"manager": True, "commercial": False}},
 ]
 
 FEATURES_INDEX = {f["key"]: f for f in FEATURES}

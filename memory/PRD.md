@@ -6,89 +6,97 @@ FastAPI + MongoDB + React 19 + Tailwind + Dexie + Emergent Resend/Storage + Leaf
 **Sous-packages isolés :**
 - `/app/backend/bank/` — validators, storage, importers, reconciliation
 - `/app/backend/integrations/` — http_client, bodacc, recherche_entreprises, rappelconso, vies, naf_chr
+- `/app/backend/enrichissement/` — models, layer_a, sirene, rne, ban, port, credits, adapters/{societe_com, pappers}
 - `/app/backend/permissions.py` — registry features + `has_feature()` + `require_feature()` decorator
 - `/app/frontend/src/design-system/` — jetons CSS uniques (source de vérité couleurs)
 - `/app/frontend/src/components/system/` — composants système partagés (PuceEtat)
 
-## Implemented — v10.0 (18/02/2026) — Système de design triple-thème
+## Implemented — v11.0 (18/02/2026) — Enrichissement 3-couches + migration PuceEtat + lint anti-hex
 
-### Système de design (règle 0 : couleur ne décore pas, elle signifie)
-- **Fichier unique** `/app/frontend/src/design-system/tokens.css` — TOUTES les valeurs hex de l'app
-- **3 thèmes** : `clair` (défaut) · `sombre` · `soleil` (plein soleil 21:1, bordures 2 px, aplats pleins)
-- **Charte utilisateur exacte** (référence `palette-crm.html`) :
-  - Surfaces : `#f7f6f3` plan / `#fdfcfa` carte
-  - Encre : `#121210` (18,3:1) / `#56544d` (7,4:1)
-  - Accent unique : `#1f5fa8` (6,3:1) — cliquable et rien d'autre
-  - Voile d'accent `#eaf1fb` · Filet `#e3e1da`
-  - Tricolore d'état : `#0ca30c` À jour · `#fab219` Vigilance · `#d03b3b` Bloqué · `#b02c2c` texte d'alerte
-  - Séries graphique imposées : `#2a78d6` bleu · `#eb6834` orange · `#1baf7a` vert d'eau · `#4a3aa7` violet
-- **Sombre** dérivé pour usage nuit / cristallin opacifié (à valider par utilisateur, non fourni dans référence)
+### Enrichissement établissement (règle stricte : verrou utilisateur intouchable)
+- **Modèle uniforme `EnrichedField`** `{valeur, source, date_maj, fiabilite, verrouille_par_utilisateur, hash}`
+- **`apply_enriched_update()`** : ne modifie jamais un champ verrouillé, détecte les non-changements via hash
+- **`user_locked_update()`** : édition manuelle → verrou automatique (source=user)
+- **Registre 25 champs autorisés** (`CHAMPS_ENRICHIS_AUTORISES`) — clé hors registre rejetée en 400
+- **Couche A (gratuite)** : Recherche-Entreprises → Sirene INSEE → RNE INPI → BAN → VIES
+  - `layer_a.enrichir_couche_a(siren, db, adresse_saisie)` retourne dict de champs normalisés
+  - Fallback BAN si RE ne fournit pas de GPS
+  - Calcul TVA FR automatique (algorithme officiel clé mod 97)
+- **Couche B (payante, port anonymisé)** :
+  - `EnrichissementPort` abstrait, `resolve_port()` lit `ENRICHISSEMENT_PROVIDER` env
+  - `SocieteComAdapter` (défaut, X-Authorization: socapi {token}, 60 req/min, source="societe-com")
+  - `PappersAdapter` (manuel, source="pappers", 3 req/s)
+  - **Le nom du fournisseur n'apparaît NULLE PART dans server.py** — juste `_layer_b_run`, `provider_key`
+  - `CreditsGuard` : compteur mensuel + plafond `ENRICHISSEMENT_CREDITS_LIMIT_*`, bascule auto sur Couche A si épuisé ou provider indisponible
+- **Endpoints** :
+  - `GET  /api/enrichissement/autocomplete?q=` (Recherche-Entreprises)
+  - `POST /api/establishments/{id}/enrichir` (Couche A)
+  - `POST /api/establishments/{id}/enrichir-plus` (Couche B via port, fallback A)
+  - `GET  /api/establishments/{id}/enriched`
+  - `PUT  /api/establishments/{id}/enriched-field/{field}` (édition user → verrou)
+  - `POST /api/establishments/{id}/enriched-field/{field}/lock`
+  - `GET  /api/enrichissement/credits`
+- **Env variables** : `SOCIETE_COM_TOKEN` (fourni), `PAPPERS_TOKEN`, `INSEE_SIRENE_TOKEN`, `INPI_RNE_LOGIN/PASSWORD`, `GOOGLE_PLACES_KEY`, `ENRICHISSEMENT_PROVIDER`, `ENRICHISSEMENT_CREDITS_LIMIT_SOCIETE=1000`, `ENRICHISSEMENT_CREDITS_LIMIT_PAPPERS=100`
+- **Permissions** ajoutées : `page:enrichissement`, `enrichissement:layer_b`, `enrichissement:lock`
+- **Rate-limits** ajoutés dans http_client : insee-sirene, inpi-rne, ban, societe-com, pappers, osm-overpass, google-places
+- **Tests unitaires validés** : création, verrou, hash identique/différent, resolve port, fmt TVA (Danone → FR27552032534)
+- **Test end-to-end** : autocomplete "danone" → 8 résultats, enrichir applique correctement les champs, verrou utilisateur intouchable après re-run
 
-### Règles verrouillées dans le code
-- **Un seul accent** — jamais deux couleurs cliquables concurrentes
-- **Un seul bouton plein par écran** (les autres sont ghost ou lien)
-- **`PuceEtat`** composant UNIQUE `/components/system/PuceEtat.jsx` — icône + mot toujours, jamais la couleur seule
-  - Variante douce (fond teinté + bord) et pleine (aplat saturé)
-  - Contrastes imposés : noir sur vert/ambre pleins, blanc sur rouge plein
-  - Alias historiques (`avertissement`, `danger`) pour migration progressive
-- **Chart** : 4 séries max sur barres/courbes/empilement, 3 max sur nuages/cartes, ordre imposé jamais recomposé
-- **Chiffres tabulaires** (`.ds-tabular`) sur toute colonne alignée numérique
-- **Focus visible** (`.ds-focus`) obligatoire, cible tactile 48 px mobile (`.ds-tap`)
-- **Étiquette forcée** sur série vert d'eau en clair (contraste < 3:1 sur fond)
+### Migration PuceEtat (unification badges)
+- 11 fichiers migrés : `Clients`, `ClientDetail`, `Agents`, `AdminUsers`, `Confidentialite`, `Paiements`, `Layout`, `OverdueBanner`, `AnniversariesWidget`, `FollowUpsWidget`
+- Mapping statut client : `actif→succes`, `vip→info`, `prospect→vigilance`, `inactif→info`
+- Suppression des hex codés en dur remplacés par `var(--ds-*)` (OverdueBanner, AnniversariesWidget)
 
-### ThemeContext
-- `theme` : "light" | "dark" | "sun" | "system"
-- Persistance `localStorage["bevid.theme"]`
-- Applique `.dark` / `.sun` sur `<html>` (Tailwind darkMode: "class")
-- Script inline FOUC-prevention dans `index.html`
-- Bascule 4-états dans sidebar (`ThemeToggle` variant "sidebar" / "icon")
+### Lint anti-hex
+- `/app/frontend/.eslintrc.js` : `no-restricted-syntax` interdit les literal `#[0-9a-f]{3,8}` dans src/**/*, hors `src/design-system/`
+- Alerte aussi sur les template strings contenant un hex
 
-### Page démo
-- **Route `/design-system`** — 7 sections : jetons, boutons, PuceEtat, tuiles, tableau, formulaire, graphique barres
-- Bascule 3 thèmes explicite en haut de page
-- Aucun hex codé en dur dans le JSX — tout via `var(--ds-…)`
+### Système de design (v10.0)
+- Fichier unique `src/design-system/tokens.css` — TOUTES les valeurs hex
+- 3 thèmes : clair (défaut) · sombre · soleil (21:1, bordures 2 px)
+- ThemeContext + ThemeToggle (4 états : clair/sombre/soleil/système)
+- Route `/design-system` — page démo 7 sections
 
-### Historique v9.0 → v10.0
-- v9.0 Iter 13 : RBAC + per-user overrides (9/9 tests)
-- v8.0 Iter 12 : Traçabilité lot + delivery_lines + Relevés terrain + VIES (5/5)
-- v7.0 Iter 11 : Phase 1 intégrations FR (16/16)
-- v6.0 Iter 10a : Rapprochement bancaire CSV/CAMT/CFONB (15/15)
-- v5.5 Iter 9 : Conflict Playbook + PDF email (10/10)
+### Historique
+- v10.0 : Système de design 3-thèmes
+- v9.0 Iter 13 : RBAC + per-user overrides
+- v8.0 Iter 12 : Traçabilité lot + Relevés terrain + VIES
+- v7.0 Iter 11 : Phase 1 intégrations FR
+- v6.0 Iter 10a : Rapprochement bancaire
+- v5.5 Iter 9 : Conflict Playbook + PDF email
 
 ## Tests
+- Enrichissement : tests unitaires OK + e2e curl OK
 - `test_iter13_permissions.py` — 9/9
 - `test_iter12_phase2.py` — 5/5
 - `test_iter11_public_apis.py` — 16/16
 - `test_iter10a_banking.py` — 15/15
 - `test_iter9_playbook_pdf_email.py` — 10/10
-- Design system : validation visuelle (3 captures : clair / sombre / soleil confirmées)
 
 ## Backlog
 
-### Amorcé cette session (à reprendre)
-- **Enrichissement établissement 3-couches** : Couche A (Recherche-Entreprises + Sirene + RNE + BAN + VIES) → Couche B (`EnrichissementPort` + adaptateurs Societe.com/Pappers) → Couche C (OSM + Google place_id)
-- Modèle `EnrichedField` `{valeur, source, date_maj, fiabilite, verrouille_par_utilisateur, hash}` validé
-- Token Societe.com fourni : `0eb98741d8429a17979f4447e60f4afd48ad2615496b8341`
-- Sirene stock : import limité SIREN portefeuille + fallback API live
-- Http_client rate limits ajoutés pour toutes les nouvelles sources
-- Reste à coder : le reste du module (modèles, endpoints, port, adaptateurs, page UI)
+### Couche C (non commencée)
+- Table `osm_places` isolée + import batch OSM
+- Table `google_place_refs` : `{establishment_id, place_id}` uniquement, jamais de note/avis/horaires stockés
+- Proxy endpoint `GET /api/establishments/{id}/place-preview` : appel Google Places live à l'ouverture, aucune persistance
+- Attribution "© OpenStreetMap contributors" + attributions Google requises
 
-### Application du système de design au reste de l'app
-- Migrer progressivement les pages existantes vers `PuceEtat` (remplacer `badge-*` legacy)
-- Remplacer les hex codés en dur des composants existants par des `var(--ds-…)`
-- Ajouter un lint interne interdisant les hex hors `tokens.css`
+### UI Enrichissement
+- Onglet `/etab/:id/enrichissement` : badges source/date/fiabilité par champ, bouton verrou/déverrou, bouton "Enrichir Pappers"
+- Autocomplete SIREN à la création d'établissement
+
+### Crons enrichissement
+- Ajouter à `.emergent/crons.yml` : `cron-enrichissement-sirene-refresh` (mensuel J1), `cron-enrichissement-scoring-mensuel` (J1), `cron-enrichissement-comptes-annuels` (avril)
+- BODACC portefeuille : déjà présent via `bouclier-encours`
+
+### Application du système de design
+- Continuer la migration des couleurs codées en dur (Dashboard, Etablissement360, autres widgets)
+- Faire tourner ESLint en CI pour bloquer les nouveaux hex
 
 ### Phase 2 restante
-- Interface livreur ultra-simplifiée (3 saisies < 10s)
-- Contenants consignés (QR, valeur immobilisée, alerte immobile)
-- Fraîcheur stock client (DLC probabilistique)
-- Marge accises 2026 (référentiel versionné + calcul à la ligne)
-
-### Phase 3 (intelligence territoriale)
-- Potentiel commune (INSEE Melodi), prévision saisonnière, agenda territoire, déclencheur météo
-
-### Phase 4
-- Observatoire mutualisé anonymisé + Assistant terrain (briefing + dictée structurée)
+- Interface livreur ultra-simplifiée
+- Contenants consignés (QR, immobilisation)
+- Fraîcheur stock client (DLC probabiliste)
 
 ## Credentials
 Voir `/app/memory/test_credentials.md`.

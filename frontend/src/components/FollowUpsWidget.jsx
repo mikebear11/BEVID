@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Link } from "react-router-dom";
 import { AlertCircle, Clock, ChevronRight } from "lucide-react";
+import PuceEtat from "@/components/system/PuceEtat";
 
 const PRIO_COLOR = { high: "#8C2A2A", medium: "#C78B3A", low: "#5C5C5C" };
 const PRIO_LABEL = { high: "Urgent", medium: "À suivre", low: "Info" };
@@ -21,7 +22,7 @@ export default function FollowUpsWidget() {
           <AlertCircle size={18} className="text-[#4A154B]" />
           <h3 className="font-display text-xl">À relancer</h3>
         </div>
-        <span className="badge badge-vip">{count}</span>
+        <span className="ml-auto"><PuceEtat etat="info" variante="douce" libelle={String(count)} /></span>
       </div>
       {items.length === 0 && <p className="text-sm text-stone-500">Aucune relance nécessaire. Excellent travail !</p>}
       <div className="space-y-2 max-h-72 overflow-y-auto">

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { Plus, Search, Mic, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useVoice } from "@/hooks/useVoice";
+import PuceEtat from "@/components/system/PuceEtat";
 
 const TYPES = ["bar", "restaurant", "caviste", "supermarche", "hotel", "autre"];
 const STATUSES = ["prospect", "actif", "vip", "inactif"];
@@ -114,7 +115,7 @@ export default function Clients() {
                   <td className="p-3 hidden md:table-cell text-stone-600 capitalize">{c.type}</td>
                   <td className="p-3 hidden md:table-cell text-stone-600">{c.city || "—"}</td>
                   <td className="p-3 hidden lg:table-cell text-stone-600">{c.contact_name || "—"}</td>
-                  <td className="p-3"><span className={`badge badge-${c.status}`}>{c.status}</span></td>
+                  <td className="p-3"><PuceEtat etat={{actif:"succes",vip:"info",prospect:"vigilance",inactif:"info"}[c.status]||"info"} variante="douce" libelle={c.status} /></td>
                   <td className="p-3 text-right" data-testid={`health-${c.id}`}>
                     {s ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color }} title={s.reasons.join(" · ")}>

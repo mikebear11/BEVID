@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { KeyRound, UserPlus, ShieldCheck, ShieldAlert, Copy } from "lucide-react";
+import PuceEtat from "@/components/system/PuceEtat";
 
 export default function AdminUsers() {
   const { user } = useAuth();
@@ -138,7 +139,7 @@ export default function AdminUsers() {
               <tr key={u.id} className="border-t border-stone-100" data-testid={`user-row-${u.id}`}>
                 <td className="p-3 font-medium">{u.name}</td>
                 <td className="p-3 text-stone-600">{u.email}</td>
-                <td className="p-3"><span className="badge badge-vip">{u.role}</span></td>
+                <td className="p-3"><PuceEtat etat="info" variante="douce" libelle={u.role} /></td>
                 <td className="p-3">
                   {u.active === false ? <span className="text-red-600 text-xs">Désactivé</span> : <span className="text-emerald-600 text-xs flex items-center gap-1"><ShieldCheck size={12} /> Actif</span>}
                   {u.must_reset && <span className="ml-2 text-amber-600 text-xs">Reset requis</span>}

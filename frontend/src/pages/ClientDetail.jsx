@@ -5,6 +5,7 @@ import { ArrowLeft, Sparkles, Plus, Loader2, Trash2, Repeat, TrendingUp } from "
 import { toast } from "sonner";
 import ClientBankingPanel from "@/components/ClientBankingPanel";
 import ReleveTerrainFAB from "@/components/ReleveTerrainFAB";
+import PuceEtat from "@/components/system/PuceEtat";
 
 export default function ClientDetail() {
   const { id } = useParams();
@@ -77,7 +78,7 @@ export default function ClientDetail() {
           <p className="overline capitalize">{c.type}</p>
           <h1 className="font-display text-4xl md:text-5xl mt-1">{c.name}</h1>
           <div className="mt-3 flex flex-wrap gap-2 text-sm text-stone-600 items-center">
-            <span className={`badge badge-${c.status}`}>{c.status}</span>
+            <PuceEtat etat={{actif:"succes",vip:"info",prospect:"vigilance",inactif:"info"}[c.status]||"info"} variante="douce" libelle={c.status} />
             {c.city && <span>· {c.city}</span>}
             {c.contact_name && <span>· {c.contact_name}</span>}
             {c.phone && <a href={`tel:${c.phone.replace(/\s/g,'')}`} data-testid="phone-link" className="text-[#4A154B] font-medium underline decoration-dotted underline-offset-4 hover:text-[#6B2D5C]">📞 {c.phone}</a>}
@@ -95,7 +96,7 @@ export default function ClientDetail() {
 
       {health && (
         <div className="card-crm p-5 flex items-center gap-4 border-l-4" style={{ borderColor: health.score >= 80 ? "#2D5A4C" : health.score >= 60 ? "#5C8A6A" : health.score >= 40 ? "#C78B3A" : "#8C2A2A" }} data-testid="health-card">
-          <div className="flex-shrink-0"><p className="overline">Score santé</p><div className="font-display text-5xl" style={{ color: health.score >= 60 ? "#2D5A4C" : health.score >= 40 ? "#C78B3A" : "#8C2A2A" }}>{health.score}<span className="text-2xl text-stone-400">/100</span></div><span className="badge badge-vip mt-1 inline-block">Grade {health.grade}</span></div>
+          <div className="flex-shrink-0"><p className="overline">Score santé</p><div className="font-display text-5xl" style={{ color: health.score >= 60 ? "#2D5A4C" : health.score >= 40 ? "#C78B3A" : "#8C2A2A" }}>{health.score}<span className="text-2xl text-stone-400">/100</span></div><div className="mt-1 inline-block"><PuceEtat etat="info" variante="douce" libelle={`Grade ${health.grade}`} /></div></div>
           <div className="flex-1 space-y-1 text-sm">
             {health.reasons.map((r, i) => <div key={i} className="text-stone-700">• {r}</div>)}
           </div>

@@ -10,6 +10,7 @@ import OnboardingTour from "@/components/OnboardingTour";
 import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText, Landmark, Compass, Radio, AlertOctagon, Shield, Database } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
+import PuceEtat from "@/components/system/PuceEtat";
 
 // key = clé i18n label, feature = clé permission serveur (source de vérité pour visibilité)
 const navAll = [
@@ -89,7 +90,7 @@ export default function Layout({ children }) {
             <span className="truncate">{user?.name}</span>
             <div className="flex items-center gap-2">
               <NotificationBell />
-              <span className="badge badge-vip">{user?.role}</span>
+              <PuceEtat etat="info" variante="douce" libelle={user?.role || ""} />
             </div>
           </div>
           <ThemeToggle variant="sidebar" />

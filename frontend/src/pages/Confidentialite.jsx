@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { ShieldCheck, MapPin, Mic, Database, FileDown, Trash2 } from "lucide-react";
+import PuceEtat from "@/components/system/PuceEtat";
 
 export default function Confidentialite() {
   const { user } = useAuth();
@@ -215,7 +216,7 @@ export default function Confidentialite() {
                   <tr key={a.id} className="border-t border-stone-100">
                     <td className="p-2 text-stone-500">{a.at?.slice(0, 16).replace("T", " ")}</td>
                     <td className="p-2 font-mono">{(a.user_id || "").slice(0, 8)}</td>
-                    <td className="p-2"><span className="badge badge-vip">{a.action}</span></td>
+                    <td className="p-2"><PuceEtat etat="info" variante="douce" libelle={a.action} /></td>
                     <td className="p-2 text-stone-500 truncate max-w-xs">{JSON.stringify(a.details)}</td>
                   </tr>
                 ))}

@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { api } from "@/lib/api";
+import PuceEtat from "@/components/system/PuceEtat";
+import { useEffect, useState } from "react";
 
 export default function Agents() {
   const [agents, setAgents] = useState([]);
@@ -13,7 +15,7 @@ export default function Agents() {
             <div className="w-12 h-12 rounded-full bg-[#4A154B] text-white flex items-center justify-center font-display text-xl mb-3">{a.name?.[0]?.toUpperCase()}</div>
             <h3 className="font-display text-xl">{a.name}</h3>
             <p className="text-xs text-stone-500">{a.email}</p>
-            <span className={`badge ${a.role === "manager" ? "badge-vip" : "badge-actif"} mt-2`}>{a.role}</span>
+            <div className="mt-2"><PuceEtat etat={a.role === "manager" ? "info" : "succes"} variante="douce" libelle={a.role} /></div>
           </div>
         ))}
       </div>

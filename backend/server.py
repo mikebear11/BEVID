@@ -4834,7 +4834,6 @@ async def send_order_pdf_email(oid: str, data: dict = None, user=Depends(get_cur
     await audit_log(user["id"], "order_pdf_email_sent", {"order_id": oid, "to": to_email})
     return {"ok": True, "email_id": email_id, "to": to_email, "expires": exp}
 
-app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -4846,6 +4845,182 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+# =============================================================
+# ENRICHISSEMENT ÉTABLISSEMENT — 3 couches (A : gratuit / B : port / C : lieu)
+# Le nom des fournisseurs Couche B n'apparaît PAS dans le code métier — port anonymisé.
+# =============================================================
+from enrichissement.layer_a import enrichir_couche_a as _layer_a_run
+from enrichissement.models import apply_enriched_update, user_locked_update, CHAMPS_ENRICHIS_AUTORISES
+from enrichissement.port import resolve_port as _resolve_enrich_port
+from enrichissement.credits import CreditsGuard, get_credits_report
+from integrations import recherche_entreprises as _re_autocomplete
+
+
+@api_router.get("/enrichissement/autocomplete")
+async def enrichissement_autocomplete(q: str, user=Depends(get_current_user)):
+    """Autocomplétion nom → SIREN via Recherche-Entreprises. Rate-limité serveur."""
+    q = (q or "").strip()
+    if len(q) < 3:
+        return {"results": []}
+    from integrations.http_client import fetch_json
+    payload = await fetch_json(
+        "https://recherche-entreprises.api.gouv.fr/search",
+        source="recherche-entreprises", db=db, kind="autocomplete",
+        params={"q": q, "per_page": 8, "page": 1, "etat_administratif": "A"},
+    )
+    results = payload.get("results") or []
+    return {"results": [
+        {
+            "siren": r.get("siren"),
+            "denomination": r.get("nom_complet") or r.get("nom_raison_sociale"),
+            "adresse": (r.get("siege") or {}).get("adresse"),
+            "commune": (r.get("siege") or {}).get("libelle_commune"),
+            "naf": r.get("activite_principale"),
+            "etat": r.get("etat_administratif"),
+        } for r in results
+    ]}
+
+
+def _get_enrich_bucket(est: dict) -> dict:
+    return (est or {}).get("enrichissement") or {}
+
+
+async def _apply_layer_result(eid: str, source: str, fields: dict) -> dict:
+    """Applique un résultat de Couche A/B/C dans establishments.enrichissement en respectant les verrous."""
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not est:
+        raise HTTPException(404, "Établissement introuvable")
+    bucket = _get_enrich_bucket(est)
+    updates = {}
+    changed_count = 0
+    for k, v in fields.items():
+        if k.startswith("_") or v is None:
+            continue
+        if k not in CHAMPS_ENRICHIS_AUTORISES:
+            continue
+        existing = bucket.get(k)
+        doc, changed = apply_enriched_update(existing, v, source=source, fiabilite=0.9)
+        updates[f"enrichissement.{k}"] = doc
+        if changed:
+            changed_count += 1
+    if updates:
+        updates["enrichissement_updated_at"] = now_iso()
+        await db.establishments.update_one({"id": eid}, {"$set": updates})
+    return {"ok": True, "changed": changed_count, "fields": list(updates.keys())}
+
+
+@api_router.post("/establishments/{eid}/enrichir")
+async def establishment_enrichir_layer_a(eid: str, user=Depends(get_current_user)):
+    """Couche A gratuite : Recherche-Entreprises + Sirene + RNE + BAN + VIES."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not est:
+        raise HTTPException(404, "Établissement introuvable")
+    bucket = _get_enrich_bucket(est)
+    siren = (bucket.get("siren") or {}).get("valeur") if isinstance(bucket.get("siren"), dict) else (est.get("siren") or est.get("siret") or "")[:9]
+    if not siren or len(siren) != 9:
+        raise HTTPException(400, "SIREN manquant ou invalide sur l'établissement")
+    fields = await _layer_a_run(siren, db=db, adresse_saisie=est.get("address"))
+    if fields.get("_error"):
+        raise HTTPException(400, fields["_error"])
+    # source portée par chaque appel — on utilise la source dominante Sirene/RE
+    return await _apply_layer_result(eid, source="sirene", fields=fields)
+
+
+@api_router.post("/establishments/{eid}/enrichir-plus")
+async def establishment_enrichir_layer_b(eid: str, data: dict = None, user=Depends(get_current_user)):
+    """Couche B (payante) via port anonymisé. Bascule automatique sur Couche A si crédits épuisés."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not est:
+        raise HTTPException(404, "Établissement introuvable")
+    bucket = _get_enrich_bucket(est)
+    siren_field = bucket.get("siren")
+    siren = (siren_field.get("valeur") if isinstance(siren_field, dict) else None) or est.get("siren") or ""
+    if not siren or len(siren) != 9:
+        raise HTTPException(400, "SIREN manquant")
+    override = (data or {}).get("provider")  # "pappers" pour un déclenchement manuel
+    port = _resolve_enrich_port(override_provider=override)
+    guard = await CreditsGuard.check(db, port.provider_key)
+    if not guard.allowed:
+        # bascule automatique vers Couche A gratuite
+        fields = await _layer_a_run(siren, db=db, adresse_saisie=est.get("address"))
+        result = await _apply_layer_result(eid, source="sirene", fields=fields)
+        result["fallback"] = "layer_a"
+        result["reason"] = "credits_exhausted"
+        return result
+    payload = await port.enrichir(siren, db=db)
+    scoring = await port.score(siren, db=db)
+    if not payload.get("_available"):
+        # échec provider → fallback Couche A
+        fields = await _layer_a_run(siren, db=db, adresse_saisie=est.get("address"))
+        result = await _apply_layer_result(eid, source="sirene", fields=fields)
+        result["fallback"] = "layer_a"
+        result["reason"] = payload.get("_reason", "provider_unavailable")
+        return result
+    await guard.consume(db, n=1)
+    merged = {**{k: v for k, v in payload.items() if not k.startswith("_")}}
+    if scoring.get("_available"):
+        for k in ("score_solvabilite", "score_paiement", "score_alerte"):
+            if scoring.get(k) is not None:
+                merged[k] = scoring[k]
+    return await _apply_layer_result(eid, source="layer_b", fields=merged)
+
+
+@api_router.get("/establishments/{eid}/enriched")
+async def establishment_get_enriched(eid: str, user=Depends(get_current_user)):
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not est:
+        raise HTTPException(404, "Établissement introuvable")
+    return {"enrichissement": _get_enrich_bucket(est), "updated_at": est.get("enrichissement_updated_at")}
+
+
+@api_router.put("/establishments/{eid}/enriched-field/{field}")
+async def establishment_set_enriched_field(eid: str, field: str, data: dict, user=Depends(get_current_user)):
+    """Édition manuelle d'un champ enrichi — verrouille automatiquement."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    if field not in CHAMPS_ENRICHIS_AUTORISES:
+        raise HTTPException(400, f"Champ non autorisé : {field}")
+    valeur = data.get("valeur")
+    doc = user_locked_update(valeur)
+    await db.establishments.update_one(
+        {"id": eid},
+        {"$set": {f"enrichissement.{field}": doc, "enrichissement_updated_at": now_iso()}},
+    )
+    return {"ok": True, "field": field, "locked": True}
+
+
+@api_router.post("/establishments/{eid}/enriched-field/{field}/lock")
+async def establishment_toggle_lock(eid: str, field: str, data: dict = None, user=Depends(get_current_user)):
+    """Verrouille / déverrouille un champ enrichi."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    if field not in CHAMPS_ENRICHIS_AUTORISES:
+        raise HTTPException(400, f"Champ non autorisé : {field}")
+    lock = True if (data or {}).get("locked") is None else bool(data["locked"])
+    await db.establishments.update_one(
+        {"id": eid},
+        {"$set": {f"enrichissement.{field}.verrouille_par_utilisateur": lock,
+                  f"enrichissement.{field}.date_maj": now_iso()}},
+    )
+    return {"ok": True, "field": field, "locked": lock}
+
+
+@api_router.get("/enrichissement/credits")
+async def enrichissement_credits(user=Depends(get_current_user)):
+    """Rapport mensuel de consommation Couche B — n'expose pas le nom du fournisseur."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return {"providers": await get_credits_report(db)}
+
+
+app.include_router(api_router)
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
