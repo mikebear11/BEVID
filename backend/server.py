@@ -3911,6 +3911,470 @@ async def bank_summary(user=Depends(get_current_user)):
     }
 
 
+# =============================================================
+# INTEGRATIONS PUBLIQUES FR — Phase 1 (Bouclier / Radar / Prospection / Rappels)
+# Règle 0 : aucune API externe depuis l'UI. Tout passe par ces endpoints backend.
+# =============================================================
+from integrations import bodacc as _bodacc
+from integrations import recherche_entreprises as _re
+from integrations import rappelconso as _rc
+from integrations.naf_chr import NAF_CHR_SEED, is_chr_code, get_seed_documents as _naf_seed_docs
+from integrations.sources_seed import DATA_SOURCES_SEED
+
+
+async def _seed_integrations_on_startup():
+    """Idempotent — seed data_sources + naf_chr_mapping si vides ou obsolètes."""
+    for src in DATA_SOURCES_SEED:
+        await db.data_sources.update_one(
+            {"id": src["id"]},
+            {"$set": {**src}, "$setOnInsert": {"created_at": now_iso()}},
+            upsert=True,
+        )
+    for doc in _naf_seed_docs():
+        key = doc.get("code_2008") or doc.get("code_2025")
+        if not key:
+            continue
+        await db.naf_chr_mapping.update_one(
+            {"$or": [{"code_2008": doc.get("code_2008")}, {"code_2025": doc.get("code_2025")}]} if doc.get("code_2008") or doc.get("code_2025") else {"label": doc["label"]},
+            {"$set": doc, "$setOnInsert": {"created_at": now_iso()}},
+            upsert=True,
+        )
+    logging.info("[integrations] data_sources + naf_chr_mapping seeded")
+
+
+@app.on_event("startup")
+async def _integrations_startup():
+    try:
+        await _seed_integrations_on_startup()
+    except Exception as e:
+        logging.error(f"integrations seed failed: {e}")
+
+
+# ---------- /sources-donnees ----------
+@api_router.get("/sources-donnees")
+async def list_data_sources(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    sources = await db.data_sources.find({}, {"_id": 0}).to_list(100)
+    # enrichit avec last_sync depuis ingestion_runs
+    for s in sources:
+        last = await db.ingestion_runs.find_one(
+            {"source": s["id"]}, {"_id": 0}, sort=[("started_at", -1)]
+        )
+        if last:
+            s["last_sync_at"] = last["started_at"]
+            s["last_sync_status"] = last["status"]
+            s["last_records"] = last.get("records", 0)
+    return sources
+
+
+@api_router.get("/ingestion-runs")
+async def list_ingestion_runs(source: Optional[str] = None, limit: int = 50, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    q = {"source": source} if source else {}
+    return await db.ingestion_runs.find(q, {"_id": 0}).sort("started_at", -1).limit(limit).to_list(limit)
+
+
+# ---------- Settings : départements surveillés (radar) ----------
+@api_router.get("/settings/monitored-departments")
+async def get_monitored_departments(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    s = await db.settings.find_one({"key": "monitored_departments"}, {"_id": 0}) or {"value": ["64"]}
+    return {"departments": s.get("value", [])}
+
+
+@api_router.post("/settings/monitored-departments")
+async def set_monitored_departments(data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    depts = data.get("departments", [])
+    if not isinstance(depts, list):
+        raise HTTPException(400, "departments doit être une liste")
+    depts = [str(d).strip() for d in depts if d]
+    await db.settings.update_one(
+        {"key": "monitored_departments"},
+        {"$set": {"key": "monitored_departments", "value": depts, "updated_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True, "departments": depts}
+
+
+# ---------- PROSPECTION autour de moi ----------
+@api_router.get("/prospection/nearby")
+async def prospection_nearby(
+    lat: float, lng: float, radius_km: float = 5,
+    naf_codes: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """Recherche géographique de prospects CHR. Rate-limité serveur, exclut clients existants."""
+    if radius_km > 50:
+        raise HTTPException(400, "Rayon max 50 km")
+    # Codes NAF cibles : par défaut tous les CHR de notre mapping
+    mapping = await db.naf_chr_mapping.find({"is_chr": True}, {"_id": 0}).to_list(200)
+    if naf_codes:
+        codes = [c.strip() for c in naf_codes.split(",") if c.strip()]
+    else:
+        codes = [m["code_2008"] for m in mapping if m.get("code_2008")]
+    try:
+        results = await _re.search_nearby(lat, lng, radius_km, activite_principale=codes, db=db)
+    except RuntimeError as e:
+        raise HTTPException(503, f"Source publique indisponible: {e}")
+    # Exclusion des SIREN déjà en portefeuille
+    existing_sirens = set()
+    async for e in db.clients.find({"siren": {"$exists": True, "$ne": ""}}, {"_id": 0, "siren": 1}):
+        if e.get("siren"):
+            existing_sirens.add(e["siren"])
+    async for e in db.establishments.find({"siren": {"$exists": True, "$ne": ""}}, {"_id": 0, "siren": 1}):
+        if e.get("siren"):
+            existing_sirens.add(e["siren"])
+    out = []
+    for r in results:
+        siren = r.get("siren", "")
+        if siren in existing_sirens:
+            continue
+        gps_lat, gps_lng = _re.extract_gps(r)
+        naf, naf25 = _re.extract_naf(r)
+        is_chr, segment = is_chr_code(naf, mapping)
+        if not is_chr:
+            is_chr, segment = is_chr_code(naf25, mapping)
+        out.append({
+            "siren": siren, "name": r.get("nom_complet") or r.get("nom_raison_sociale"),
+            "enseigne": (r.get("siege") or {}).get("enseigne"),
+            "activite_principale": naf, "activite_principale_naf25": naf25,
+            "segment": segment,
+            "lat": gps_lat, "lng": gps_lng,
+            "address": (r.get("siege") or {}).get("adresse"),
+            "postal": (r.get("siege") or {}).get("code_postal"),
+            "commune": (r.get("siege") or {}).get("libelle_commune"),
+            "etat_administratif": r.get("etat_administratif"),
+            "date_creation": r.get("date_creation"),
+            "badges": {
+                "confiance_sanitaire": r.get("est_alim_confiance"),
+                "entrepreneur_spectacle": r.get("est_entrepreneur_spectacle"),
+                "bio": r.get("est_bio"),
+            },
+        })
+    return {"count": len(out), "results": out}
+
+
+@api_router.post("/prospection/convert")
+async def prospection_convert(data: dict, user=Depends(get_current_user)):
+    """Convertit un résultat de prospection en client dans le portefeuille."""
+    siren = (data.get("siren") or "").strip()
+    if not siren:
+        raise HTTPException(400, "siren requis")
+    existing = await db.clients.find_one({"siren": siren}, {"_id": 0})
+    if existing:
+        return {"ok": True, "already": True, "client_id": existing["id"]}
+    doc = Client(
+        name=data.get("name") or f"Prospect {siren}",
+        type=data.get("segment") or "bar",
+        status="prospect",
+        city=data.get("commune") or "",
+        address=data.get("address") or "",
+        lat=data.get("lat"), lng=data.get("lng"),
+        owner_id=user["id"],
+    ).model_dump()
+    doc.update({
+        "siren": siren,
+        "activite_principale": data.get("activite_principale"),
+        "activite_principale_naf25": data.get("activite_principale_naf25"),
+        "prospection_status": "nouveau",
+        "source_decouverte": "prospection_terrain",
+    })
+    await db.clients.insert_one(doc)
+    return {"ok": True, "client_id": doc["id"]}
+
+
+# ---------- CRON RADAR d'ouvertures ----------
+@api_router.post("/cron/radar/creations")
+async def cron_radar_creations(request: Request, authorization: Optional[str] = Header(None)):
+    if not WEBHOOK_CRON_SECRET or not authorization or authorization.split(" ", 1)[-1] != WEBHOOK_CRON_SECRET:
+        raise HTTPException(401, "Cron secret invalide")
+    return await _run_radar_creations()
+
+
+@api_router.post("/radar/scan-now")
+async def radar_scan_now(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return await _run_radar_creations()
+
+
+async def _run_radar_creations():
+    s = await db.settings.find_one({"key": "monitored_departments"}, {"_id": 0}) or {"value": ["64"]}
+    depts = s.get("value") or ["64"]
+    mapping = await db.naf_chr_mapping.find({"is_chr": True}, {"_id": 0}).to_list(200)
+    since_iso = (datetime.now(timezone.utc) - timedelta(days=2)).strftime("%Y-%m-%d")
+    total_bodacc = 0
+    total_chr = 0
+    total_new = 0
+    for dept in depts:
+        try:
+            annonces = await _bodacc.fetch_creations_by_department(dept, since_iso, db=db)
+        except RuntimeError as e:
+            logging.warning(f"BODACC dept {dept} indispo: {e}")
+            continue
+        total_bodacc += len(annonces)
+        for a in annonces:
+            siren = (a.get("registre") or [""])[0] if isinstance(a.get("registre"), list) else a.get("registre", "")
+            if not siren or len(siren) < 9:
+                continue
+            siren = siren[:9]
+            if await db.establishments.find_one({"siren": siren}, {"_id": 0, "id": 1}):
+                continue
+            if await db.clients.find_one({"siren": siren}, {"_id": 0, "id": 1}):
+                continue
+            # Enrichissement recherche-entreprises
+            try:
+                enrich = await _re.get_by_siren(siren, db=db)
+            except RuntimeError:
+                enrich = None
+            if not enrich:
+                continue
+            naf, naf25 = _re.extract_naf(enrich)
+            is_chr, segment = is_chr_code(naf, mapping)
+            if not is_chr:
+                is_chr, segment = is_chr_code(naf25, mapping)
+            if not is_chr:
+                continue
+            total_chr += 1
+            lat, lng = _re.extract_gps(enrich)
+            siege = enrich.get("siege") or {}
+            doc = {
+                "id": str(uuid.uuid4()),
+                "name": enrich.get("nom_complet") or f"Etab {siren}",
+                "siren": siren,
+                "activite_principale": naf,
+                "activite_principale_naf25": naf25,
+                "segment": segment,
+                "type": segment or "bar",
+                "city": siege.get("libelle_commune"),
+                "address": siege.get("adresse"),
+                "code_commune_insee": siege.get("commune"),
+                "postal": siege.get("code_postal"),
+                "lat": lat, "lng": lng,
+                "date_creation_entreprise": enrich.get("date_creation"),
+                "etat_administratif": enrich.get("etat_administratif"),
+                "source_decouverte": "bodacc",
+                "prospection_status": "nouveau",
+                "status": "prospect",
+                "owner_id": "system",
+                "created_at": now_iso(),
+                "discovered_at": now_iso(),
+            }
+            await db.establishments.insert_one(doc)
+            await db.watch_events.insert_one({
+                "id": str(uuid.uuid4()),
+                "source": "bodacc", "event_type": "creation_entreprise",
+                "entity_ref": siren, "payload": a,
+                "occurred_at": a.get("dateparution"), "ingested_at": now_iso(),
+                "processed": True, "gravite": "info",
+            })
+            total_new += 1
+    return {"ok": True, "bodacc_count": total_bodacc, "chr_count": total_chr, "new_prospects": total_new}
+
+
+@api_router.get("/radar/new-prospects")
+async def radar_new_prospects(days: int = 30, user=Depends(get_current_user)):
+    """Nouveaux prospects découverts par le radar sur X derniers jours."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    q = {"source_decouverte": "bodacc", "discovered_at": {"$gte": cutoff}}
+    if user["role"] != "manager":
+        # commercial voit uniquement les prospects de ses départements
+        pass
+    return await db.establishments.find(q, {"_id": 0}).sort("discovered_at", -1).limit(200).to_list(200)
+
+
+# ---------- CRON RAPPELS-CONSO ----------
+@api_router.post("/cron/rappels/scan")
+async def cron_rappels_scan(request: Request, authorization: Optional[str] = Header(None)):
+    if not WEBHOOK_CRON_SECRET or not authorization or authorization.split(" ", 1)[-1] != WEBHOOK_CRON_SECRET:
+        raise HTTPException(401, "Cron secret invalide")
+    return await _run_rappels_scan()
+
+
+@api_router.post("/veille/scan-now")
+async def veille_scan_now(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return await _run_rappels_scan()
+
+
+async def _run_rappels_scan():
+    # Récupère tous les GTINs de nos produits + lots
+    products = await db.products.find({}, {"_id": 0, "id": 1, "gtin": 1, "name": 1}).to_list(5000)
+    gtins_by_product = {p["id"]: p.get("gtin") for p in products if p.get("gtin")}
+    since_iso = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    try:
+        recent = await _rc.fetch_recent(since_iso, db=db)
+    except RuntimeError as e:
+        return {"ok": False, "error": str(e)}
+    matches = 0
+    for rec in recent:
+        gtin = str(rec.get("gtin") or "").strip()
+        if not gtin:
+            continue
+        product_id = next((pid for pid, g in gtins_by_product.items() if g == gtin), None)
+        if not product_id and not await db.lots.find_one({"gtin": gtin}, {"_id": 0, "id": 1}):
+            continue
+        # évite doublon
+        existing = await db.watch_events.find_one(
+            {"source": "rappelconso", "entity_ref": gtin,
+             "payload.reference_fiche": rec.get("reference_fiche")},
+            {"_id": 0, "id": 1}
+        )
+        if existing:
+            continue
+        await db.watch_events.insert_one({
+            "id": str(uuid.uuid4()), "source": "rappelconso",
+            "event_type": "rappel_produit", "entity_ref": gtin,
+            "payload": rec, "occurred_at": rec.get("date_publication") or rec.get("date_de_publication"),
+            "ingested_at": now_iso(), "processed": False,
+            "gravite": rec.get("risques_encourus") and "critical" or "warning",
+            "product_id": product_id,
+        })
+        matches += 1
+    return {"ok": True, "checked": len(recent), "matches": matches}
+
+
+@api_router.get("/veille/rappels")
+async def list_rappels(limit: int = 50, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return await db.watch_events.find(
+        {"source": "rappelconso"}, {"_id": 0}
+    ).sort("occurred_at", -1).limit(limit).to_list(limit)
+
+
+@api_router.get("/veille/rappels/{event_id}/impacted-clients")
+async def rappel_impacted_clients(event_id: str, user=Depends(get_current_user)):
+    """Fonction inverse : à partir d'un event → clients livrés du/des lot(s) concerné(s)."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    ev = await db.watch_events.find_one({"id": event_id}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Event introuvable")
+    gtin = ev.get("entity_ref")
+    # lots correspondants
+    lots = await db.lots.find({"gtin": gtin}, {"_id": 0}).to_list(500)
+    lot_ids = [l["id"] for l in lots]
+    # lignes de livraison affectées
+    if not lot_ids and ev.get("product_id"):
+        # fallback via product_id
+        deliveries = await db.delivery_lines.find(
+            {"product_id": ev["product_id"]}, {"_id": 0}
+        ).to_list(5000)
+    else:
+        deliveries = await db.delivery_lines.find(
+            {"lot_id": {"$in": lot_ids}}, {"_id": 0}
+        ).to_list(5000)
+    # agrège par client
+    by_client: dict[str, dict] = {}
+    for d in deliveries:
+        cid = d.get("client_id")
+        if not cid:
+            continue
+        entry = by_client.setdefault(cid, {"client_id": cid, "total_quantity": 0, "last_delivery": None, "lots": set()})
+        entry["total_quantity"] += d.get("quantity", 0)
+        if d.get("lot_id"):
+            entry["lots"].add(d["lot_id"])
+        dd = d.get("delivered_at")
+        if dd and (not entry["last_delivery"] or dd > entry["last_delivery"]):
+            entry["last_delivery"] = dd
+    # enrichit avec noms clients
+    for cid, e in by_client.items():
+        c = await db.clients.find_one({"id": cid}, {"_id": 0, "name": 1, "phone": 1, "email": 1})
+        if c:
+            e.update({"client_name": c.get("name"), "phone": c.get("phone"), "email": c.get("email")})
+        e["lots"] = list(e["lots"])
+    return {"event": ev, "impacted_count": len(by_client), "clients": list(by_client.values())}
+
+
+# ---------- CRON BOUCLIER ENCOURS ----------
+@api_router.post("/cron/bouclier/scan")
+async def cron_bouclier_scan(request: Request, authorization: Optional[str] = Header(None)):
+    if not WEBHOOK_CRON_SECRET or not authorization or authorization.split(" ", 1)[-1] != WEBHOOK_CRON_SECRET:
+        raise HTTPException(401, "Cron secret invalide")
+    return await _run_bouclier_scan()
+
+
+@api_router.post("/bouclier/scan-now")
+async def bouclier_scan_now(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return await _run_bouclier_scan()
+
+
+async def _run_bouclier_scan():
+    since_iso = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+    # SIRENs des établissements + clients actifs
+    q = {"siren": {"$exists": True, "$ne": ""}}
+    sirens_by_id: dict[str, tuple[str, str]] = {}  # siren -> (collection, id)
+    async for e in db.establishments.find(q, {"_id": 0, "id": 1, "siren": 1}):
+        if e.get("siren"):
+            sirens_by_id[e["siren"]] = ("establishments", e["id"])
+    async for c in db.clients.find(q, {"_id": 0, "id": 1, "siren": 1}):
+        if c.get("siren") and c["siren"] not in sirens_by_id:
+            sirens_by_id[c["siren"]] = ("clients", c["id"])
+    total_alerts = 0
+    for siren, (coll, doc_id) in sirens_by_id.items():
+        try:
+            annonces = await _bodacc.fetch_collective_by_siren(siren, since_iso, db=db)
+        except RuntimeError:
+            continue
+        for a in annonces:
+            # dédup
+            fingerprint = f"{siren}-{a.get('id') or a.get('publicationavis')}"
+            if await db.watch_events.find_one({"entity_ref": siren, "payload.id": a.get("id")}, {"_id": 0, "id": 1}):
+                continue
+            severity, action_label = _bodacc.classify_collective(a.get("jugement") or {})
+            await db.watch_events.insert_one({
+                "id": str(uuid.uuid4()), "source": "bodacc",
+                "event_type": "procedure_collective", "entity_ref": siren,
+                "payload": a, "occurred_at": a.get("dateparution"),
+                "ingested_at": now_iso(), "processed": False,
+                "gravite": severity, "action_label": action_label,
+                "fingerprint": fingerprint,
+            })
+            # Application immédiate côté fiche
+            updates = {
+                "admin_state": "collective_proc",
+                "admin_state_reason": action_label,
+                "admin_state_updated_at": now_iso(),
+            }
+            if severity == "block":
+                updates["credit_status"] = "rouge"
+                updates["orders_blocked"] = True
+                updates["orders_blocked_reason"] = "Liquidation judiciaire — BODACC"
+            elif severity == "watch":
+                updates["credit_status"] = "orange"
+                updates["orders_cash_only"] = True
+            db_coll = db.establishments if coll == "establishments" else db.clients
+            await db_coll.update_one({"id": doc_id}, {"$set": updates})
+            total_alerts += 1
+    return {"ok": True, "sirens_scanned": len(sirens_by_id), "alerts": total_alerts}
+
+
+@api_router.get("/bouclier/alerts")
+async def list_bouclier_alerts(limit: int = 100, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return await db.watch_events.find(
+        {"source": "bodacc", "event_type": "procedure_collective"}, {"_id": 0}
+    ).sort("occurred_at", -1).limit(limit).to_list(limit)
+
+
+# ---------- ORDER GUARD : bloquer si orders_blocked ----------
+async def _check_orders_blocked(client_id: str):
+    for coll in (db.clients, db.establishments):
+        c = await coll.find_one({"id": client_id, "orders_blocked": True}, {"_id": 0, "orders_blocked_reason": 1})
+        if c:
+            raise HTTPException(423, f"Compte bloqué : {c.get('orders_blocked_reason', 'liquidation')}")
+
+
 @api_router.post("/conflicts/{cid}/dismiss")
 async def dismiss_conflict(cid: str, user=Depends(get_current_user)):
     if user["role"] != "manager":

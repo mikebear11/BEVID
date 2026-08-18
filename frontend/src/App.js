@@ -41,6 +41,11 @@ import ScanContainer from "@/pages/ScanContainer";
 import DRM from "@/pages/DRM";
 import QRLabels from "@/pages/QRLabels";
 import Rapprochement from "@/pages/Rapprochement";
+import SourcesDonnees from "@/pages/SourcesDonnees";
+import Prospection from "@/pages/Prospection";
+import Radar from "@/pages/Radar";
+import Veille from "@/pages/Veille";
+import Bouclier from "@/pages/Bouclier";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -92,6 +97,11 @@ function App() {
               <Route path="/containers/labels" element={<Protected><QRLabels /></Protected>} />
               <Route path="/drm" element={<Protected><DRM /></Protected>} />
               <Route path="/rapprochement" element={<Protected><Rapprochement /></Protected>} />
+              <Route path="/sources-donnees" element={<Protected><SourcesDonnees /></Protected>} />
+              <Route path="/prospection" element={<Protected><Prospection /></Protected>} />
+              <Route path="/radar" element={<Protected><Radar /></Protected>} />
+              <Route path="/veille" element={<Protected><Veille /></Protected>} />
+              <Route path="/bouclier" element={<Protected><Bouclier /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />

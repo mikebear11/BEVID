@@ -1,82 +1,91 @@
 # BEVID — CRM Distribution de Boissons
 
 ## Architecture
-FastAPI + MongoDB (UE) + React 19 + Tailwind + Dexie + Emergent Resend/Storage + html5-qrcode + qrcode.react + cairosvg (icons) + reportlab.
+FastAPI + MongoDB (UE) + React 19 + Tailwind + Dexie + Emergent Resend/Storage + Leaflet + html5-qrcode + qrcode.react + cairosvg + reportlab.
 
-Module bancaire (Iter 10a) : sous-package `/app/backend/bank/` isolé selon PARTIE 0 (adaptateurs autonomes).
+**Modules bancaire & intégrations publiques FR** : sous-packages isolés selon PARTIE 0 (adaptateurs autonomes).
+- `/app/backend/bank/` — validators, storage, importers, reconciliation
+- `/app/backend/integrations/` — http_client (rate limité par source, UA explicite), bodacc, recherche_entreprises, rappelconso, naf_chr mapping
 
 ## Product principles
 - Mobile-first, ≥ 48px, thumb-zone, indicateur sync permanent
 - Marges masquées tant que coûts non validés
 - Géoloc ponctuelle uniquement, opt-in
 - 2 rôles stricts, JWT 90 jours, 4 langues fr/en/es/de
-- Typo ZT Nature + logo BEVID SVG + PWA icons vectoriels
-- Offline-first : Dexie + client_uuid idempotent + queue rejouée
-- Cloisonnement DSP2 : contreparties bancaires JAMAIS fusionnées avec CRM commercial
+- **Règle 0 : aucune API externe depuis l'UI**. Toutes ingestions via tâches de fond + endpoints backend rate-limités.
+- Cloisonnement DSP2 : contreparties bancaires isolées de la base CRM
+
+## Implemented — v7.0 (18/02/2026) — Iter 11 : Intégrations publiques FR Phase 1
+
+### Socle intégration (partie 0)
+- `integrations/http_client.py` : 1 seul client HTTP, rate limiter par source (7 rps BODACC/RE, 5 rps RappelConso), User-Agent `BEVID/1.0 (support@bevid.fr)`, retry backoff jitter sur 429/5xx, tracing 90 jours dans `ingestion_runs`
+- Écran `/sources-donnees` (manager) : chaque producteur public + licence + fraîcheur + rate limit + dernier statut de sync + journal des 30 dernières ingestions
+
+### Module 1 — Prospection autour de moi
+- `GET /api/prospection/nearby?lat=&lng=&radius_km=` (max 50 km) : appelle `recherche-entreprises.api.gouv.fr/near_point`, filtre CHR via mapping, **exclut SIREN déjà en portefeuille**
+- Badges: bio, entrepreneur_spectacle, confiance_sanitaire (data.gouv)
+- `POST /api/prospection/convert` : convertit un prospect en client
+- Frontend `/prospection` : Leaflet + OpenStreetMap tiles, géoloc navigateur, marqueurs prospects + popup
+
+### Module 2 — Radar d'ouvertures CHR
+- Cron `radar-ouvertures` 06h30 : `POST /api/cron/radar/creations` (protégé X-Cron-Secret)
+- Bouton `POST /api/radar/scan-now` (manager) — même job à la demande
+- Pipeline : BODACC (créations + immatriculations par département) → enrich SIREN via Recherche d'entreprises → filtre CHR via `naf_chr_mapping` (double NAF 2008/2025) → écriture `establishments` avec `source_decouverte=bodacc`
+- Frontend `/radar` : liste des nouveaux CHR détectés, config départements surveillés, scan manuel
+- Test réel : 36 annonces BODACC dept 64 → 2 CHR filtrés → 2 prospects créés
+
+### Module 3 — Veille rappels produits
+- Cron `rappels-conso` toutes les heures (min 5) : `POST /api/cron/rappels/scan`
+- Match GTIN sur `products.gtin` + `lots.gtin` → écrit `watch_events` (source=rappelconso)
+- **Fonction inverse** : `GET /api/veille/rappels/{event_id}/impacted-clients` remonte via `delivery_lines` les clients livrés + quantités + dernière date
+- Frontend `/veille` : liste rappels avec gravité colorée + modal "Clients touchés"
+
+### Module 4 — Bouclier encours
+- Cron `bouclier-encours` 05h : `POST /api/cron/bouclier/scan`
+- Pour chaque SIREN client actif → BODACC `familleavis=collective`
+- Classifier : `liquidation → block` (bloque commandes + rouge), `redressement → watch` (paiement comptant + orange), `sauvegarde → watch`, `plan → info`
+- Applique `admin_state`, `orders_blocked`, `orders_cash_only`, `credit_status` sur clients/establishments
+- Frontend `/bouclier` : alerts colorées par gravité, scan manuel
+
+### Extensions modèle
+- `establishments/clients` : `siren`, `activite_principale`, `activite_principale_naf25`, `code_commune_insee`, `lat/lng`, `date_creation_entreprise`, `etat_administratif`, `source_decouverte`, `prospection_status`, `admin_state`, `admin_state_reason`, `orders_blocked`, `orders_cash_only`
+- Nouvelles collections : `naf_chr_mapping`, `data_sources`, `ingestion_runs`, `watch_events`, `lots`, `delivery_lines`
+- `naf_chr_mapping` seed au startup (idempotent) — 10 codes 2008 + équivalents NAF 2025 (56.30Y débits, 56.11G restau trad, 56.12Y food trucks, etc.)
+
+### Crons ajoutés (`.emergent/crons.yml`)
+- `bouclier-encours` 05h · `radar-ouvertures` 06h30 · `rappels-conso` chaque heure
 
 ## Implemented — v6.0 (18/02/2026) — Iter 10a Rapprochement bancaire
+Voir historique complet dans le repo. Import CSV/CAMT.053/CFONB 120, moteur 4 niveaux confiance, lettrage réversible, cloisonnement DSP2.
 
-### Client model enrichi (KYB)
-- `iban` (validation mod-97), `bic`, `siret` (Luhn 14), `siren` (Luhn 9), `tva_intra`
-- `kbis_path` + `rib_path` (Emergent Object Storage, PDF/PNG/JPEG, ≤ 10 Mo)
-- `POST /api/clients/{id}/banking` : update strict avec validators
-- `POST /api/clients/{id}/documents?kind=kbis|rib` : upload + audit
-- `GET /api/files/{path}` : download authentifié (JWT header OR ?auth= query pour img src)
-- Frontend : `ClientBankingPanel.jsx` intégré dans ClientDetail
-
-### Bank statement importers (aucun appel API externe requis)
-- **CSV libre** : détection auto délimiteur, montant FR/EN, colonnes date/libellé/montant/debit/credit/référence
-- **CAMT.053** (ISO 20022 XML) : Ntry, CdtDbtInd, RmtInf/Ustrd, Dbtr/Cdtr, EndToEndId
-- **CFONB 120** (bandes fixes legacy FR) : code 04, signe A-I/J-R, positions officielles
-- `POST /api/banque/imports` (multipart) : sniff format, parse, insertion idempotente par `external_id` hash, auto-lettrage immédiat sur nouvelles écritures
-
-### Moteur de rapprochement — 4 niveaux de confiance (PARTIE 4.4)
-- **Certaine (100)** : référence RF ISO 11649 (mod-97) + montant exact, OU EndToEndId émis
-- **Élevée (85)** : n° facture regex `BEVID-FA/BC/INV-XXXX` + montant, OU nom payeur normalisé unique + montant
-- **Moyenne (60)** : montant exact d'une seule facture ouverte (fenêtre 90j), OU somme unique ≤10 factures = montant
-- **Faible (30)** : paiement partiel (nom match + montant < reste)
-- Seuil auto-lettrage : ≥ 85. En dessous → propositions triées, validation manager 1 clic.
-- Normalisation FR : accents, formes sociales (SARL/SAS/...), casse
-
-### Lettrage réversible (PARTIE 4.5)
-- Table `bank_lettrages` : N tx ↔ N orders, montant affecté, méthode (auto/manual), confidence, reason
-- `payment_status` de l'order calculé dynamiquement (`paid` / `partial` / `pending`)
-- **Dé-lettrage** : `POST /banque/lettrages/{id}/delettrer` → recalcule status order + tx (SEPA 8 sem / retour chèque)
-
-### Frontend
-- Page `/rapprochement` (manager only) : KPI cards (total, ouvertes, lettrées %, taux auto), filtres statut, recherche, table, modal Propositions avec badges de confiance colorés
-- Nav sidebar + i18n fr/en/es/de
-
-### Cloisonnement DSP2
-- Collection isolée `bank_counterparties` (nom normalisé + first_seen/last_seen/count) — jamais fusionnée avec `clients`
-
-## Implemented — v5.5 (17/02/2026) — Iter 9
-- Conflict Playbook 1 clic (refund Stripe + restock + notif WhatsApp/Email)
-- Envoi PDF commande par email (Resend + lien public token 24h)
-- PasswordInput réutilisable avec œil afficher/masquer
-- Bug dictée vocale corrigé (isFinal vs interim distinction)
-
-## Rappels v5.4
-- Sync feed manager + détection auto conflits, onboarding tour, PWA icons cairosvg
-- Password reset via Resend, offline visits/orders via postOffline + client_uuid
-- Signature intégrée dans POST order
+## Implemented — v5.5 — Iter 9
+Conflict Playbook, PDF email Resend, œil password toggle, fix dictée vocale.
 
 ## Backlog / P1
-- **Iter 10b (socle intégration)** : interfaces `BanquePort`/`ComptabilitePort`/`FacturePort`, retry+backoff, circuit breaker, rate limiter, file persistante Mongo, sondes 15min, tests de contrat nocturnes
-- Vue détaillée du catalogue produit (photo, ABV, formats, pitch, PJ)
+- Terrain relevés (`releves_terrain`) — collecte par les commerciaux à démarrer dès maintenant (l'observatoire = actif long terme, chaque semaine sans collecte est perdue)
+- Interface livreur simplifiée (« Le livreur capteur ») — 3 saisies < 10s : contenants repris, marque concurrente, photo
+- Assistant terrain — briefing pré-visite + extraction d'entités depuis dictée
 
-## Backlog / P2
-- **Bridge** (agrégation DSP2) — expiration 180j, moniteur J-30/-15/-7/-1
-- **Qonto direct** (webhooks natifs, meilleures données)
-- **Mandats SEPA + pain.008/pain.002/CAMT.054**
-- **Bordereau de remise chèques** (chauffeur encaisse sur place)
-- Onboarding vidéo/GIF, Filtre agent Sync Feed, Multi-tenant SaaS
-- Refactor server.py 4000+ lignes → /backend/routes/
+## Backlog / Phase 2 (à venir)
+- Marge accises comprises (référentiel fiscal 2026 versionné)
+- Traçabilité de lot + rappel sortant complet (pain.008 SEPA)
+- Fraîcheur du stock client (DLC probabilistique)
+- Parc de contenants consignés (valeur immobilisée, rotations)
+
+## Backlog / Phase 3
+- Indice de potentiel commune (INSEE Melodi DS_TOUR_CAP + DS_BPE)
+- Prévision saisonnière (DS_TOUR_FREQ + calendrier scolaire + jours fériés)
+- Agenda du territoire (DATAtourisme)
+- Déclencheur météo (Météo-France AROME)
+
+## Backlog / Phase 4
+- Observatoire mutualisé anonymisé
+- Assistant terrain + dictée structurée
+
+## Tests
+- `/app/backend/tests/test_iter11_public_apis.py` — 16/16
+- `/app/backend/tests/test_iter10a_banking.py` — 15/15
+- `/app/backend/tests/test_iter9_playbook_pdf_email.py` — 10/10
 
 ## Credentials
 Voir `/app/memory/test_credentials.md`.
-
-## Tests
-- `/app/backend/tests/test_iter10a_banking.py` — **15/15 passent** (validators, endpoints, CSV+CAMT importers, auto-lettrage, dé-lettrage, propose, manual lettrage)
-- `/app/backend/tests/test_iter9_playbook_pdf_email.py` — 10/10 passent
-- Iterations 3–8 : voir tests précédents

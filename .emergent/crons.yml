@@ -27,3 +27,24 @@ crons:
     endpoint: "{{BASE_URL}}/api/cron/voice-purge"
     method: POST
     enabled: true
+  - name: bouclier-encours
+    description: "Scan quotidien BODACC des procédures collectives sur les SIREN clients"
+    cron: "0 5 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/bouclier/scan"
+    method: POST
+    enabled: true
+  - name: radar-ouvertures
+    description: "Scan quotidien BODACC des créations CHR sur les départements surveillés + enrichissement"
+    cron: "30 6 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/radar/creations"
+    method: POST
+    enabled: true
+  - name: rappels-conso
+    description: "Veille horaire RappelConso par GTIN sur notre catalogue"
+    cron: "5 * * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/rappels/scan"
+    method: POST
+    enabled: true
