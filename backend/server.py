@@ -3918,6 +3918,7 @@ async def bank_summary(user=Depends(get_current_user)):
 from integrations import bodacc as _bodacc
 from integrations import recherche_entreprises as _re
 from integrations import rappelconso as _rc
+from integrations import vies as _vies
 from integrations.naf_chr import NAF_CHR_SEED, is_chr_code, get_seed_documents as _naf_seed_docs
 from integrations.sources_seed import DATA_SOURCES_SEED
 
@@ -4373,6 +4374,162 @@ async def _check_orders_blocked(client_id: str):
         c = await coll.find_one({"id": client_id, "orders_blocked": True}, {"_id": 0, "orders_blocked_reason": 1})
         if c:
             raise HTTPException(423, f"Compte bloqué : {c.get('orders_blocked_reason', 'liquidation')}")
+
+
+# =============================================================
+# PHASE 2 amorce — Traçabilité lot + Relevés terrain + VIES check
+# =============================================================
+
+# ---------- LOTS + LIGNES DE LIVRAISON ----------
+@api_router.post("/lots")
+async def create_lot(data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    if not data.get("product_id") or not data.get("lot_number"):
+        raise HTTPException(400, "product_id et lot_number requis")
+    existing = await db.lots.find_one(
+        {"product_id": data["product_id"], "lot_number": data["lot_number"]}, {"_id": 0, "id": 1}
+    )
+    if existing:
+        return {"ok": True, "already": True, "id": existing["id"]}
+    doc = {
+        "id": str(uuid.uuid4()),
+        "product_id": data["product_id"],
+        "lot_number": data["lot_number"],
+        "gtin": (data.get("gtin") or "").strip() or None,
+        "date_fabrication": data.get("date_fabrication"),
+        "ddm": data.get("ddm"),
+        "quantite_produite": data.get("quantite_produite", 0),
+        "quantite_restante": data.get("quantite_produite", 0),
+        "matieres_premieres": data.get("matieres_premieres", []),
+        "created_at": now_iso(), "owner_id": user["id"],
+    }
+    await db.lots.insert_one(doc)
+    return {"ok": True, "id": doc["id"]}
+
+
+@api_router.get("/lots")
+async def list_lots(product_id: Optional[str] = None, user=Depends(get_current_user)):
+    q = {"product_id": product_id} if product_id else {}
+    return await db.lots.find(q, {"_id": 0}).sort("created_at", -1).limit(500).to_list(500)
+
+
+@api_router.post("/delivery-lines")
+async def create_delivery_line(data: dict, user=Depends(get_current_user)):
+    """Enregistre une ligne de livraison rattachée à un lot — indispensable au rappel sortant."""
+    if not all(k in data for k in ("order_id", "product_id", "client_id", "quantity")):
+        raise HTTPException(400, "order_id, product_id, client_id, quantity requis")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "order_id": data["order_id"], "product_id": data["product_id"],
+        "lot_id": data.get("lot_id"), "gtin": data.get("gtin"),
+        "client_id": data["client_id"], "quantity": data["quantity"],
+        "sscc_palette": data.get("sscc_palette"),
+        "delivered_at": data.get("delivered_at") or now_iso(),
+        "transporteur": data.get("transporteur"),
+        "created_at": now_iso(), "created_by": user["id"],
+    }
+    await db.delivery_lines.insert_one(doc)
+    # décrémente qté restante du lot
+    if data.get("lot_id") and data.get("quantity"):
+        await db.lots.update_one({"id": data["lot_id"]}, {"$inc": {"quantite_restante": -data["quantity"]}})
+    return {"ok": True, "id": doc["id"]}
+
+
+# ---------- Dossier de rappel réglementaire (déclaration) ----------
+@api_router.post("/veille/rappels/{event_id}/generate-declaration")
+async def generate_recall_declaration(event_id: str, user=Depends(get_current_user)):
+    """Pré-remplit le dossier de déclaration DGCCRF à partir d'un rappel + calcule quantité totale + unité."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    ev = await db.watch_events.find_one({"id": event_id}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Event introuvable")
+    gtin = ev.get("entity_ref")
+    p = ev.get("payload") or {}
+    # somme des quantités livrées
+    lots = await db.lots.find({"gtin": gtin}, {"_id": 0, "id": 1, "quantite_produite": 1}).to_list(500)
+    lot_ids = [l["id"] for l in lots]
+    deliveries = await db.delivery_lines.find(
+        {"lot_id": {"$in": lot_ids}}, {"_id": 0}
+    ).to_list(10000)
+    total_qty = sum(d.get("quantity", 0) for d in deliveries)
+    product = await db.products.find_one({"id": ev.get("product_id")}, {"_id": 0}) if ev.get("product_id") else None
+    return {
+        "rappel_reference": p.get("numero_fiche"),
+        "marque": p.get("marque_produit"),
+        "gtin": gtin, "lots": [l["id"] for l in lots],
+        "quantite_vendue_totale": total_qty,
+        "unite": (product or {}).get("unit", "unité"),
+        "motif": p.get("motif_rappel"),
+        "risques": p.get("risques_encourus"),
+        "distributeur": "BEVID",
+        "clients_notifies_count": len({d.get("client_id") for d in deliveries if d.get("client_id")}),
+        "generated_at": now_iso(),
+    }
+
+
+# ---------- RELEVÉS TERRAIN (< 20 s) — Observatoire ----------
+@api_router.post("/releves-terrain")
+async def create_releve_terrain(data: dict, user=Depends(get_current_user)):
+    """Formulaire < 20 s : marques_presentes[], prix_releves[], nb_lignes_tirage, nb_lignes_par_marque{}, photo_id?"""
+    if not data.get("etablissement_id") and not data.get("client_id"):
+        raise HTTPException(400, "etablissement_id ou client_id requis")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "etablissement_id": data.get("etablissement_id") or data.get("client_id"),
+        "date": data.get("date") or now_iso(),
+        "utilisateur_id": user["id"],
+        "marques_presentes": data.get("marques_presentes", []),
+        "prix_releves": data.get("prix_releves", []),
+        "nb_lignes_totales": data.get("nb_lignes_totales", 0),
+        "nb_lignes_par_marque": data.get("nb_lignes_par_marque", {}),
+        "photo_id": data.get("photo_id"),
+        "lat": data.get("lat"), "lng": data.get("lng"),
+        "created_at": now_iso(),
+    }
+    await db.releves_terrain.insert_one(doc)
+    return {"ok": True, "id": doc["id"]}
+
+
+@api_router.get("/releves-terrain")
+async def list_releves(client_id: Optional[str] = None, limit: int = 100, user=Depends(get_current_user)):
+    q = {}
+    if client_id:
+        q["etablissement_id"] = client_id
+    if user["role"] != "manager":
+        q["utilisateur_id"] = user["id"]
+    return await db.releves_terrain.find(q, {"_id": 0}).sort("date", -1).limit(limit).to_list(limit)
+
+
+@api_router.get("/observatoire/summary")
+async def observatoire_summary(user=Depends(get_current_user)):
+    """Agrégat anonymisé — seuil minimum 5 relevés pour affichage."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    releves = await db.releves_terrain.find({}, {"_id": 0}).to_list(50000)
+    if len(releves) < 5:
+        return {"ok": True, "anonymized": True, "count": len(releves), "min_threshold": 5, "brands": [], "prices": []}
+    brand_counts: dict[str, int] = {}
+    prices_by_brand: dict[str, list[float]] = {}
+    for r in releves:
+        for m in r.get("marques_presentes", []):
+            brand_counts[m] = brand_counts.get(m, 0) + 1
+        for p in r.get("prix_releves", []):
+            b = p.get("marque")
+            if b and p.get("prix_consommateur") is not None:
+                prices_by_brand.setdefault(b, []).append(float(p["prix_consommateur"]))
+    brands = sorted(brand_counts.items(), key=lambda x: -x[1])[:10]
+    prices = [{"marque": b, "median": sorted(v)[len(v)//2], "n": len(v)}
+              for b, v in prices_by_brand.items() if len(v) >= 3]
+    return {"ok": True, "count": len(releves), "brands": brands, "prices": prices}
+
+
+# ---------- VIES TVA intracom ----------
+@api_router.post("/tools/vies-check")
+async def vies_check(data: dict, user=Depends(get_current_user)):
+    vat = data.get("vat_number") or ""
+    return await _vies.check_vat(vat, db=db)
 
 
 @api_router.post("/conflicts/{cid}/dismiss")

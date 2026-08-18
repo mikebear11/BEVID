@@ -103,6 +103,16 @@ export default function ClientBankingPanel({ client, onUpdate }) {
           {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
           Enregistrer
         </button>
+        <button onClick={async () => {
+          if (!form.tva_intra) return toast.error("Saisir un n° TVA");
+          try {
+            const { data } = await api.post("/tools/vies-check", { vat_number: form.tva_intra });
+            if (data.valid) toast.success(`VIES ✓ ${data.name || ""}`);
+            else toast.error(data.error || "TVA non valide côté VIES");
+          } catch { toast.error("VIES indisponible"); }
+        }} className="btn-ghost text-xs min-h-[40px]" data-testid="vies-check-btn">
+          Vérifier VIES
+        </button>
       </div>
 
       <div className="border-t border-stone-100 mt-6 pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">

@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { ArrowLeft, Sparkles, Plus, Loader2, Trash2, Repeat, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import ClientBankingPanel from "@/components/ClientBankingPanel";
+import ReleveTerrainFAB from "@/components/ReleveTerrainFAB";
 
 export default function ClientDetail() {
   const { id } = useParams();
@@ -119,6 +120,7 @@ export default function ClientDetail() {
       )}
 
       <ClientBankingPanel client={c} onUpdate={load} />
+      <ReleveTerrainFAB clientId={id} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card-crm p-6">
