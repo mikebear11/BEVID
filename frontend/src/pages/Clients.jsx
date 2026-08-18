@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { api, API } from "@/lib/api";
 import { Link } from "react-router-dom";
-import { Plus, Search, Mic, Upload } from "lucide-react";
+import { Plus, Search, Mic, Upload, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useVoice } from "@/hooks/useVoice";
 import PuceEtat from "@/components/system/PuceEtat";
@@ -79,6 +79,9 @@ export default function Clients() {
           <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-ghost flex items-center gap-2" data-testid="csv-import-btn">
             <Upload size={16} /> {importing ? "Import…" : "Importer CSV"}
           </button>
+          <Link to="/etab/new" className="btn-ghost flex items-center gap-2" data-testid="new-establishment-btn">
+            <Building2 size={16} /> Nouvel établissement
+          </Link>
           <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2" data-testid="add-client-btn">
             <Plus size={16} /> Nouveau client
           </button>
