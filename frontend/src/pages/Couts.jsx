@@ -4,10 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { Lock, Unlock, AlertTriangle } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export default function Couts() {
   const { user } = useAuth();
   const { t } = useI18n();
+  const { confirm } = useConfirm();
   const [lock, setLock] = useState(null);
   const [products, setProducts] = useState([]);
   const [costs, setCosts] = useState({});
@@ -51,7 +53,7 @@ export default function Couts() {
   };
 
   const validate = async () => {
-    if (!window.confirm("Vous confirmez avoir saisi les coûts de revient de façon SÉRIEUSE et VÉRIFIÉE ? Une fois validé, les écrans de marge s'ouvrent.")) return;
+    if (!(await confirm({ title: "Valider les coûts de revient ?", message: "Confirmez-vous avoir saisi vos coûts de revient de façon sérieuse et vérifiée ? Une fois validé, les écrans de marge s'ouvriront.", confirmLabel: "Valider" }))) return;
     try {
       const { data } = await api.post("/admin/costs/validate");
       toast.success(`${data.products_validated} coûts validés — marges activées`);
@@ -61,7 +63,7 @@ export default function Couts() {
     }
   };
   const invalidate = async () => {
-    if (!window.confirm("Réinvalider ferme les écrans de marge tant qu'ils n'auront pas été re-validés.")) return;
+    if (!(await confirm({ title: "Réinvalider les coûts ?", message: "Les écrans de marge seront fermés tant que la validation n'aura pas été refaite.", confirmLabel: "Réinvalider", tone: "danger" }))) return;
     await api.post("/admin/costs/invalidate");
     toast.success("Coûts réinvalidés");
     load();

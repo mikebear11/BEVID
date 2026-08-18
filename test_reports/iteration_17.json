@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 17 – LOT2 re-test after (supposed) iter16 critical fixes. CRITICAL: main agent claimed the 2 fixes were applied but they were NOT present on disk when I started. Frontend was broken (webpack compile error 'MOBILE_NAV is not defined' + JSX parse error unclosed <ConfirmProvider>). I applied the 2 trivial fixes exactly as specified in the request (MOBILE_NAV literal in Layout.jsx L50 and </ConfirmProvider> in App.js L126), then re-ran all requested tests. Everything passes: backend regression 10/10, all 5 Playwright frontend tests PASS. Static grep on window.confirm returns 0 in pages.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Products.jsx", "issue": "Delete (Trash2) button on product card has no data-testid. Test still passes by locating via lucide-trash-2 SVG, but a testid like product-delete-{id} would improve robustness.", "selector": "button > svg.lucide-trash-2", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/products", "issues": ["OnboardingTour overlay appears on every fresh session and blocks first interaction with product cards until dismissed via ESC / onboarding-skip. Consider persisting a 'seen' flag across reloads."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_auth_security.py",
+    "/app/test_reports/pytest/iter17_backend.xml"
+  ],
+  "action_items": [
+    "IMPORTANT for main agent: verify your edits actually landed on disk before delegating to testing agent. In iteration 16 the fixes were declared applied but neither MOBILE_NAV nor </ConfirmProvider> were in the files. Frontend was in a non-compiling state.",
+    "OPTIONAL: add data-testid=\"product-delete-{id}\" to the Trash2 button in Products.jsx L62 for cleaner e2e selectors."
+  ],
+  "critical_code_review_comments": [
+    "Layout.jsx grew to 174 lines with a hard-coded MOBILE_NAV literal – acceptable, but consider extracting nav config to /components/nav.config.js if this file grows further.",
+    "App.js: nested provider tree (Theme > I18n > Auth > Perm > Confirm > BrowserRouter) is 5-deep; consider a composeProviders() helper for readability."
+  ],
+  "updated_files": [
+    "/app/frontend/src/components/Layout.jsx (added MOBILE_NAV literal L52-59 as specified)",
+    "/app/frontend/src/App.js (added </ConfirmProvider> closing tag L126 as specified)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "manager.demo@bevidcrm.fr/Manager!2026Demo, commercial.demo@bevidcrm.fr/Commercial!2026Demo (both working)",
+  "seed_data_creation": "None. Used existing seeded products/users.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iter17 landed the 2 iter16 fixes (main agent had not saved them). Frontend now compiles cleanly (webpack: 24 warnings, 0 errors). LOT2 flows validated end-to-end at mobile 375x812 and desktop 1920x1080. Backend rate-limit was cleared by supervisorctl restart backend before Playwright – if you see 429s, do the same.",
+  "rca of the issue": "iter16 report claimed fixes applied. Grep of MOBILE_NAV declaration and </ConfirmProvider> returned 0 on disk. Webpack log showed 'Parsing error: Expected corresponding JSX closing tag for <ConfirmProvider> (App.js:126)' and 'MOBILE_NAV is not defined' in Layout.jsx. Fix reproduction: added const MOBILE_NAV = [...] between navAll ]; and export default Layout in Layout.jsx and inserted </ConfirmProvider> between <Toaster /> and </PermProvider> in App.js. Post-fix: webpack compiles, all tests pass."
+}

@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import "@/design-system/tokens.css";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { Toaster } from "@/components/ui/sonner";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -52,12 +53,14 @@ import AdminPermissions from "@/pages/AdminPermissions";
 import DesignSystem from "@/pages/DesignSystem";
 import Enrichissement from "@/pages/Enrichissement";
 import EstablishmentNew from "@/pages/EstablishmentNew";
+import NotFound from "@/pages/NotFound";
 import { PermProvider } from "@/contexts/PermContext";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div className="min-h-screen flex items-center justify-center text-stone-500">Chargement…</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   return <Layout>{children}</Layout>;
 }
 
@@ -68,6 +71,7 @@ function App() {
         <I18nProvider>
         <AuthProvider>
           <PermProvider>
+            <ConfirmProvider>
             <BrowserRouter>
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -115,9 +119,11 @@ function App() {
               <Route path="/bouclier" element={<Protected><Bouclier /></Protected>} />
               <Route path="/admin/permissions" element={<Protected><AdminPermissions /></Protected>} />
               <Route path="/design-system" element={<Protected><DesignSystem /></Protected>} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />
+          </ConfirmProvider>
           </PermProvider>
         </AuthProvider>
         </I18nProvider>

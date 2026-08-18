@@ -11,6 +11,7 @@ import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChar
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
 import PuceEtat from "@/components/system/PuceEtat";
+import OfflineBanner from "@/components/OfflineBanner";
 
 // key = clé i18n label, feature = clé permission serveur (source de vérité pour visibilité)
 const navAll = [
@@ -23,6 +24,7 @@ const navAll = [
   { to: "/products", key: "products", feature: "page:products", icon: Wine },
   { to: "/orders", key: "orders", feature: "page:orders", icon: ShoppingCart },
   { to: "/tours", key: "tours", feature: "page:tours", icon: RouteIcon },
+  { to: "/tournee", key: "tournee", feature: "page:tours", icon: RouteIcon },
   { to: "/stock", key: "stock", feature: "page:stock", icon: Warehouse },
   { to: "/containers", key: "containers", feature: "page:stock", icon: QrCode },
   { to: "/scan", key: "scan", feature: "page:stock", icon: QrCode },
@@ -45,6 +47,16 @@ const navAll = [
   { to: "/agents", key: "agents", feature: "page:users", icon: UserCog },
   { to: "/admin/couts", key: "costs", feature: "product:view_cost", icon: Coins },
 ];
+
+// Mobile bottom bar — 5 gestes métier fixes
+const MOBILE_NAV = [
+  { to: "/tournee", key: "tournee", label: "Ma tournée", icon: RouteIcon },
+  { to: "/visit", key: "visit", label: "Visite", icon: ClipboardCheck },
+  { to: "/scan", key: "scan", label: "Scanner", icon: QrCode },
+  { to: "/clients", key: "clients", label: "Clients", icon: Users },
+  { to: "/", key: "dashboard", label: "Tableau", icon: LayoutDashboard },
+];
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
@@ -131,20 +143,22 @@ export default function Layout({ children }) {
 
       {/* Main */}
       <main className="flex-1 md:ml-0 pt-16 md:pt-0 pb-20 md:pb-0 overflow-x-hidden">
+        <OfflineBanner />
         <div className="max-w-7xl mx-auto p-4 md:p-8">
           {children}
         </div>
       </main>
 
-      {/* Mobile bottom tab bar (5 primary actions, thumb-zone) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-700 flex justify-around py-2 pb-safe">
-        {nav.slice(0, 5).map(({ to, key, icon: Icon }) => {
-          const active = loc.pathname === to;
+      {/* Mobile bottom tab bar — 5 gestes métier fixes, jamais dérivés de la nav desktop */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-700 flex justify-around py-2 pb-safe" data-testid="mobile-bottom-nav">
+        {MOBILE_NAV.map(({ to, key, label, icon: Icon }) => {
+          const active = loc.pathname === to || (to !== "/" && loc.pathname.startsWith(to));
           return (
             <button key={to} onClick={() => nav_(to)} data-testid={`nav-mobile-${key}`}
+              aria-label={label}
               className={`flex flex-col items-center gap-0.5 px-2 py-1 min-w-[48px] min-h-[48px] ${active ? "text-[#4A154B] dark:text-[#B076B4]" : "text-stone-500 dark:text-stone-400"}`}>
               <Icon size={22} strokeWidth={1.75} />
-              <span className="text-[10px] font-medium">{t(key)}</span>
+              <span className="text-[10px] font-medium">{label}</span>
             </button>
           );
         })}

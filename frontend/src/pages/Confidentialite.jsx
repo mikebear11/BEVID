@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { ShieldCheck, MapPin, Mic, Database, FileDown, Trash2 } from "lucide-react";
 import PuceEtat from "@/components/system/PuceEtat";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 export default function Confidentialite() {
   const { user } = useAuth();
@@ -13,6 +14,7 @@ export default function Confidentialite() {
   const [audit, setAudit] = useState([]);
   const [clientId, setClientId] = useState("");
   const [saving, setSaving] = useState(false);
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     api.get("/org/settings").then(r => setSettings(r.data));
@@ -49,7 +51,7 @@ export default function Confidentialite() {
 
   const deleteClient = async () => {
     if (!clientId) return;
-    if (!window.confirm(`Supprimer DÉFINITIVEMENT toutes les données du contact ${clientId} ? Irréversible.`)) return;
+    if (!(await confirm({ title: "Supprimer les données du contact ?", message: `Toutes les données du contact ${clientId} seront supprimées définitivement. Cette action est irréversible.`, confirmLabel: "Supprimer définitivement", tone: "danger" }))) return;
     try {
       const { data } = await api.delete(`/rgpd/clients/${clientId}`);
       toast.success(`Contact supprimé (${data.orders_deleted} commandes, ${data.visits_deleted} visites)`);
@@ -60,7 +62,7 @@ export default function Confidentialite() {
   };
 
   const purgeVoice = async () => {
-    if (!window.confirm("Purger les transcriptions vocales au-delà de la période de rétention ?")) return;
+    if (!(await confirm({ title: "Purger les transcriptions vocales ?", message: "Toutes les transcriptions au-delà de la période de rétention seront supprimées.", confirmLabel: "Purger", tone: "danger" }))) return;
     const { data } = await api.post("/admin/voice/purge");
     toast.success(`${data.purged} transcriptions purgées (rétention ${data.cutoff_days}j)`);
   };

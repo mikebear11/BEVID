@@ -2,10 +2,12 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Trash2, Wine, Beer, Layers } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 const CATS = ["vin", "biere", "spiritueux", "soft", "eau", "autre"];
 
 export default function Products() {
+  const { confirm } = useConfirm();
   const [items, setItems] = useState([]);
   const [show, setShow] = useState(false);
   const [hectoFor, setHectoFor] = useState(null);
@@ -30,7 +32,11 @@ export default function Products() {
       load();
     } catch { toast.error("Erreur"); }
   };
-  const del = async (id) => { if (!window.confirm("Supprimer ?")) return; await api.delete(`/products/${id}`); load(); };
+  const del = async (id) => {
+    const ok = await confirm({ title: "Supprimer ce produit ?", message: "Cette action ne peut pas être annulée.", confirmLabel: "Supprimer", tone: "danger" });
+    if (!ok) return;
+    await api.delete(`/products/${id}`); load();
+  };
 
   return (
     <div className="space-y-6" data-testid="products-page">

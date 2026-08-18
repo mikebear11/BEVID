@@ -141,9 +141,10 @@ export function I18nProvider({ children }) {
     return dict[browser] ? browser : "fr";
   });
 
-  // Sync côté serveur si connecté
+  // Sync côté serveur si connecté + persistance + <html lang> dynamique
   useEffect(() => {
     localStorage.setItem("crm_lang", lang);
+    try { document.documentElement.setAttribute("lang", lang); } catch {}
     if (localStorage.getItem("crm_token")) {
       api.put("/auth/language", { language: lang }).catch(() => {});
     }

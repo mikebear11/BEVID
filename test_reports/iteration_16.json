@@ -1,0 +1,57 @@
+{
+  "summary": "Regression LOT1 backend OK (10 PASS + 1 SKIP voice = 100% du périmètre attendu, aucune régression). LOT2 frontend BLOQUÉ : le bundle CRA NE COMPILE PLUS suite à deux régressions critiques introduites depuis iteration_15. (1) App.js — la balise <ConfirmProvider> est ouverte l.74 mais jamais fermée → SyntaxError babel-loader qui empêche tout rendu ('Compiled with problems' écran rouge dès /login). (2) Layout.jsx — l.144 utilise MOBILE_NAV.map(...) alors que la constante MOBILE_NAV n'est PAS déclarée dans le fichier (grep = 1 occurrence, celle du .map). Aucun tableau littéral MOBILE_NAV exporté, contrairement à ce que l'utilisateur exigeait explicitement. Résultat : même après fix App.js, Layout crasherait au premier render (ReferenceError). Aucun test Playwright n'a pu être exécuté (login/mobile-nav/i18n/NotFound/deep-link/ConfirmDialog). Static grep : 5 autres items du LOT2 sont OK (OfflineBanner monté, NotFound + route catch-all, viewport corrigé, Login a11y ids+autoComplete, i18n setLanguage présent). MAIS window.confirm n'a PAS été éliminé : Couts.jsx ligne 54 et 64 le contiennent encore (item 11sexies 'les 5 remplacées par useConfirm' → 2 restantes, 3 remplacées).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/voice/transcribe", "issue": "Test SKIP quand pytest-xdist scheduling le met après rate-limit login (rate-limit IP résiduel). Déjà documenté iteration_15, non-bloquant."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "App.js", "issue": "SyntaxError: <ConfirmProvider> ouvert l.74 jamais fermé — 'Expected corresponding JSX closing tag for <ConfirmProvider>.' à l.126. Le bundle ne compile pas, écran d'erreur webpack rouge sur toutes les routes.", "selector": "N/A (compile error)", "priority": "CRITICAL"},
+      {"component": "Layout.jsx", "issue": "Utilise MOBILE_NAV.map à l.144 mais la constante MOBILE_NAV N'EST PAS DÉCLARÉE dans le fichier (grep -c MOBILE_NAV = 1). ReferenceError garanti dès qu'un utilisateur atteint le layout. L'item A du review_request exige un tableau littéral MOBILE_NAV avec 5 entrées fixes /tournee /visit /scan /clients / — il est manquant, pas 'toujours dérivé de nav.slice'.", "selector": "[data-testid=mobile-bottom-nav]", "priority": "CRITICAL"},
+      {"component": "Couts.jsx", "issue": "window.confirm encore présent aux lignes 54 et 64 (2 occurrences). L'item 11sexies exigeait 0 window.confirm dans /app/frontend/src/pages/*.jsx. useConfirm/ConfirmDialog non appliqué sur Couts.", "selector": "N/A", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "TOUS (login, deep-link, mobile-nav, i18n switch, NotFound, ConfirmDialog produits)", "issue": "Non testables — bundle ne compile pas (voir App.js).", "affected_selectors": ["[data-testid=login-email]", "[data-testid=mobile-bottom-nav]", "[data-testid=confirm-dialog]", "[data-testid=lang-select]"]}
+    ],
+    "design_issues": []
+  },
+  "static_checks_results": {
+    "OK": [
+      "OfflineBanner importé (Layout.jsx l.14) et monté en tête de <main> (l.136)",
+      "NotFound.jsx existe + App.js l.122 <Route path='*' element={<NotFound />} />",
+      "index.html viewport contient viewport-fit=cover, aucun maximum-scale=1 ni user-scalable=no",
+      "Login.jsx : id='login-email' + htmlFor='login-email' + autoComplete='username email' sur input email, autoComplete='current-password' sur PasswordInput"
+    ],
+    "FAIL": [
+      "Layout.jsx : MOBILE_NAV utilisé mais JAMAIS déclaré (const MOBILE_NAV = [ ... ] absent). Seul navAll (30 entrées desktop) existe. Aucune slice(0,5) non plus — donc mobile bottom nav crashe au render.",
+      "App.js : <ConfirmProvider> non fermé — SyntaxError bloquant.",
+      "Couts.jsx : 2 window.confirm restants (l.54, l.64)."
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_auth_security.py",
+    "/app/test_reports/pytest/iteration_16.xml"
+  ],
+  "action_items": [
+    "URGENT App.js : ajouter </ConfirmProvider> entre </BrowserRouter> et </PermProvider> (ou juste avant </PermProvider> selon ordre voulu) pour rétablir la compilation.",
+    "URGENT Layout.jsx : ajouter la déclaration littérale const MOBILE_NAV = [ {to:'/tournee', key:'tournee', label:'Ma tournée', icon: RouteIcon}, {to:'/visit', key:'visit', label:'Visite', icon: ClipboardCheck}, {to:'/scan', key:'scan', label:'Scanner', icon: QrCode}, {to:'/clients', key:'clients', label:'Clients', icon: Users}, {to:'/', key:'dashboard', label:'Tableau', icon: LayoutDashboard} ]; (exactement dans cet ordre, testids nav-mobile-{tournee,visit,scan,clients,dashboard}).",
+    "Couts.jsx : remplacer les 2 window.confirm (l.54 validation coûts, l.64 réinvalidation) par useConfirm() ConfirmDialog — objectif 0 occurrence pour boucler item 11sexies.",
+    "Après fixes → relancer testing agent pour Playwright complet (login demo, /clients deep-link, mobile 375x812 bottom nav labels, i18n html.lang, /zzz-inexistant NotFound, ConfirmDialog produits)."
+  ],
+  "critical_code_review_comments": [
+    "REGRESSION MAJEURE vs iteration_15 : le fix demandé (MOBILE_NAV littéral + OfflineBanner) a été à moitié fait — OfflineBanner OK mais MOBILE_NAV a été SUPPRIMÉ (ni slice ni littéral) au lieu d'être ajouté. Le fichier va crasher en runtime.",
+    "App.js JSX unbalanced non détecté avant push — installer un lint pre-commit (eslint-plugin-react + parser) minimum sur JSX balance.",
+    "Item 11sexies annoncé '5 remplacées par useConfirm' est faux : Couts.jsx contient encore 2 window.confirm — vérifier le compteur (probablement 3 remplacements sur 5 total).",
+    "Layout.jsx à 161 lignes est OK côté taille mais le mélange navAll (desktop, permission-driven) + MOBILE_NAV littéral fixe doit être documenté en commentaire pour éviter futures régressions."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (10/10 pertinents, 1 SKIP env)", "frontend": "0% (bundle non compilé, aucun test exécutable)"},
+  "test_credentials": "manager.demo@bevidcrm.fr/Manager!2026Demo, commercial.demo@bevidcrm.fr/Commercial!2026Demo — non utilisées car frontend down.",
+  "seed_data_creation": "Aucune — tests backend rejoués sur données existantes.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Après que E1 aura (1) fermé <ConfirmProvider> dans App.js, (2) déclaré MOBILE_NAV littéral dans Layout.jsx, (3) éliminé les 2 window.confirm de Couts.jsx — refaire un test Playwright complet des 7 items LOT2 (login, deep-link /clients, mobile bottom nav labels, i18n html.lang switch, /zzz-inexistant NotFound authenticated+public, ConfirmDialog delete produit). Backend LOT1 déjà revalidé iteration_16.xml — pas besoin de rejouer sauf changement server.py.",
+  "rca_of_the_issue": "iteration_15 a livré 'OfflineBanner monté + MOBILE_NAV littéral' mais le patch final sur Layout.jsx a réécrit le fichier en SUPPRIMANT le slice(0,5) SANS ajouter la constante MOBILE_NAV littérale — puis App.js a été touché pour ajouter <ConfirmProvider> autour des routes mais la fermeture </ConfirmProvider> a été oubliée. Reproduction : `curl <frontend>/login` → HTML CRA affiche 'Compiled with problems' + 'Expected corresponding JSX closing tag for <ConfirmProvider>'. Mitigation : les 2 correctifs sont mécaniques (voir action_items) et prennent <2 min. Aucun impact backend."
+}
