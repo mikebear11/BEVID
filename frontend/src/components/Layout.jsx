@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
+import { usePerms } from "@/contexts/PermContext";
 import VoiceFAB from "@/components/VoiceFAB";
 import SyncIndicator from "@/components/SyncIndicator";
 import BevidLogo from "@/components/BevidLogo";
@@ -9,45 +10,54 @@ import OnboardingTour from "@/components/OnboardingTour";
 import { LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog, LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon, Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText, Landmark, Compass, Radio, AlertOctagon, Shield, Database } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 
+// key = clé i18n label, feature = clé permission serveur (source de vérité pour visibilité)
 const navAll = [
-  { to: "/", key: "dashboard", icon: LayoutDashboard, roles: ["manager", "commercial"] },
-  { to: "/visit", key: "visit", icon: ClipboardCheck, roles: ["manager", "commercial"] },
-  { to: "/planning", key: "planning", icon: Calendar, roles: ["manager", "commercial"] },
-  { to: "/pipeline", key: "pipeline", icon: Columns, roles: ["manager", "commercial"] },
-  { to: "/deals", key: "deals", icon: Target, roles: ["manager", "commercial"] },
-  { to: "/clients", key: "clients", icon: Users, roles: ["manager", "commercial"] },
-  { to: "/products", key: "products", icon: Wine, roles: ["manager", "commercial"] },
-  { to: "/orders", key: "orders", icon: ShoppingCart, roles: ["manager", "commercial"] },
-  { to: "/tours", key: "tours", icon: RouteIcon, roles: ["manager", "commercial"] },
-  { to: "/stock", key: "stock", icon: Warehouse, roles: ["manager", "commercial"] },
-  { to: "/containers", key: "containers", icon: QrCode, roles: ["manager", "commercial"] },
-  { to: "/scan", key: "scan", icon: QrCode, roles: ["manager", "commercial"] },
-  { to: "/drm", key: "drm", icon: FileText, roles: ["manager"] },
-  { to: "/reports", key: "reports", icon: BarChart3, roles: ["manager"] },
-  { to: "/paiements", key: "payments", icon: Banknote, roles: ["manager"] },
-  { to: "/rapprochement", key: "reconciliation", icon: Landmark, roles: ["manager"] },
-  { to: "/prospection", key: "prospecting", icon: Compass, roles: ["manager", "commercial"] },
-  { to: "/radar", key: "radar", icon: Radio, roles: ["manager"] },
-  { to: "/veille", key: "veille", icon: AlertOctagon, roles: ["manager"] },
-  { to: "/bouclier", key: "bouclier", icon: Shield, roles: ["manager"] },
-  { to: "/sources-donnees", key: "sources", icon: Database, roles: ["manager"] },
-  { to: "/monthly-review", key: "monthly", icon: Trophy, roles: ["manager"] },
-  { to: "/smart-goals", key: "smart", icon: Sparkles, roles: ["manager", "commercial"] },
-  { to: "/agents", key: "agents", icon: UserCog, roles: ["manager"] },
-  { to: "/admin/users", key: "users", icon: UserCog, roles: ["manager"] },
-  { to: "/admin/couts", key: "costs", icon: Coins, roles: ["manager"] },
-  { to: "/connectors", key: "connectors", icon: Plug, roles: ["manager"] },
-  { to: "/confidentialite", key: "privacy", icon: ShieldCheck, roles: ["manager", "commercial"] },
-  { to: "/settings", key: "settings", icon: SettingsIcon, roles: ["manager"] },
+  { to: "/", key: "dashboard", feature: "page:dashboard", icon: LayoutDashboard },
+  { to: "/visit", key: "visit", feature: "page:visits", icon: ClipboardCheck },
+  { to: "/planning", key: "planning", feature: "page:visits", icon: Calendar },
+  { to: "/pipeline", key: "pipeline", feature: "page:clients", icon: Columns },
+  { to: "/deals", key: "deals", feature: "page:clients", icon: Target },
+  { to: "/clients", key: "clients", feature: "page:clients", icon: Users },
+  { to: "/products", key: "products", feature: "page:products", icon: Wine },
+  { to: "/orders", key: "orders", feature: "page:orders", icon: ShoppingCart },
+  { to: "/tours", key: "tours", feature: "page:tours", icon: RouteIcon },
+  { to: "/stock", key: "stock", feature: "page:stock", icon: Warehouse },
+  { to: "/containers", key: "containers", feature: "page:stock", icon: QrCode },
+  { to: "/scan", key: "scan", feature: "page:stock", icon: QrCode },
+  { to: "/drm", key: "drm", feature: "page:stock", icon: FileText },
+  { to: "/reports", key: "reports", feature: "page:reports", icon: BarChart3 },
+  { to: "/paiements", key: "payments", feature: "page:paiements", icon: Banknote },
+  { to: "/rapprochement", key: "reconciliation", feature: "page:rapprochement", icon: Landmark },
+  { to: "/prospection", key: "prospecting", feature: "page:prospection", icon: Compass },
+  { to: "/radar", key: "radar", feature: "page:radar", icon: Radio },
+  { to: "/veille", key: "veille", feature: "page:veille", icon: AlertOctagon },
+  { to: "/bouclier", key: "bouclier", feature: "page:bouclier", icon: Shield },
+  { to: "/sources-donnees", key: "sources", feature: "page:sources-donnees", icon: Database },
+  { to: "/admin/users", key: "users", feature: "page:users", icon: UserCog },
+  { to: "/admin/permissions", key: "permissions", feature: "page:users", icon: ShieldCheck },
+  { to: "/integrations", key: "integrations", feature: "page:integrations", icon: Plug },
+  { to: "/settings", key: "settings", feature: "page:settings", icon: SettingsIcon },
+  { to: "/privacy", key: "privacy", feature: "page:privacy", icon: ShieldCheck },
+  { to: "/monthly-review", key: "monthly", feature: "page:reports", icon: Trophy },
+  { to: "/smart-goals", key: "smart", feature: "page:dashboard", icon: Sparkles },
+  { to: "/agents", key: "agents", feature: "page:users", icon: UserCog },
+  { to: "/admin/couts", key: "costs", feature: "product:view_cost", icon: Coins },
+  { to: "/connectors", key: "connectors", feature: "page:integrations", icon: Plug },
 ];
+import NotificationBell from "@/components/NotificationBell";
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
+  const { has, loading: permsLoading } = usePerms();
   const loc = useLocation();
   const nav_ = useNavigate();
   const role = user?.role || "commercial";
-  const nav = navAll.filter(n => n.roles.includes(role));
+  // Filtre par PERMISSION (source de vérité serveur). Pendant le loading initial,
+  // fallback conservateur sur le rôle manager pour ne pas cacher la nav des managers.
+  const nav = permsLoading
+    ? navAll.filter(() => role === "manager")
+    : navAll.filter(n => has(n.feature));
 
   return (
     <div className="flex min-h-screen">

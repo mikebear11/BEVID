@@ -68,7 +68,7 @@ export default function Deals() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="card-crm p-4"><p className="overline">Pipeline pondéré</p><div className="font-display text-2xl text-[#4A154B]">{totalPipeline.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €</div></div>
+        <div className="card-crm p-4"><p className="overline">Deal pondérée</p><div className="font-display text-2xl text-[#4A154B]">{totalPipeline.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €</div></div>
         <div className="card-crm p-4"><p className="overline">Gagné (total)</p><div className="font-display text-2xl text-[#2D5A4C]">{won.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €</div></div>
         <div className="card-crm p-4"><p className="overline">Deals actifs</p><div className="font-display text-2xl">{deals.filter(d => d.stage !== "perdu" && d.stage !== "gagne").length}</div></div>
       </div>

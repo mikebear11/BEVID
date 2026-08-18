@@ -46,6 +46,8 @@ import Prospection from "@/pages/Prospection";
 import Radar from "@/pages/Radar";
 import Veille from "@/pages/Veille";
 import Bouclier from "@/pages/Bouclier";
+import AdminPermissions from "@/pages/AdminPermissions";
+import { PermProvider } from "@/contexts/PermContext";
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
@@ -59,7 +61,8 @@ function App() {
     <div className="App font-body">
       <I18nProvider>
         <AuthProvider>
-          <BrowserRouter>
+          <PermProvider>
+            <BrowserRouter>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -102,9 +105,11 @@ function App() {
               <Route path="/radar" element={<Protected><Radar /></Protected>} />
               <Route path="/veille" element={<Protected><Veille /></Protected>} />
               <Route path="/bouclier" element={<Protected><Bouclier /></Protected>} />
+              <Route path="/admin/permissions" element={<Protected><AdminPermissions /></Protected>} />
             </Routes>
           </BrowserRouter>
           <Toaster position="top-right" />
+          </PermProvider>
         </AuthProvider>
       </I18nProvider>
     </div>

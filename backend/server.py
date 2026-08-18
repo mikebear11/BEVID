@@ -3921,6 +3921,64 @@ from integrations import rappelconso as _rc
 from integrations import vies as _vies
 from integrations.naf_chr import NAF_CHR_SEED, is_chr_code, get_seed_documents as _naf_seed_docs
 from integrations.sources_seed import DATA_SOURCES_SEED
+from permissions import FEATURES, has_feature, effective_permissions
+
+
+def require_feature(key: str):
+    async def _dep(user=Depends(get_current_user)):
+        if not has_feature(user, key):
+            raise HTTPException(403, f"Accès refusé : feature '{key}' non autorisée")
+        return user
+    return _dep
+
+
+@api_router.get("/permissions/features")
+async def list_features(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return FEATURES
+
+
+@api_router.get("/me/permissions")
+async def me_permissions(user=Depends(get_current_user)):
+    return {"role": user.get("role"), "permissions": effective_permissions(user)}
+
+
+@api_router.get("/admin/users/{uid}/permissions")
+async def get_user_permissions(uid: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    target = await db.users.find_one({"id": uid}, {"_id": 0})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    return {"user_id": uid, "role": target.get("role"),
+            "overrides": target.get("feature_overrides") or {},
+            "effective": effective_permissions(target)}
+
+
+@api_router.post("/admin/users/{uid}/permissions")
+async def set_user_permissions(uid: str, data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    if user["id"] == uid:
+        raise HTTPException(400, "Impossible de modifier ses propres permissions (SoD)")
+    target = await db.users.find_one({"id": uid}, {"_id": 0})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    incoming = data.get("overrides") or {}
+    current = target.get("feature_overrides") or {}
+    from permissions import FEATURES_INDEX
+    for k, v in incoming.items():
+        if k not in FEATURES_INDEX:
+            continue
+        if v is None:
+            current.pop(k, None)
+        else:
+            current[k] = bool(v)
+    await db.users.update_one({"id": uid}, {"$set": {"feature_overrides": current, "updated_at": now_iso()}})
+    await audit_log(user["id"], "permissions_updated", {"target_user_id": uid, "changed_keys": list(incoming.keys())})
+    updated = await db.users.find_one({"id": uid}, {"_id": 0})
+    return {"ok": True, "overrides": current, "effective": effective_permissions(updated)}
 
 
 async def _seed_integrations_on_startup():

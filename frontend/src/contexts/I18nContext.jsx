@@ -11,6 +11,7 @@ const dict = {
     settings: "Réglages", smart: "Obj. SMART", users: "Utilisateurs", payments: "Paiements",
     privacy: "Confidentialité", costs: "Coûts de revient", reconciliation: "Rapprochement",
     prospecting: "Prospection", radar: "Radar CHR", veille: "Rappels", bouclier: "Bouclier", sources: "Sources",
+    permissions: "Permissions", monthly: "Bilan mensuel", agents: "Agents", connectors: "Connecteurs",
     // auth
     welcome: "Bienvenue", login: "Connexion", register: "Créer un compte", logout: "Déconnexion",
     email: "Email", password: "Mot de passe", name: "Nom", role: "Rôle", language: "Langue",
