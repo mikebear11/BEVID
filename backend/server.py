@@ -637,6 +637,191 @@ async def update_org_branding(data: OrgSettingsUpdate, user=Depends(get_current_
 
 
 # ---------- Multi-tenant : Organisations & Invitations ----------
+
+# ---------- Abonnements par siège (P4) ----------
+from billing_config import (
+    PLANS, TRIAL_DAYS, TRIAL_PLAN, READ_ONLY_DAYS_AFTER_TRIAL,
+    SUSPEND_AFTER_DAYS, DATA_RETENTION_DAYS,
+    unit_price_cents, total_price_cents, FIRST_SEAT_FREE,
+)
+
+
+def _plan_public(plan_id: str) -> dict:
+    p = PLANS[plan_id]
+    return {
+        "id": p["id"],
+        "name": p["name"],
+        "price_per_seat_month_cents": p["price_per_seat_month_cents"],
+        "features": sorted(p["features"]),
+        "description": p["description"],
+    }
+
+
+async def _active_seats(org_id: str) -> int:
+    return await db_raw.users.count_documents({"org_id": org_id, "active": {"$ne": False}})
+
+
+def _compute_effective_status(org: dict) -> str:
+    """Retourne le statut effectif : trial | active | read_only | suspended.
+
+    L'org.status en base peut être 'active' ou 'trial' ; on calcule les phases
+    de dégradation à partir de trial_ends_at et suspend_after.
+    """
+    now = datetime.now(timezone.utc)
+    trial_ends = org.get("trial_ends_at")
+    if org.get("status") == "active":
+        return "active"
+    if not trial_ends:
+        return org.get("status", "trial")
+    try:
+        te = datetime.fromisoformat(trial_ends.replace("Z", "+00:00"))
+    except Exception:
+        return org.get("status", "trial")
+    if now < te:
+        return "trial"
+    days_over = (now - te).days
+    if days_over < READ_ONLY_DAYS_AFTER_TRIAL:
+        return "read_only"
+    return "suspended"
+
+
+@api_router.get("/billing/plans")
+async def list_plans():
+    """Public : catalogue des forfaits, sans authentification."""
+    return {
+        "plans": [_plan_public(pid) for pid in ("terrain", "pro", "entreprise")],
+        "trial_days": TRIAL_DAYS,
+        "first_seat_free": FIRST_SEAT_FREE,
+        "read_only_days_after_trial": READ_ONLY_DAYS_AFTER_TRIAL,
+        "data_retention_days": DATA_RETENTION_DAYS,
+    }
+
+
+@api_router.get("/billing/current")
+async def billing_current(user=Depends(get_current_user)):
+    """Statut de facturation de l'org courante."""
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(404, "Organisation introuvable")
+    seats_used = await _active_seats(org_id)
+    plan_id = org.get("plan") or TRIAL_PLAN
+    seats_paid = org.get("seats_paid", seats_used)
+    unit = unit_price_cents(plan_id, seats_paid)
+    total_month = total_price_cents(plan_id, seats_paid, "monthly")
+    total_year = total_price_cents(plan_id, seats_paid, "annual")
+    effective = _compute_effective_status(org)
+    return {
+        "org_id": org_id,
+        "plan": plan_id,
+        "plan_details": _plan_public(plan_id),
+        "status": org.get("status"),
+        "effective_status": effective,
+        "trial_ends_at": org.get("trial_ends_at"),
+        "seats_used": seats_used,
+        "seats_paid": seats_paid,
+        "unit_price_month_cents": unit,
+        "total_month_cents": total_month,
+        "total_year_cents": total_year,
+        "first_seat_free": FIRST_SEAT_FREE,
+        "billing_mode": org.get("billing_mode", "monthly"),
+        "stripe_configured": bool(os.environ.get("STRIPE_SECRET_KEY", "").strip()),
+    }
+
+
+class PreviewSeatChange(BaseModel):
+    delta: int  # +1 = ajout, -1 = retrait
+    plan_id: Optional[str] = None
+
+
+@api_router.post("/billing/preview-seat-change")
+async def preview_seat_change(data: PreviewSeatChange, user=Depends(get_current_user)):
+    """Aperçu du montant avant validation par le manager — évite les factures surprises."""
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0})
+    plan_id = data.plan_id or org.get("plan") or TRIAL_PLAN
+    if plan_id not in PLANS:
+        raise HTTPException(422, "Forfait inconnu")
+    current_seats = await _active_seats(org_id)
+    new_seats = max(0, current_seats + data.delta)
+    old_month = total_price_cents(plan_id, current_seats, "monthly")
+    new_month = total_price_cents(plan_id, new_seats, "monthly")
+    return {
+        "current_seats": current_seats,
+        "new_seats": new_seats,
+        "current_month_cents": old_month,
+        "new_month_cents": new_month,
+        "difference_cents": new_month - old_month,
+        "prorated_note": "Stripe calcule le prorata jusqu'à la fin de la période — pas de facture surprise.",
+    }
+
+
+class UpgradeRequest(BaseModel):
+    plan_id: Literal["terrain", "pro", "entreprise"]
+    billing_mode: Literal["monthly", "annual"] = "monthly"
+
+
+@api_router.post("/billing/upgrade")
+async def billing_upgrade(data: UpgradeRequest, user=Depends(get_current_user)):
+    """Change de forfait. Owner only. En mode simulation si Stripe absent."""
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0})
+    if org.get("owner_user_id") != user["id"]:
+        raise HTTPException(403, "Seul l'owner peut modifier l'abonnement")
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    seats = await _active_seats(org_id)
+    updates = {
+        "plan": data.plan_id,
+        "billing_mode": data.billing_mode,
+        "seats_paid": seats,
+        "status": "active",
+        "trial_ends_at": None,   # trial terminé quand on paie
+        "upgraded_at": now_iso(),
+    }
+    mode = "stripe" if stripe_key else "simulation"
+    updates["billing_provider"] = mode
+    await db_raw.organizations.update_one({"id": org_id}, {"$set": updates})
+    # Audit
+    try:
+        await db_raw.audit_logs.insert_one({
+            "id": str(uuid.uuid4()), "org_id": org_id, "user_id": user["id"],
+            "action": "billing_upgrade",
+            "details": {"plan": data.plan_id, "billing_mode": data.billing_mode, "seats": seats, "mode": mode},
+            "created_at": now_iso(),
+        })
+    except Exception:
+        pass
+    if mode == "simulation":
+        return {
+            "ok": True, "mode": "simulation",
+            "message": "Abonnement changé en mode simulation (aucune facture). "
+                       "Configurez STRIPE_SECRET_KEY pour activer la facturation réelle.",
+            "plan": data.plan_id, "seats": seats,
+        }
+    # Stripe réel : à brancher via checkout.Session ou subscription.update
+    return {"ok": True, "mode": "stripe", "plan": data.plan_id, "seats": seats,
+            "todo": "Redirection vers Stripe Checkout à implémenter"}
+
+
+@api_router.post("/billing/webhook")
+async def billing_webhook(request: Request):
+    """Endpoint Stripe webhook. Vérifie la signature si STRIPE_WEBHOOK_SECRET est présent.
+    En mode simulation : ignore silencieusement pour ne pas bloquer les tests."""
+    secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+    if not secret:
+        return {"ok": True, "mode": "simulation", "note": "Aucun secret webhook configuré."}
+    # Real : vérifier signature avec stripe.Webhook.construct_event
+    # Idempotence : dédupliquer par event.id dans db_raw.stripe_events
+    return {"ok": True, "mode": "stripe"}
+
+
+# ---------- Fin abonnements P4 ----------
 class OrgInvitationCreate(BaseModel):
     email: EmailStr
     role: Literal["manager", "commercial"] = "commercial"

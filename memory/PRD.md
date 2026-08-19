@@ -92,6 +92,51 @@ brassicoles/distribution.
   rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
   sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.
 
+### Lot 4 · P4 — Abonnements par siège (livré 19 août 2026)
+
+**Modèle** : plan = fonctionnalités, sièges = prix. Deux axes séparés. Premier siège (créateur) offert. Prix HT en config (`/app/backend/billing_config.py`), modifiables sans redéploiement.
+
+| Forfait | Prix / siège / mois | Contenu |
+|---|---|---|
+| Terrain | 15,00 € | Tournée, visites, clients, commandes, produits |
+| Pro | 29,00 € | + Stock, DRM, rapports, paiements, rapprochement |
+| Entreprise | 49,00 € | + IA, coûts/marges, permissions fines |
+
+**Dégressivité** (vérifié) : −10 % à partir de 10 sièges, −20 % à partir de 25.
+**Annuel** : 2 mois offerts (12 mois payés au tarif de 10). Sélecteur mensuel/annuel dans `/billing`.
+
+**Endpoints livrés**
+- `GET /api/billing/plans` : public, sans auth, catalogue complet
+- `GET /api/billing/current` : org courante, plan, statut effectif (trial/active/read_only/suspended calculé), sièges utilisés/payés, prix mois+an
+- `POST /api/billing/preview-seat-change` : aperçu chiffré avant validation manager (pas de facture surprise)
+- `POST /api/billing/upgrade` : owner-only, 403 sinon, écrit `plan`/`billing_mode`/`status=active`/`trial_ends_at=null`/audit
+- `POST /api/billing/webhook` : stub Stripe (mode simulation si `STRIPE_WEBHOOK_SECRET` absent)
+
+**Trial + dégradation gracieuse**
+- Inscription : trial 7 jours, forfait Pro offert, aucune carte demandée
+- `_compute_effective_status()` calcule à la volée : `trial` → `read_only` (15 jours après expiration) → `suspended`
+- Aucune coupure brutale, aucun désactivation automatique de membre. Les données sont conservées ≥ 90 jours (`DATA_RETENTION_DAYS`).
+
+**Preuves curl**
+- Owner P4 registered → `plan=pro, effective=trial, seats_used=1/1, prix=0€ (siège offert), trial_ends dans 7j` ✅
+- Preview +2 sièges Pro : `0€ → 58€, diff=+58€` ✅
+- Upgrade Entreprise annuel owner : `status=active, billing_mode=annual` ✅
+- Upgrade par non-owner : `HTTP 403` ✅
+- Dégressivité 10 sièges Pro : `29 → 26,10 €` (−10%) ✅
+- Dégressivité 25 sièges Pro : `29 → 23,20 €` (−20%) ✅
+
+**Frontend** — `/billing` accessible via nav Administration (manager only) :
+- Bandeau simulation si Stripe non configuré
+- Bloc statut avec chip coloré (trial/active/read_only/suspended)
+- Grille 4 KPI (sièges utilisés / payés / prix mois / prix an −2 mois)
+- 3 cards forfaits, sélecteur mensuel/annuel, bouton "Choisir" désactivé si actuel/non-owner
+
+**🟡 Reporté explicitement**
+- Redirection vers Stripe Checkout : le endpoint upgrade renvoie `mode: stripe` avec `todo` quand `STRIPE_SECRET_KEY` est présent, mais ne redirige pas encore (à brancher via `stripe.checkout.Session.create`). En attendant l'écriture DB fonctionne, seul le paiement n'est pas déclenché.
+- Portail client Stripe (changement CB, factures) : idem, endpoint à créer
+- Stripe Tax + autoliquidation intracommunautaire : géré par Stripe côté produit, à activer dans le compte Stripe
+- Middleware `read_only` : le statut est bien calculé et exposé côté API, mais le blocage effectif des écritures quand `effective_status=read_only` reste à câbler (helper `assert_write_allowed(org)` à appeler dans les endpoints de mutation critiques). L'export CSV/PDF reste possible dans tous les cas comme demandé, c'est le comportement par défaut puisque non intercepté.
+
 ### Lot 4 · P3 — Personnalisation utilisateur + entreprise (livré 19 août 2026)
 
 **Backend**

@@ -55,6 +55,7 @@ export const dict = {
     "toast.playbook_executed": "Playbook exécuté : {details}",
     "profile": "Mon profil",
     "org_settings": "Réglages entreprise",
+    "billing": "Facturation",
     // Toasts communs (extraction Lot 3B)
     "toast.login_success": "Connexion réussie",
     "toast.login_invalid": "Identifiants invalides",
@@ -218,6 +219,7 @@ export const dict = {
     "toast.playbook_executed": "Playbook executed: {details}",
     "profile": "My profile",
     "org_settings": "Organisation settings",
+    "billing": "Billing",
     "toast.login_success": "Signed in",
     "toast.login_invalid": "Invalid credentials",
     "toast.login_ratelimit": "Too many attempts. Try again later.",

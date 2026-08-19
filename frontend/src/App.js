@@ -63,6 +63,7 @@ const AdminPermissions = lazy(() => import("@/pages/AdminPermissions"));
 const DesignSystem = lazy(() => import("@/pages/DesignSystem"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const OrgSettings = lazy(() => import("@/pages/OrgSettings"));
+const Billing = lazy(() => import("@/pages/Billing"));
 const Enrichissement = lazy(() => import("@/pages/Enrichissement"));
 const EstablishmentNew = lazy(() => import("@/pages/EstablishmentNew"));
 
@@ -141,6 +142,7 @@ function App() {
                         <Route path="/design-system" element={<Protected><DesignSystem /></Protected>} />
                         <Route path="/profile" element={<Protected><Profile /></Protected>} />
                         <Route path="/org/settings" element={<Protected><OrgSettings /></Protected>} />
+                        <Route path="/billing" element={<Protected><Billing /></Protected>} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </Suspense>
