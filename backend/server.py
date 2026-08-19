@@ -174,7 +174,11 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'crm-boisson-secret-2026-change-me')
 JWT_ALGO = "HS256"
 
 client = AsyncIOMotorClient(MONGO_URL)
-db = client[DB_NAME]
+db_raw = client[DB_NAME]
+# Wrapper multi-tenant : filtre org_id automatique sur les collections métier
+from scoped_db import TenantDB, set_current_org, get_current_org, SCOPED_COLLECTIONS
+from tenant_bootstrap import run_tenant_migration, ensure_demo_org, ensure_owner_of_demo, DEMO_ORG_SLUG
+db = TenantDB(db_raw)
 
 app = FastAPI(title="CRM Boisson API")
 api_router = APIRouter(prefix="/api")
@@ -274,6 +278,7 @@ class User(BaseModel):
     language: str = "fr"
     active: bool = True
     must_reset: bool = False
+    org_id: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 class Client(BaseModel):
@@ -370,9 +375,11 @@ def hash_password(pwd: str) -> str:
 def verify_password(pwd: str, hashed: str) -> bool:
     return bcrypt.checkpw(pwd.encode(), hashed.encode())
 
-def create_token(user_id: str) -> str:
+def create_token(user_id: str, org_id: Optional[str] = None) -> str:
     # Session longue (90j) pour éviter les reconnexions terrain
     payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=90)}
+    if org_id:
+        payload["org"] = org_id
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
 async def get_current_user(
@@ -389,9 +396,14 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
         user_id = payload.get("sub")
-        user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+        # IMPORTANT : lookup direct sur db_raw pour retrouver l'utilisateur SANS
+        # scope (l'org n'est pas encore posé dans le contextvar).
+        user = await db_raw.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
         if not user:
             raise HTTPException(401, "Utilisateur introuvable")
+        # Positionne le contextvar org : TOUTES les requêtes DB via `db` seront
+        # désormais automatiquement filtrées par org_id.
+        set_current_org(user.get("org_id"))
         return user
     except jwt.PyJWTError:
         raise HTTPException(401, "Token invalide")
@@ -413,24 +425,54 @@ async def register(data: UserRegister, request: Request, response: Response):
     if not data.name or not data.name.strip():
         errors["name"] = "Nom requis."
     if errors:
-        # Format unifié avec le gestionnaire global : {errors:{field:msg}} au root
         return JSONResponse(status_code=422, content={"errors": errors})
 
-    existing = await db.users.find_one({"email": data.email})
+    # Lookup direct sur db_raw : on cherche dans toutes les orgs
+    existing = await db_raw.users.find_one({"email": data.email})
     if existing:
         raise HTTPException(400, "Email déjà utilisé")
 
-    # SÉCURITÉ CRITIQUE : le rôle est ignoré depuis le payload public.
-    # Un compte manager ne peut être créé que via une page d'administration protégée.
-    user = User(email=data.email, name=data.name, role="commercial", language=data.language)
+    # Multi-tenant : chaque inscription publique crée SA propre organisation.
+    # L'auteur devient owner+manager. Aucun rejoint d'org existante en public.
+    org_id = str(uuid.uuid4())
+    org_name = (data.name or "").strip() or data.email.split("@")[0]
+    org_slug_base = re.sub(r"[^a-z0-9]+", "-", org_name.lower()).strip("-") or "org"
+    # Slug unique
+    slug = org_slug_base
+    n = 2
+    while await db_raw.organizations.find_one({"slug": slug}):
+        slug = f"{org_slug_base}-{n}"; n += 1
+    trial_ends = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    org_doc = {
+        "id": org_id,
+        "name": f"{org_name} · CRM",
+        "slug": slug,
+        "created_at": now_iso(),
+        "owner_user_id": None,   # rempli ci-dessous
+        "plan": "pro",           # essai sur le forfait Pro
+        "trial_ends_at": trial_ends,
+        "status": "trial",
+    }
+    await db_raw.organizations.insert_one(org_doc)
+
+    # Rôle forcé manager pour le créateur d'org (privilège limité à SON org)
+    user = User(email=data.email, name=data.name, role="manager", language=data.language)
     doc = user.model_dump()
     doc["password"] = hash_password(data.password)
     doc["terms_accepted_at"] = now_iso()
     doc["terms_accepted_ip"] = ip
-    await db.users.insert_one(doc)
-    token = create_token(user.id)
+    doc["org_id"] = org_id
+    await db_raw.users.insert_one(doc)
+    # Owner de l'org = ce user
+    await db_raw.organizations.update_one({"id": org_id}, {"$set": {"owner_user_id": user.id}})
+
+    token = create_token(user.id, org_id)
     _set_auth_cookie(response, token)
-    return {"token": token, "user": user.model_dump()}
+    set_current_org(org_id)
+    out = user.model_dump()
+    out["org_id"] = org_id
+    org_doc.pop("_id", None)
+    return {"token": token, "user": out, "organization": org_doc}
 
 @api_router.put("/auth/language")
 async def update_language(data: dict, user=Depends(get_current_user)):
@@ -444,16 +486,18 @@ async def update_language(data: dict, user=Depends(get_current_user)):
 async def login(data: UserLogin, request: Request, response: Response):
     ip = _client_ip(request)
     email_norm = data.email.strip().lower()
-    # Rate limit login : progressif par compte + garde-fou IP très permissif
     _rate_limit_check_login(ip=ip, email=email_norm)
 
-    doc = await db.users.find_one({"email": email_norm})
+    # Lookup direct sur db_raw : cross-org lookup par email
+    doc = await db_raw.users.find_one({"email": email_norm})
     if not doc or not verify_password(data.password, doc["password"]):
         _rate_limit_record_login(ip=ip, email=email_norm)
         raise HTTPException(401, "Identifiants invalides")
     _rate_limit_clear_login(ip=ip, email=email_norm)
-    token = create_token(doc["id"])
+    org_id = doc.get("org_id")
+    token = create_token(doc["id"], org_id)
     _set_auth_cookie(response, token)
+    set_current_org(org_id)
     doc.pop("password", None)
     doc.pop("_id", None)
     return {"token": token, "user": doc}
@@ -464,6 +508,146 @@ async def logout(response: Response):
     """Efface la cookie d'authentification. Idempotent : ne renvoie jamais d'erreur."""
     _clear_auth_cookie(response)
     return {"ok": True}
+
+
+# ---------- Multi-tenant : Organisations & Invitations ----------
+class OrgInvitationCreate(BaseModel):
+    email: EmailStr
+    role: Literal["manager", "commercial"] = "commercial"
+
+
+def _generate_invitation_token() -> str:
+    return uuid.uuid4().hex + uuid.uuid4().hex[:16]
+
+
+@api_router.get("/org/current")
+async def get_current_org_info(user=Depends(get_current_user)):
+    """Retourne l'organisation courante du user connecté."""
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation rattachée")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(404, "Organisation introuvable")
+    return org
+
+
+@api_router.post("/org/invitations")
+async def create_invitation(data: OrgInvitationCreate, user=Depends(get_current_user)):
+    """Manager uniquement : crée un jeton d'invitation à usage unique, valable 7 jours.
+    Envoi email = à brancher via Resend/Twilio (P5). Ici on retourne le lien pour test.
+    """
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(400, "Compte sans organisation")
+    token = _generate_invitation_token()
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "org_id": org_id,
+        "email": data.email.lower(),
+        "role": data.role,
+        "token": token,
+        "created_at": now_iso(),
+        "created_by": user["id"],
+        "expires_at": expires_at,
+        "accepted_at": None,
+        "accepted_by": None,
+        "revoked_at": None,
+    }
+    await db_raw.invitations.insert_one(doc)
+    doc.pop("_id", None)
+    return {"invitation": doc}
+
+
+@api_router.get("/org/invitations")
+async def list_invitations(user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    org_id = user.get("org_id")
+    items = await db_raw.invitations.find(
+        {"org_id": org_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    return items
+
+
+@api_router.post("/org/invitations/{inv_id}/revoke")
+async def revoke_invitation(inv_id: str, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    res = await db_raw.invitations.update_one(
+        {"id": inv_id, "org_id": user.get("org_id"), "accepted_at": None},
+        {"$set": {"revoked_at": now_iso()}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Invitation introuvable ou déjà acceptée")
+    return {"ok": True}
+
+
+class InvitationAccept(BaseModel):
+    token: str
+    password: str
+    name: Optional[str] = None
+
+
+@api_router.post("/auth/accept-invitation")
+async def accept_invitation(data: InvitationAccept, request: Request, response: Response):
+    inv = await db_raw.invitations.find_one({"token": data.token, "_id": {"$exists": True}}) \
+          or await db_raw.invitations.find_one({"token": data.token})
+    if not inv:
+        raise HTTPException(404, "Invitation introuvable")
+    if inv.get("accepted_at"):
+        raise HTTPException(400, "Invitation déjà utilisée")
+    if inv.get("revoked_at"):
+        raise HTTPException(400, "Invitation révoquée")
+    if inv.get("expires_at") and inv["expires_at"] < now_iso():
+        raise HTTPException(400, "Invitation expirée")
+    if len(data.password) < 10:
+        return JSONResponse(status_code=422, content={"errors": {"password": "10 caractères minimum."}})
+
+    existing = await db_raw.users.find_one({"email": inv["email"]})
+    if existing:
+        raise HTTPException(400, "Email déjà utilisé")
+
+    user = User(
+        email=inv["email"],
+        name=(data.name or inv["email"].split("@")[0]),
+        role=inv["role"],
+        language="fr",
+    )
+    doc = user.model_dump()
+    doc["password"] = hash_password(data.password)
+    doc["org_id"] = inv["org_id"]
+    doc["invited_by"] = inv.get("created_by")
+    await db_raw.users.insert_one(doc)
+
+    # Jeton d'invitation invalidé (usage unique)
+    await db_raw.invitations.update_one(
+        {"id": inv["id"]},
+        {"$set": {"accepted_at": now_iso(), "accepted_by": user.id}},
+    )
+
+    token = create_token(user.id, inv["org_id"])
+    _set_auth_cookie(response, token)
+    set_current_org(inv["org_id"])
+    out = user.model_dump()
+    out["org_id"] = inv["org_id"]
+    return {"token": token, "user": out}
+
+
+@api_router.get("/org/members")
+async def list_org_members(user=Depends(get_current_user)):
+    """Liste les membres de l'org courante (managers voient tout, commerciaux se voient)."""
+    org_id = user.get("org_id")
+    if not org_id:
+        return []
+    members = await db_raw.users.find(
+        {"org_id": org_id},
+        {"_id": 0, "password": 0},
+    ).sort("created_at", 1).to_list(500)
+    return members
 
 
 # ---------- Reporting d'erreurs client (ErrorBoundary / fetch keepalive) ----------
@@ -551,12 +735,16 @@ async def get_client(client_id: str, user=Depends(get_current_user)):
 async def update_client(client_id: str, data: dict, user=Depends(get_current_user)):
     data["updated_at"] = now_iso()
     data.pop("id", None); data.pop("_id", None); data.pop("owner_id", None)
-    await db.clients.update_one({"id": client_id}, {"$set": data})
+    res = await db.clients.update_one({"id": client_id}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Client introuvable")
     return await db.clients.find_one({"id": client_id}, {"_id": 0})
 
 @api_router.delete("/clients/{client_id}")
 async def delete_client(client_id: str, user=Depends(get_current_user)):
-    await db.clients.delete_one({"id": client_id})
+    res = await db.clients.delete_one({"id": client_id})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Client introuvable")
     return {"ok": True}
 
 # ---------- PRODUCTS ----------
@@ -5543,23 +5731,31 @@ async def shutdown_db_client():
 
 # ---------- Seed démo idempotent (manager + commercial) ----------
 async def _seed_demo_users_on_startup():
-    """Garantit l'existence des comptes de démo. Idempotent : ne recrée jamais si présent."""
+    """Garantit l'existence des comptes de démo + les rattache à BEVID Démo."""
+    org_id = await ensure_demo_org(db_raw)
     demo_users = [
         {"email": "manager.demo@bevidcrm.fr",    "password": "Manager!2026Demo",   "name": "Marie Manager",     "role": "manager"},
         {"email": "commercial.demo@bevidcrm.fr", "password": "Commercial!2026Demo","name": "Thomas Commercial", "role": "commercial"},
     ]
     for a in demo_users:
-        existing = await db.users.find_one({"email": a["email"]})
+        existing = await db_raw.users.find_one({"email": a["email"]})
         if existing:
+            # Backfill éventuel : rattacher à BEVID Démo si org_id manque
+            if not existing.get("org_id"):
+                await db_raw.users.update_one(
+                    {"id": existing["id"]}, {"$set": {"org_id": org_id}}
+                )
             continue
         doc = {
             "id": str(uuid.uuid4()), "email": a["email"], "name": a["name"],
             "role": a["role"], "language": "fr", "active": True, "must_reset": False,
             "created_at": now_iso(), "password": hash_password(a["password"]),
-            "terms_accepted_at": now_iso(),
+            "terms_accepted_at": now_iso(), "org_id": org_id,
         }
-        await db.users.insert_one(doc)
-        logger.info(f"[seed] demo user created: {a['email']} → {a['role']}")
+        await db_raw.users.insert_one(doc)
+        logger.info(f"[seed] demo user created: {a['email']} → {a['role']} in org={org_id[:8]}")
+    # Owner = le premier manager rattaché
+    await ensure_owner_of_demo(db_raw, org_id)
 
 
 @app.on_event("startup")
@@ -5568,3 +5764,17 @@ async def _startup_seed_demo():
         await _seed_demo_users_on_startup()
     except Exception as e:
         logger.warning(f"[seed] demo users skipped: {e}")
+
+
+@app.on_event("startup")
+async def _startup_tenant_migration():
+    """Migration idempotente vers le multi-tenant : stampe org_id sur les docs
+    orphelins et journalise les fuites potentielles."""
+    try:
+        report = await run_tenant_migration(db_raw)
+        if report.get("backfilled"):
+            logger.info(f"[tenant] backfill : {report['backfilled']}")
+        if report.get("orphans"):
+            logger.warning(f"[tenant] ORPHELINS RESTANTS : {report['orphans']}")
+    except Exception as e:
+        logger.warning(f"[tenant] migration skipped: {e}")

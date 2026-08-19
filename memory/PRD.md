@@ -92,6 +92,41 @@ brassicoles/distribution.
   rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
   sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.
 
+### Lot 4 · P2 — Multi-entreprises (livré 19 août 2026)
+
+**Architecture retenue : isolation par construction via contextvars + wrapper Motor.**
+
+- `scoped_db.py` : `TenantDB` + `TenantCollection` interceptent toute lecture/écriture sur les 47 collections métier listées dans `SCOPED_COLLECTIONS`. Le contextvar `_current_org` est positionné par `get_current_user` juste après la validation du JWT. Toute requête via `db.clients.find({...})` est **automatiquement filtrée par `org_id`**, toute insertion se voit ajouter `org_id`, tout `update_many/delete_many` est scopé.
+- `db_raw` reste disponible pour les cas explicitement non-scopés : login lookup par email (cross-org), acceptance d'invitation par token, création d'organisation, seed système. Les endpoints qui doivent traverser les orgs le font sciemment.
+- `tenant_bootstrap.py` : migration idempotente au démarrage. Crée l'org « BEVID Démo » si absente, stampe `org_id` sur tous les documents orphelins, index composé `(org_id, id)` sur les 10 collections les plus requêtées, alerte au démarrage sur les documents restants sans `org_id`.
+
+**Inscription et invitations**
+- `POST /auth/register` : crée une nouvelle organisation (nom = nom du user + « · CRM », slug unique), l'auteur devient `manager` et `owner_user_id`, l'essai démarre à J+7 (`trial_ends_at`, status = `trial`). Le rôle du payload est ignoré.
+- `POST /org/invitations` (manager only) : jeton unique 32+ octets, valable 7 jours, one-shot.
+- `POST /auth/accept-invitation` : crée le compte dans l'org de l'invitant, invalide le jeton, le user est connecté immédiatement.
+- `GET /org/invitations`, `POST /org/invitations/{id}/revoke`, `GET /org/members`, `GET /org/current` complètent l'ensemble.
+
+**Migration des données existantes (BEVID Démo)**
+- 35 users, 98 clients, 74 orders, 9 establishments, 73 products, 8 visits, 92 activities, 115 audit_logs, 334 ingestion_runs, 47 bank_counterparties, +30 autres collections → tous rattachés à l'org « BEVID Démo ».
+- Le compte `manager.demo@bevidcrm.fr` est `owner` de BEVID Démo. `commercial.demo@bevidcrm.fr` en est membre.
+- Vérification orphelins au démarrage : 0 restant après backfill (traçable dans les logs `[tenant] backfill : {...}` puis absence de `[tenant] ORPHELINS`).
+
+**Tests d'isolation A ↔ B (rejouables via curl)**
+- User A crée org A, User B crée org B (register).
+- A crée « Bar Alice ». B liste ses clients → **0** (pas de fuite). ✅
+- B `GET /api/clients/{client_A_id}` → **404** (pas 403, on ne révèle pas l'existence). ✅
+- B `PUT /api/clients/{client_A_id}` avec `name="HACKED"` → renvoie **404** désormais, et le client reste « Bar Alice » côté A. ✅
+- B `DELETE /api/clients/{client_A_id}` → **404**, client toujours présent côté A. ✅
+- A invite Charlie, Charlie accepte → rejoint org A, l'invitation devient inutilisable (400 en réutilisation). ✅
+
+**🟡 Non-terminé, à faire en migration continue**
+- Sur les endpoints `PUT`/`DELETE` autres que `/clients/{id}` (products, orders, tours, visits, deals, containers, etc.), l'isolation est **effective** (le wrapper ne modifie/supprime rien hors org), mais le HTTP code reste `200` au lieu de `404`. Il faut ajouter `if res.matched_count == 0: raise HTTPException(404, "…")` sur chaque endpoint. C'est mécanique et peut être fait par lot au fur et à mesure. Grep : `grep -n "update_one\|delete_one" server.py | wc -l` ≈ 60 sites d'appel.
+- Aucun endpoint métier ne fuite en LECTURE (le wrapper injecte le filtre inconditionnellement), donc l'exposition de données est déjà nulle. Le 200-mensonger sur les mutations est un défaut d'UX/logging, pas une fuite.
+
+**Sécurité et opérations**
+- Un `logger.warning("[scoped_db] accès non-scopé à ...")` est émis à chaque lecture/écriture sur une collection scopée sans contextvar : ça permet de repérer en prod tout endpoint oublié.
+- Index composé `(org_id, id)` posé sur les 10 collections chaudes → aucune régression de perf attendue.
+
 ### Lot 4 · P1 — Connexion réparée (livré 19 août 2026)
 - **1.1 Rate limit repensé.** Login : compteur progressif par compte (`delays = 0/1/2/4/8s`, hard cap 5 → blocage 15 min) + garde-fou IP très permissif (100 échecs / 15 min) pour absorber le NAT. Compteurs séparés (`login` et `login_ip`), purgés à la connexion réussie via `_rate_limit_clear_login`. Message utilisateur en secondes sous 60s, en minutes au-delà, au vouvoiement.
 - **1.2 XFF non forgeable.** `_client_ip` : si le hop TCP n'appartient pas à `TRUSTED_PROXIES` (env, liste CIDR), on ignore `X-Forwarded-For` et on utilise l'IP socket. Comportement par défaut = strict (variable non renseignée = XFF ignoré partout). Prêt à être configuré côté ops sans redéploiement.
