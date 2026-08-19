@@ -4,37 +4,64 @@ Prix HT provisoires par utilisateur et par mois.
 La dégressivité s'applique sur le prix unitaire dès qu'on franchit un palier de sièges.
 Le premier utilisateur (le manager qui crée l'org) est inclus, non facturé.
 Deux mois offerts sur annuel = 10 mois payés au lieu de 12.
+
+**Règle d'invariance descriptif ↔ features** : chaque item cité dans la
+`description` marketing doit avoir sa clé dans `features`, et inversement.
+Un test de régression (`test_iter22_pricing_coherence.py`) échoue sinon.
+Aucun forfait n'utilise `"*"` : chaque feature est listée explicitement pour
+alimenter la page publique `/pricing` en libellés clairs.
 """
+
+# Toutes les fonctionnalités du produit (utile pour construire Entreprise et
+# pour vérifier la cohérence des listes par forfait).
+ALL_FEATURES = {
+    # Terrain
+    "page:dashboard", "page:clients", "page:orders", "page:products",
+    "page:tours", "page:visits",
+    # Pro
+    "page:stock", "page:drm", "page:reports", "page:paiements",
+    "page:rapprochement",
+    # Entreprise
+    "page:prospection", "page:radar", "page:veille", "page:bouclier",
+    "page:sources-donnees", "page:users", "page:integrations",
+    "product:view_cost", "ai:coach", "ai:voice",
+}
+
+_TERRAIN = {
+    "page:dashboard", "page:clients", "page:orders", "page:products",
+    "page:tours", "page:visits",
+}
+_PRO = _TERRAIN | {
+    "page:stock", "page:drm", "page:reports", "page:paiements",
+    "page:rapprochement",
+}
+_ENTREPRISE = _PRO | {
+    "page:prospection", "page:radar", "page:veille", "page:bouclier",
+    "page:sources-donnees", "page:users", "page:integrations",
+    "product:view_cost", "ai:coach", "ai:voice",
+}
 
 PLANS = {
     "terrain": {
         "id": "terrain",
         "name": "Terrain",
         "price_per_seat_month_cents": 1500,   # 15,00 €
-        "features": {
-            "page:dashboard", "page:tours", "page:visits", "page:clients",
-            "page:orders", "page:products", "page:prospection",
-        },
-        "description": "Tournée, visites, clients, commandes, produits. Hors-ligne + dictée.",
+        "features": _TERRAIN,
+        "description": "Tableau de bord, clients, prise de commande, catalogue, tournées, comptes rendus. Hors-ligne + dictée vocale.",
     },
     "pro": {
         "id": "pro",
         "name": "Pro",
         "price_per_seat_month_cents": 2900,   # 29,00 €
-        "features": {
-            "page:dashboard", "page:tours", "page:visits", "page:clients",
-            "page:orders", "page:products", "page:prospection",
-            "page:stock", "page:reports", "page:paiements",
-            "page:rapprochement",
-        },
-        "description": "Tout Terrain + stock, DRM douane, rapports, paiements, rapprochement.",
+        "features": _PRO,
+        "description": "Tout Terrain + stock et contenants, DRM douane, rapports et pilotage, paiements, rapprochement bancaire.",
     },
     "entreprise": {
         "id": "entreprise",
         "name": "Entreprise",
         "price_per_seat_month_cents": 4900,   # 49,00 €
-        "features": {"*"},   # tout
-        "description": "Tout Pro + prospection avancée, IA, coûts et marges, permissions fines.",
+        "features": _ENTREPRISE,
+        "description": "Tout Pro + prospection, radar CHR, veille, bouclier mauvais payeurs, coûts et marges, IA, administration fine.",
     },
 }
 

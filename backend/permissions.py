@@ -15,6 +15,7 @@ FEATURES = [
     {"key": "page:rapprochement", "label": "Rapprochement bancaire", "category": "Pages", "default": {"manager": True, "commercial": False}},
     {"key": "page:reports", "label": "Rapports & analytics", "category": "Pages", "default": {"manager": True, "commercial": False}},
     {"key": "page:stock", "label": "Stock & DRM", "category": "Pages", "default": {"manager": True, "commercial": False}},
+    {"key": "page:drm", "label": "DRM douane", "category": "Pages", "default": {"manager": True, "commercial": False}},
     {"key": "page:qr-labels", "label": "Étiquettes QR", "category": "Pages", "default": {"manager": True, "commercial": False}},
     {"key": "page:radar", "label": "Radar CHR", "category": "Pages", "default": {"manager": True, "commercial": True}},
     {"key": "page:prospection", "label": "Prospection géographique", "category": "Pages", "default": {"manager": True, "commercial": True}},
@@ -45,18 +46,44 @@ FEATURES = [
     {"key": "page:enrichissement", "label": "Enrichissement fiche établissement", "category": "Pages", "default": {"manager": True, "commercial": False}},
     {"key": "enrichissement:layer_b", "label": "Déclencher enrichissement Couche B (payant)", "category": "Admin", "default": {"manager": True, "commercial": False}},
     {"key": "enrichissement:lock", "label": "Verrouiller / éditer un champ enrichi", "category": "Admin", "default": {"manager": True, "commercial": False}},
+    # === IA (Entreprise) ===
+    {"key": "ai:coach", "label": "Coach IA (opportunités)", "category": "IA", "default": {"manager": True, "commercial": True}},
+    {"key": "ai:voice", "label": "Assistant vocal IA", "category": "IA", "default": {"manager": True, "commercial": True}},
 ]
 
 FEATURES_INDEX = {f["key"]: f for f in FEATURES}
 
 
 def has_feature(user: dict, key: str) -> bool:
-    """Deny-by-default sur clé inconnue. Override utilisateur > default rôle."""
+    """Autorisation d'une feature pour un utilisateur.
+
+    Deny-by-default sur clé inconnue. Cumule 3 verrous :
+    1. **Plan de facturation** (`user["org_plan_features"]`) : posé par
+       `get_current_user`, contient la liste des features incluses dans le
+       forfait courant. Une feature hors plan est refusée quel que soit le rôle
+       — c'est ce verrou qui rend les forfaits contraignants.
+    2. **Override utilisateur** (`user["feature_overrides"]`) : décision manuelle
+       du manager, prend le dessus sur le rôle par défaut (mais reste bornée
+       par le plan).
+    3. **Défaut par rôle** : `manager`/`commercial` comme fallback.
+
+    Une organisation sans plan chargé (contexte anonyme, cron, tests) est
+    considérée comme illimitée pour ne pas casser les tâches internes.
+    """
     if key not in FEATURES_INDEX:
         return False
+
+    # Verrou 1 — Plan de facturation
+    plan_feats = user.get("org_plan_features")
+    if plan_feats is not None and key not in plan_feats:
+        return False
+
+    # Verrou 2 — Override utilisateur
     overrides = user.get("feature_overrides") or {}
     if key in overrides:
         return bool(overrides[key])
+
+    # Verrou 3 — Rôle par défaut
     role = user.get("role", "commercial")
     return FEATURES_INDEX[key]["default"].get(role, False)
 

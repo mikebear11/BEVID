@@ -43,7 +43,7 @@ const SECTIONS = [
   { key: "section_stock", entries: [
     { to: "/stock", key: "stock", feature: "page:stock", icon: Warehouse },
     { to: "/containers", key: "containers", feature: "page:stock", icon: QrCode },
-    { to: "/drm", key: "drm", feature: "page:stock", icon: FileText },
+    { to: "/drm", key: "drm", feature: "page:drm", icon: FileText },
   ]},
   { key: "section_pilotage", entries: [
     { to: "/", key: "dashboard", feature: "page:dashboard", icon: LayoutDashboard },

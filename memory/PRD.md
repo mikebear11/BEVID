@@ -92,6 +92,46 @@ brassicoles/distribution.
   rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
   sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.
 
+### Lot 4 · Cohérence tarifs ↔ RBAC (livré 19 août 2026, itération 22)
+
+**Contexte** : la page /pricing utilisait `"*"` pour Entreprise (0 fonctionnalités affichées) et le forfait Pro promettait la DRM douane sans l'inclure dans ses entitlements. En creusant, deuxième bug plus grave : `has_feature()` n'a jamais vérifié le plan de facturation — seul le rôle comptait. Résultat : un compte Terrain à 15 € avait le même accès qu'un compte Entreprise à 49 €.
+
+**Backend — 3 corrections coordonnées**
+1. `billing_config.py` : suppression du joker `{"*"}`. Entreprise expose désormais **21 features** explicites. Terrain retiré de `page:prospection` (argument Entreprise). Constantes `_TERRAIN ⊂ _PRO ⊂ _ENTREPRISE` avec chaînage garanti.
+2. `_plan_public` (server.py) : anomalie journalisée si un forfait affiché a < 3 features (`billing.plan.features_too_short`).
+3. `permissions.py` — `has_feature` prend en compte **3 verrous** :
+   - Plan de facturation (`user["org_plan_features"]`) — nouveau, deny hors plan
+   - Override manuel utilisateur
+   - Rôle par défaut
+   `get_current_user` charge désormais `PLANS[org.plan]["features"]` et le pose sur le user.
+4. Ajout de 3 features manquantes dans `FEATURES_INDEX` : `page:drm`, `ai:coach`, `ai:voice` (sinon deny-by-default silencieux).
+
+**Frontend**
+- `BillingBanner` : lien « Voir les tarifs » ajouté dans les bandeaux `read_only` et `suspended` (`data-testid="banner-{status}-pricing"`).
+- `Layout.jsx` : lien `/drm` passe de `feature: "page:stock"` à `feature: "page:drm"` (chacun sa clé).
+- Pricing.jsx : 22 clés `feature.*` en FR/EN pour les 21 features + `feature.page:integrations` ajoutée.
+
+**Test de régression** — `/app/backend/tests/test_iter22_pricing_coherence.py` (8 assertions)
+1. Aucun `"*"` dans une réponse publique
+2. Chaque forfait ≥ 3 features
+3. Hiérarchie stricte Terrain ⊂ Pro ⊂ Entreprise
+4. **Chaque promesse marketing** (mot dans `description`) → clé correspondante dans `features` (le bug historique aurait été bloqué au moindre commit)
+5. Chaque feature d'un forfait est soit citée dans la description, soit héritée, soit dans une allowlist transverse (users, integrations, ai:voice, sources)
+6. Terrain ne peut leaker aucune feature avancée (`page:stock`, `page:drm`, `page:reports`, `page:paiements`, `page:rapprochement`, `page:prospection`, `page:radar`, `page:veille`, `page:bouclier`, `product:view_cost`, `ai:coach`)
+7. `page:drm` explicitement dans Pro et Entreprise (régression du bug)
+8. Chaque feature de plan a un libellé i18n FR — sinon la page /pricing masquerait la ligne
+
+**Preuves runtime (21 tests curl verts)**
+- `/api/me/permissions` (compte Terrain) : `page:drm=false, page:stock=false, page:radar=false, product:view_cost=false, ai:coach=false, page:dashboard=true` ✅
+- `/api/me/permissions` (compte Pro) : `page:drm=true, page:stock=true, page:radar=false, product:view_cost=false, ai:coach=false` ✅
+- `/api/me/permissions` (compte Entreprise) : tout à `true` ✅
+- Suite complète pytest : `test_iter20_cross_tenant_404.py` + `test_iter21_paywall.py` + `test_iter22_pricing_coherence.py` = **10/10** ✅
+
+**Page /pricing carte par carte (screenshot validé)**
+- **Terrain (15 €)** : 6 items — Mode hors-ligne, Dictée vocale, Clients, Tableau de bord, Prise de commande, Catalogue, Tournées, Comptes rendus
+- **Pro (29 €)** : 11 items dont **DRM douane** visible, Stock et contenants, Rapports et pilotage, Paiements, Rapprochement
+- **Entreprise (49 €)** : 21 items — Coach IA, Assistant vocal IA, Bouclier, Radar CHR, Veille, Intégrations, Coûts et marges, plus tous les héritages
+
 ### Lot 4 · P5 — Déploiement équipe (livré 19 août 2026)
 
 **Objectif** : onboarding <90 s pour un commercial terrain. Trois canaux d'invitation, activation frictionless, vue « Mon équipe » et transfert de propriété 2 étapes.

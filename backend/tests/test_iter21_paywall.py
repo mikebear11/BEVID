@@ -9,9 +9,18 @@ Vérifie :
 - PUT et DELETE sont aussi bloqués en read_only (pas seulement POST)
 """
 import os, time, subprocess, sys
+from pathlib import Path
 import httpx
 import pytest
 sys.path.insert(0, "/app/backend")
+
+# Charge le .env backend (les tests s'exécutent en sous-processus pytest sans env)
+_env = Path("/app/backend/.env")
+if _env.exists():
+    for line in _env.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
 def _api_url() -> str:

@@ -88,6 +88,9 @@ export default function BillingBanner() {
         <span className="text-sm flex-1">
           <strong>Lecture seule.</strong> Vos données sont conservées, mais toute modification est bloquée jusqu'à la souscription d'un forfait.
         </span>
+        <Link to="/pricing" className="text-xs font-medium underline whitespace-nowrap opacity-80 hidden md:inline" data-testid="banner-read-only-pricing">
+          Voir les tarifs
+        </Link>
         <Link to="/billing" className="text-sm font-medium underline whitespace-nowrap" data-testid="banner-read-only-cta">
           S'abonner
         </Link>
@@ -106,6 +109,9 @@ export default function BillingBanner() {
         <span className="text-sm flex-1">
           <strong>Compte suspendu.</strong> L'accès en modification est fermé. Contactez le support ou régularisez depuis /billing.
         </span>
+        <Link to="/pricing" className="text-xs font-medium underline whitespace-nowrap opacity-80 hidden md:inline" data-testid="banner-suspended-pricing">
+          Voir les tarifs
+        </Link>
         <Link to="/billing" className="text-sm font-medium underline whitespace-nowrap" data-testid="banner-suspended-cta">
           Régulariser
         </Link>

@@ -404,6 +404,18 @@ async def get_current_user(
         # Positionne le contextvar org : TOUTES les requêtes DB via `db` seront
         # désormais automatiquement filtrées par org_id.
         set_current_org(user.get("org_id"))
+        # Charge les features du plan courant → alimente `has_feature` pour
+        # que le RBAC respecte les limites du forfait (bug 2026-08-19 :
+        # Terrain accédait à /drm parce que le plan n'était pas vérifié).
+        org = await db_raw.organizations.find_one({"id": user.get("org_id")},
+                                                   {"_id": 0, "plan": 1})
+        plan_id = (org or {}).get("plan") or "terrain"
+        plan = PLANS.get(plan_id)
+        # `"*"` ⇒ plan illimité (ne devrait plus arriver mais on garde le repli).
+        if plan and "*" not in plan.get("features", set()):
+            user["org_plan_features"] = set(plan["features"])
+        else:
+            user["org_plan_features"] = None  # illimité
         return user
     except jwt.PyJWTError:
         raise HTTPException(401, "Token invalide")
@@ -648,11 +660,17 @@ from billing_config import (
 
 def _plan_public(plan_id: str) -> dict:
     p = PLANS[plan_id]
+    feats = sorted(p["features"])
+    # Anomalie : un forfait affiché doit toujours contenir au moins 3 fonctionnalités
+    # (sinon il n'y a rien à vendre sur la page /pricing). On loggue mais on
+    # ne bloque pas — la coquille reste visible pour ne pas casser une commande.
+    if len([f for f in feats if f != "*"]) < 3:
+        logger.warning("billing.plan.features_too_short plan=%s count=%d", plan_id, len(feats))
     return {
         "id": p["id"],
         "name": p["name"],
         "price_per_seat_month_cents": p["price_per_seat_month_cents"],
-        "features": sorted(p["features"]),
+        "features": feats,
         "description": p["description"],
     }
 

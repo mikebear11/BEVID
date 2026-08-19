@@ -7,8 +7,16 @@ Vérifie que 14 endpoints scopés renvoient bien 404 quand :
 Et que les mutations locales renvoient toujours 200.
 """
 import os, time, subprocess
+from pathlib import Path
 import httpx
 import pytest
+
+_env = Path("/app/backend/.env")
+if _env.exists():
+    for line in _env.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
 def _api_url() -> str:
