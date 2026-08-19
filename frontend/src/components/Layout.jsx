@@ -154,7 +154,7 @@ export default function Layout({ children }) {
         {/* Bouton palette (Cmd+K) */}
         <button
           type="button"
-          onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, ctrlKey: true, bubbles: true }))}
+          onClick={() => window.dispatchEvent(new CustomEvent("bevid:open-palette"))}
           data-testid="palette-trigger"
           className="mx-3 mt-3 flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
           aria-label="Ouvrir la palette de commandes"
@@ -234,6 +234,15 @@ export default function Layout({ children }) {
           <SyncIndicator />
         </div>
         <div className="flex gap-1 items-center">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("bevid:open-palette"))}
+            data-testid="palette-trigger-mobile"
+            aria-label="Rechercher"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-700 dark:text-stone-300"
+          >
+            <Search size={18} aria-hidden="true" />
+          </button>
           <ThemeToggle variant="icon" />
           <NotificationBell />
           <select

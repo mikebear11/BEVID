@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Zap } from "lucide-react";
 import SirenAutocomplete from "@/components/SirenAutocomplete";
 import PuceEtat from "@/components/system/PuceEtat";
+import { t } from "@/lib/i18n";
 
 const TYPES = ["bar", "restaurant", "caviste", "hotel", "epicerie", "autre"];
 
@@ -27,24 +28,24 @@ export default function EstablishmentNew() {
   };
 
   const save = async () => {
-    if (!form.name.trim()) { toast.error("Nom requis"); return; }
+    if (!form.name.trim()) { toast.error(t("toast.nom_requis")); return; }
     setCreating(true);
     try {
       const { data } = await api.post("/establishments", form);
-      toast.success("Établissement créé");
+      toast.success(t("toast.etablissement_cree"));
       // Verrouille immédiatement le siren par édition manuelle (source=user) si fourni
       if (form.siret && form.siret.length === 9) {
         await api.put(`/establishments/${data.id}/enriched-field/siren`, { valeur: form.siret }).catch(() => {});
         if (autoEnrich) {
           try {
             const r = await api.post(`/establishments/${data.id}/enrichir`);
-            toast.success(`Couche A : ${r.data.changed} champ(s) remplis automatiquement`);
-          } catch (e) { toast.warning(`Enrichissement auto échoué : ${e?.response?.data?.detail || "erreur"}`); }
+            toast.success(t("toast.couche_a_v1_champ_s_remplis_automat", { v1: r.data.changed }));
+          } catch (e) { toast.warning(t("toast.enrichissement_auto_echoue_v1", { v1: e?.response?.data?.detail || "erreur" })); }
         }
       }
       nav(`/etab/${data.id}/enrichissement`);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Erreur");
+      toast.error(e?.response?.data?.detail || t("toast.erreur"));
     } finally {
       setCreating(false);
     }

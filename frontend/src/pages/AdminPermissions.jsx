@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ShieldCheck, Loader2, ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 /**
  * Écran manager : matrice de permissions par utilisateur.
@@ -19,7 +20,7 @@ export default function AdminPermissions() {
   useEffect(() => {
     Promise.all([api.get("/admin/users"), api.get("/permissions/features")])
       .then(([u, f]) => { setUsers(u.data); setFeatures(f.data); })
-      .catch(() => toast.error("Erreur chargement"));
+      .catch(() => toast.error(t("toast.erreur_chargement")));
   }, []);
 
   const openUser = async (uid) => {
@@ -28,7 +29,7 @@ export default function AdminPermissions() {
     try {
       const { data } = await api.get(`/admin/users/${uid}/permissions`);
       setDetail(data);
-    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+    } catch (e) { toast.error(e.response?.data?.detail || t("toast.erreur")); }
   };
 
   const setOverride = (key, value) => {
@@ -59,8 +60,8 @@ export default function AdminPermissions() {
       });
       const { data } = await api.post(`/admin/users/${selected}/permissions`, payload);
       setDetail({ ...detail, overrides: data.overrides, effective: data.effective });
-      toast.success("Permissions enregistrées");
-    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+      toast.success(t("toast.permissions_enregistrees"));
+    } catch (e) { toast.error(e.response?.data?.detail || t("toast.erreur")); }
     finally { setSaving(false); }
   };
 

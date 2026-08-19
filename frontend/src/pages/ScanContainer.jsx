@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { QrCode, Keyboard, ArrowLeft } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export default function ScanContainer() {
   const nav = useNavigate();
@@ -43,10 +44,10 @@ export default function ScanContainer() {
     await stop();
     try {
       const { data } = await api.get(`/containers/scan/${encodeURIComponent(code)}`);
-      toast.success(`${data.product_name || data.type} localisé`);
+      toast.success(t("toast.v1_localise", { v1: data.product_name || data.type }));
       nav(`/containers/${data.id}`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Contenant inconnu");
+      toast.error(err.response?.data?.detail || t("toast.contenant_inconnu"));
       start();
     }
   };

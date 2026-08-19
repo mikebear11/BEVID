@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, postOffline } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, Search, Minus, Plus, Trash2, ShoppingCart, MapPin, Clock, RotateCcw, Check, AlertOctagon, Loader2 } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — vigilance", rouge: "COMPTE BLOQUÉ" };
 const CREDIT_BG = { vert: "bg-emerald-50 text-emerald-800 border-emerald-200",
@@ -30,7 +31,7 @@ export default function MobileOrder() {
     api.get("/org/settings").then(r => setGeoAllowed(!!r.data.geolocation_enabled)).catch(() => {});
     api.get(`/establishments/${id}/catalog`)
        .then(r => setCatalog(r.data))
-       .catch(() => toast.error("Erreur chargement catalogue"));
+       .catch(() => toast.error(t("toast.erreur_chargement_catalogue")));
   }, [id]);
 
   const products = catalog?.products || [];
@@ -96,24 +97,24 @@ export default function MobileOrder() {
 
   const captureGPS = () => {
     if (!geoAllowed || !navigator.geolocation) {
-      toast.error("Géolocalisation désactivée par l'organisation");
+      toast.error(t("toast.geolocalisation_desactivee_par_l_or"));
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, timestamp: new Date().toISOString() });
-        toast.success("Position captée");
+        toast.success(t("toast.position_captee"));
       },
-      (err) => toast.error("GPS refusé/impossible"),
+      (err) => toast.error(t("toast.gps_refuse_impossible")),
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   };
 
   const finalize = async () => {
     if (blocked) return;
-    if (!deliveryDate) { toast.error("Date de livraison obligatoire"); return; }
-    if (cartArr.length === 0) { toast.error("Panier vide"); return; }
-    if (!signed) { toast.error("Signature client requise"); return; }
+    if (!deliveryDate) { toast.error(t("toast.date_de_livraison_obligatoire")); return; }
+    if (cartArr.length === 0) { toast.error(t("toast.panier_vide")); return; }
+    if (!signed) { toast.error(t("toast.signature_client_requise")); return; }
     setCreating(true);
     try {
       const lines = Object.entries(cart).map(([pid, l]) => {
@@ -144,21 +145,21 @@ export default function MobileOrder() {
       };
       const res = await postOffline("/orders", payload);
       if (res.offline) {
-        toast.success("Commande + signature en file — synchro auto au retour du réseau", { icon: "📶" });
+        toast.success(t("toast.commande_signature_en_file_synchro_"), { icon: "📶" });
       } else {
-        toast.success("Commande signée ✓");
+        toast.success(t("toast.commande_signee"));
         // Envoi automatique du PDF par email si le client a une adresse
         try {
           const orderId = res.data?.id;
           if (orderId && est?.email) {
             await api.post(`/orders/${orderId}/send-pdf-email`, {});
-            toast.success(`PDF envoyé à ${est.email}`, { icon: "📧" });
+            toast.success(t("toast.pdf_envoye_a_v1", { v1: est.email }), { icon: "📧" });
           }
         } catch (e) { /* silent : l'utilisateur peut renvoyer manuellement */ }
       }
       nav(`/etab/${id}`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur commande");
+      toast.error(err.response?.data?.detail || t("toast.erreur_commande"));
     } finally { setCreating(false); }
   };
 
@@ -314,7 +315,7 @@ export default function MobileOrder() {
         <div className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-stone-200 p-3 pb-safe">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
             <div className="flex-1 font-display text-xl">{total.toFixed(2)} €</div>
-            <button onClick={() => deliveryDate ? setStep(3) : toast.error("Date obligatoire")} className="btn-primary min-h-[48px] px-6" data-testid="to-signature">
+            <button onClick={() => deliveryDate ? setStep(3) : toast.error(t("toast.date_obligatoire"))} className="btn-primary min-h-[48px] px-6" data-testid="to-signature">
               Signature client →
             </button>
           </div>

@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, Lock, Unlock, RefreshCw, Zap, MapPin, ExternalLink, Star } from "lucide-react";
 import PuceEtat from "@/components/system/PuceEtat";
+import { t } from "@/lib/i18n";
 
 const CHAMPS_GROUPES = [
   {
@@ -87,9 +88,9 @@ function FieldRow({ champ, data, onEdit, onToggleLock }) {
     try {
       await onEdit(champ.key, val);
       setEditing(false);
-      toast.success("Champ enregistré (verrou automatique)");
+      toast.success(t("toast.champ_enregistre_verrou_automatique"));
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Erreur");
+      toast.error(e?.response?.data?.detail || t("toast.erreur"));
     }
   };
 
@@ -165,17 +166,17 @@ function GooglePlacePanel({ eid }) {
   const linkPlace = async () => {
     try {
       await api.post(`/establishments/${eid}/link-place`, { place_id: placeIdInput.trim() });
-      toast.success("Place ID lié");
+      toast.success(t("toast.place_id_lie"));
       setPlaceIdInput("");
       loadRef();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Erreur"); }
+    } catch (e) { toast.error(e?.response?.data?.detail || t("toast.erreur")); }
   };
   const unlinkPlace = async () => {
     try {
       await api.delete(`/establishments/${eid}/google-place`);
-      toast.success("Place ID délié");
+      toast.success(t("toast.place_id_delie"));
       setRef(null); setLive(null);
-    } catch (e) { toast.error(e?.response?.data?.detail || "Erreur"); }
+    } catch (e) { toast.error(e?.response?.data?.detail || t("toast.erreur")); }
   };
 
   return (
@@ -271,9 +272,9 @@ export default function Enrichissement() {
     setRunningA(true);
     try {
       const r = await api.post(`/establishments/${id}/enrichir`);
-      toast.success(`Couche A : ${r.data.changed} champ(s) mis à jour`);
+      toast.success(t("toast.couche_a_v1_champ_s_mis_a_jour", { v1: r.data.changed }));
       await load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Erreur"); }
+    } catch (e) { toast.error(e?.response?.data?.detail || t("toast.erreur")); }
     finally { setRunningA(false); }
   };
 
@@ -282,12 +283,12 @@ export default function Enrichissement() {
     try {
       const r = await api.post(`/establishments/${id}/enrichir-plus`, providerOverride ? { provider: providerOverride } : {});
       if (r.data.fallback === "layer_a") {
-        toast.warning(`Couche B indisponible (${r.data.reason}) — bascule sur Couche A`);
+        toast.warning(t("toast.couche_b_indisponible_v1_bascule_su", { v1: r.data.reason }));
       } else {
-        toast.success(`Couche B : ${r.data.changed} champ(s) enrichi(s)`);
+        toast.success(t("toast.couche_b_v1_champ_s_enrichi_s", { v1: r.data.changed }));
       }
       await load();
-    } catch (e) { toast.error(e?.response?.data?.detail || "Erreur"); }
+    } catch (e) { toast.error(e?.response?.data?.detail || t("toast.erreur")); }
     finally { setRunningB(false); }
   };
 

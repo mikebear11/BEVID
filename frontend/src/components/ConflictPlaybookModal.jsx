@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { X, Loader2, RotateCcw, MessageSquare, Mail, CheckCircle2, RefreshCw } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 /**
  * Playbook "Rembourser + prévenir client" en 1 clic.
@@ -28,7 +29,7 @@ export default function ConflictPlaybookModal({ conflictId, onClose, onResolved 
         // Refund uniquement si possible
         if (!r.data.can_refund) setRefund(false);
       })
-      .catch(() => toast.error("Impossible de charger le playbook"))
+      .catch(() => toast.error(t("toast.impossible_de_charger_le_playbook")))
       .finally(() => setLoading(false));
   }, [conflictId]);
 
@@ -44,11 +45,11 @@ export default function ConflictPlaybookModal({ conflictId, onClose, onResolved 
       if (data.result.restock?.ok) parts.push("stock rétabli");
       if (data.result.notification?.ok && !data.result.notification?.skipped) parts.push(`${channel} envoyé`);
       if (data.result.notification?.ok === false) parts.push(`notif échouée: ${data.result.notification?.reason || ""}`);
-      toast.success("Playbook exécuté : " + parts.join(" · "));
+      toast.success(t("toast.playbook_executed", { details: parts.join(" · ") }));
       onResolved?.();
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur playbook");
+      toast.error(err.response?.data?.detail || t("toast.erreur_playbook"));
     } finally { setRunning(false); }
   };
 

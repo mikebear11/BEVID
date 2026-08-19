@@ -3,6 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
 import { X, Copy, ExternalLink, Loader2, CheckCircle2, Smartphone, MessageCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 export default function PaymentModal({ orderId, onClose, onPaid }) {
   const [session, setSession] = useState(null);
@@ -23,7 +24,7 @@ export default function PaymentModal({ orderId, onClose, onPaid }) {
       try {
         const { data } = await api.get(`/payments/status/${session.session_id}`);
         setStatus(data.payment_status);
-        if (data.payment_status === "paid") { clearInterval(iv); toast.success("Paiement reçu !"); onPaid && onPaid(); }
+        if (data.payment_status === "paid") { clearInterval(iv); toast.success(t("toast.paiement_recu")); onPaid && onPaid(); }
       } catch {}
     }, 2500);
     return () => clearInterval(iv);
@@ -32,7 +33,7 @@ export default function PaymentModal({ orderId, onClose, onPaid }) {
   const copyLink = async () => {
     if (!session) return;
     await navigator.clipboard.writeText(session.checkout_url);
-    toast.success("Lien copié");
+    toast.success(t("toast.lien_copie"));
   };
 
   const tapToPay = () => {

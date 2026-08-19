@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import PasswordInput from "@/components/PasswordInput";
+import { t } from "@/lib/i18n";
 
 export default function ChangePassword() {
   const { t } = useI18n();
@@ -16,16 +17,16 @@ export default function ChangePassword() {
   const submit = async (e) => {
     e.preventDefault();
     if (new_password !== confirm) {
-      toast.error("Les mots de passe ne correspondent pas");
+      toast.error(t("toast.les_mots_de_passe_ne_correspondent_"));
       return;
     }
     setLoading(true);
     try {
       await api.post("/auth/change-password", { old_password, new_password });
-      toast.success("✓ Mot de passe mis à jour");
+      toast.success(t("toast.mot_de_passe_mis_a_jour"));
       nav("/");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("toast.erreur"));
     } finally { setLoading(false); }
   };
 

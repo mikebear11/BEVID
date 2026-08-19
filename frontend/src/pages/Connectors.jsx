@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Plug, Check, AlertCircle, Trash2, Plus, RefreshCw } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 const PROVIDERS = [
   { key: "easybeer", name: "EasyBeer", desc: "Gestion brasseries & catalogues bières", color: "#C78B3A", fields: ["api_key", "workspace_id"] },
@@ -23,7 +24,7 @@ export default function Connectors() {
     e.preventDefault();
     const p = show;
     await api.post("/connectors", { provider: p.key, name: p.name, config, status: "pending" });
-    toast.success(`${p.name} ajouté`);
+    toast.success(t("toast.v1_ajoute", { v1: p.name }));
     setShow(null); setConfig({}); load();
   };
 

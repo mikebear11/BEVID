@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 import PasswordInput from "@/components/PasswordInput";
+import { t } from "@/lib/i18n";
 
 export default function ResetPassword() {
   const { token } = useParams();
@@ -15,15 +16,15 @@ export default function ResetPassword() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (pwd !== confirm) { toast.error("Les mots de passe ne correspondent pas"); return; }
-    if (pwd.length < 8) { toast.error("8 caractères minimum"); return; }
+    if (pwd !== confirm) { toast.error(t("toast.les_mots_de_passe_ne_correspondent_")); return; }
+    if (pwd.length < 8) { toast.error(t("toast.8_caracteres_minimum")); return; }
     setLoading(true);
     try {
       await api.post("/auth/reset-password", { token, new_password: pwd });
       setDone(true);
       setTimeout(() => nav("/login"), 2500);
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Lien invalide ou expiré");
+      toast.error(err.response?.data?.detail || t("toast.lien_invalide_ou_expire"));
     } finally { setLoading(false); }
   };
 

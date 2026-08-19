@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { FileDown, Calendar, AlertTriangle } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export default function DRM() {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ export default function DRM() {
     try {
       const { data } = await api.get(`/drm/${year}/${month}`);
       setData(data);
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    } catch (err) { toast.error(err.response?.data?.detail || t("toast.erreur")); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [year, month]);

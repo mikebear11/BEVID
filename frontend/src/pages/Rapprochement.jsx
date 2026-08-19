@@ -5,6 +5,7 @@ import {
   Upload, FileSpreadsheet, Landmark, CheckCircle2, RotateCcw,
   Loader2, TrendingUp, AlertCircle, X, Search,
 } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 const CONF_BADGE = {
   certain: { label: "Certaine", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
@@ -53,7 +54,7 @@ export default function Rapprochement() {
       });
       const b = await res.json();
       if (!res.ok) throw new Error(b.detail || "Erreur import");
-      toast.success(`Import ${b.format.toUpperCase()} — ${b.new} nouvelles / ${b.duplicates} doublons / ${b.auto_lettrages} auto-lettrées`);
+      toast.success(t("toast.import_v1_v2_nouvelles_v3_doublons_", { v1: b.format.toUpperCase(), v2: b.new, v3: b.duplicates, v4: b.auto_lettrages }));
       load();
     } catch (err) { toast.error(err.message); }
     finally { setUploading(false); e.target.value = ""; }
@@ -65,7 +66,7 @@ export default function Rapprochement() {
     try {
       const { data } = await api.get(`/banque/transactions/${tid}/propose`);
       setProposals(p => ({ ...p, [tid]: data }));
-    } catch { toast.error("Impossible de charger les propositions"); }
+    } catch { toast.error(t("toast.impossible_de_charger_les_propositi")); }
   };
 
   const applyProposal = async (tid, p) => {
@@ -76,11 +77,11 @@ export default function Rapprochement() {
         confidence: p.confidence,
         reason: p.reason,
       });
-      toast.success(`Lettrage appliqué (${p.confidence})`);
+      toast.success(t("toast.lettrage_applique_v1", { v1: p.confidence }));
       setPropOpen(null);
       setProposals(prev => { const { [tid]: _, ...rest } = prev; return rest; });
       load();
-    } catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+    } catch (e) { toast.error(e.response?.data?.detail || t("toast.erreur")); }
   };
 
   return (

@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
 import { ArrowLeft, MapPin, Download, Printer, MoveRight, Package } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 const STATUS = ["en_stock", "sorti", "chez_client", "retour", "vide", "consigne_facturee", "casse"];
 
@@ -23,7 +24,7 @@ export default function ContainerDetail() {
       ]);
       setC(cont.data);
       setEstablishments(est.data);
-    } catch { toast.error("Introuvable"); }
+    } catch { toast.error(t("toast.introuvable")); }
   };
   useEffect(() => { load(); }, [id]);
 
@@ -31,10 +32,10 @@ export default function ContainerDetail() {
     e.preventDefault();
     try {
       await api.put(`/containers/${id}/move`, move);
-      toast.success("Mouvement enregistré");
+      toast.success(t("toast.mouvement_enregistre"));
       setMove({ to_location: "", status: "", kind: "transfert", note: "" });
       load();
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error(t("toast.erreur")); }
   };
 
   const downloadQR = () => {

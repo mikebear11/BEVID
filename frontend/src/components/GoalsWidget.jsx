@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Target, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 export default function GoalsWidget() {
   const [progress, setProgress] = useState([]);
@@ -20,7 +21,7 @@ export default function GoalsWidget() {
   const submit = async (e) => {
     e.preventDefault();
     await api.post("/goals", { ...form, target_ca: parseFloat(form.target_ca) });
-    toast.success("Objectif fixé");
+    toast.success(t("toast.objectif_fixe"));
     setShow(false); load();
   };
 

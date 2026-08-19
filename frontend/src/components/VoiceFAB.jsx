@@ -3,6 +3,7 @@ import { Mic, X, Sparkles, Loader2 } from "lucide-react";
 import { useVoice } from "@/hooks/useVoice";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 export default function VoiceFAB() {
   const [open, setOpen] = useState(false);
@@ -21,7 +22,7 @@ export default function VoiceFAB() {
         const { data } = await api.post("/ai/parse-voice", { transcript: text, intent: "client" });
         if (data.parsed && data.parsed.name) {
           const { data: created } = await api.post("/clients", data.parsed);
-          toast.success(`Client "${created.name}" créé`);
+          toast.success(t("toast.client_v1_cree", { v1: created.name }));
           setAnswer(`✓ Client créé:\n${JSON.stringify(data.parsed, null, 2)}`);
         } else {
           setAnswer("Impossible d'extraire un client. Essayez: 'Nouveau restaurant Le Central à Paris, contact Marc, 0612345678'");
@@ -31,7 +32,7 @@ export default function VoiceFAB() {
         setAnswer(data.answer);
       }
     } catch (e) {
-      toast.error("Erreur IA");
+      toast.error(t("toast.erreur_ia"));
     } finally { setLoading(false); }
   };
 

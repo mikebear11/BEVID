@@ -5,6 +5,7 @@ import { Plus, Search, Mic, Upload, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useVoice } from "@/hooks/useVoice";
 import PuceEtat from "@/components/system/PuceEtat";
+import { t } from "@/lib/i18n";
 
 const TYPES = ["bar", "restaurant", "caviste", "supermarche", "hotel", "autre"];
 const STATUSES = ["prospect", "actif", "vip", "inactif"];
@@ -28,9 +29,10 @@ export default function Clients() {
       const token = localStorage.getItem("crm_token");
       const res = await fetch(`${API}/clients/bulk-import`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
       const data = await res.json();
-      toast.success(`${data.created} clients importés${data.total_errors ? ` (${data.total_errors} erreurs)` : ""}`);
+      const errPart = data.total_errors ? t("toast.import_with_errors", { n: data.total_errors }) : "";
+      toast.success(t("toast.clients_imported", { n: data.created }) + errPart);
       load();
-    } catch { toast.error("Erreur import"); }
+    } catch { toast.error(t("toast.erreur_import")); }
     finally { setImporting(false); if (fileRef.current) fileRef.current.value = ""; }
   };
 
@@ -49,10 +51,10 @@ export default function Clients() {
     e.preventDefault();
     try {
       await api.post("/clients", form);
-      toast.success("Client ajouté");
+      toast.success(t("toast.client_ajoute"));
       setShowAdd(false); setForm({ name: "", type: "bar", contact_name: "", phone: "", email: "", city: "", status: "prospect", notes: "" });
       load();
-    } catch(e){ toast.error("Erreur"); }
+    } catch(e){ toast.error(t("toast.erreur")); }
   };
 
   const voiceParse = async () => {
@@ -62,8 +64,8 @@ export default function Clients() {
       const { data } = await api.post("/ai/parse-voice", { transcript, intent: "client" });
       if (data.parsed) setForm({ ...form, ...data.parsed });
       reset();
-      toast.success("Champs remplis par l'IA");
-    } catch(e) { toast.error("Erreur parsing"); }
+      toast.success(t("toast.champs_remplis_par_l_ia"));
+    } catch(e) { toast.error(t("toast.erreur_parsing")); }
     finally { setParsing(false); }
   };
 

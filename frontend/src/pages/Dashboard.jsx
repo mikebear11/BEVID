@@ -13,6 +13,7 @@ import CashflowWidget from "@/components/CashflowWidget";
 import MorningChecklist from "@/components/MorningChecklist";
 import AnniversariesWidget from "@/components/AnniversariesWidget";
 import SyncFeed from "@/components/SyncFeed";
+import { t } from "@/lib/i18n";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -25,14 +26,14 @@ export default function Dashboard() {
       const [{ data: kpi }, { data: ls }] = await Promise.all([api.get("/dashboard/kpis"), api.get("/alerts/low-stock?threshold=30")]);
       setK(kpi); setLowStock(ls);
     }
-    catch(e) { toast.error("Erreur chargement KPIs"); }
+    catch(e) { toast.error(t("toast.erreur_chargement_kpis")); }
   };
   useEffect(() => { load(); }, []);
 
   const seed = async () => {
     setSeeding(true);
-    try { await api.post("/seed/demo"); await load(); toast.success("Données de démo ajoutées"); }
-    catch(e) { toast.error("Erreur seed"); }
+    try { await api.post("/seed/demo"); await load(); toast.success(t("toast.donnees_de_demo_ajoutees")); }
+    catch(e) { toast.error(t("toast.erreur_seed")); }
     finally { setSeeding(false); }
   };
 

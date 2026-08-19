@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { Link } from "react-router-dom";
 import { QrCode, Plus, MapPin, Package } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 const TYPES = ["fut", "carton", "palette", "bouteille", "autre"];
 const STATUS_LABEL = { en_stock: "En stock", sorti: "Sorti", chez_client: "Chez client", retour: "Retour", vide: "Vide", consigne_facturee: "Consigne facturée", casse: "Cassé" };
@@ -37,11 +38,11 @@ export default function Containers() {
         filled_volume_l: parseFloat(form.filled_volume_l) || null,
         filled_at: new Date().toISOString(),
       });
-      toast.success("Contenant enregistré");
+      toast.success(t("toast.contenant_enregistre"));
       setShow(false);
       setForm({ type: "fut", product_id: "", batch_lot: "", deposit_amount: 50, filled_volume_l: 30, barcode: "" });
       load();
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    } catch (err) { toast.error(err.response?.data?.detail || t("toast.erreur")); }
   };
 
   return (

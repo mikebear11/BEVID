@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { MapPin, Search, Plus, Loader2, Award, Music, Leaf, Compass } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 // Leaflet — chargement dynamique pour ne pas casser SSR/tests
 let L = null;
@@ -76,17 +77,17 @@ export default function Prospection() {
     try {
       const { data } = await api.get(`/prospection/nearby?lat=${pos.lat}&lng=${pos.lng}&radius_km=${radius}`);
       setResults(data.results || []);
-      toast.success(`${data.count} prospects trouvés dans un rayon de ${radius} km`);
-    } catch (e) { toast.error(e.response?.data?.detail || "Source publique indisponible"); }
+      toast.success(t("toast.v1_prospects_trouves_dans_un_rayon_", { v1: data.count, v2: radius }));
+    } catch (e) { toast.error(e.response?.data?.detail || t("toast.source_publique_indisponible")); }
     finally { setLoading(false); }
   };
 
   const convert = async (r) => {
     try {
       const { data } = await api.post("/prospection/convert", r);
-      if (data.already) toast.info("Prospect déjà dans le portefeuille");
-      else toast.success("Prospect ajouté au portefeuille");
-    } catch { toast.error("Erreur conversion"); }
+      if (data.already) toast.info(t("toast.prospect_deja_dans_le_portefeuille"));
+      else toast.success(t("toast.prospect_ajoute_au_portefeuille"));
+    } catch { toast.error(t("toast.erreur_conversion")); }
   };
 
   return (

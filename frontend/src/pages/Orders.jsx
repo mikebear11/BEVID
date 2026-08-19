@@ -4,6 +4,7 @@ import { Plus, X, Trash2, FileDown, PenLine, Repeat, Link2, CreditCard } from "l
 import { toast } from "sonner";
 import SignaturePad from "@/components/SignaturePad";
 import PaymentModal from "@/components/PaymentModal";
+import { t } from "@/lib/i18n";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
@@ -23,21 +24,21 @@ export default function Orders() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `commande-${oid.slice(0,8)}.pdf`; a.click();
     URL.revokeObjectURL(url);
-    toast.success("PDF téléchargé");
+    toast.success(t("toast.pdf_telecharge"));
   };
 
   const saveSignature = async (dataUrl) => {
     await api.post(`/orders/${sigOrderId}/signature`, { signature: dataUrl });
-    toast.success("Signature enregistrée");
+    toast.success(t("toast.signature_enregistree"));
     setSigOrderId(null); load();
   };
 
   const reorder = async (oid) => {
     try {
       await api.post(`/orders/reorder/${oid}`);
-      toast.success("Recommande créée en 1 clic");
+      toast.success(t("toast.recommande_creee_en_1_clic"));
       load();
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error(t("toast.erreur")); }
   };
 
   const generateSignLink = async (oid) => {
@@ -45,8 +46,8 @@ export default function Orders() {
       const { data } = await api.post(`/orders/${oid}/signature-link`);
       const url = `${window.location.origin}${data.url_path}`;
       await navigator.clipboard.writeText(url);
-      toast.success("Lien copié — envoyez-le au client par SMS/WhatsApp");
-    } catch { toast.error("Erreur"); }
+      toast.success(t("toast.lien_copie_envoyez_le_au_client_par"));
+    } catch { toast.error(t("toast.erreur")); }
   };
 
   const load = async () => {
@@ -72,9 +73,9 @@ export default function Orders() {
   const submit = async (e) => {
     e.preventDefault();
     const client = clients.find(c => c.id === selClient);
-    if (!client || lines.length === 0) { toast.error("Client et lignes requis"); return; }
+    if (!client || lines.length === 0) { toast.error(t("toast.client_et_lignes_requis")); return; }
     await api.post("/orders", { client_id: client.id, client_name: client.name, lines, notes });
-    toast.success("Commande créée");
+    toast.success(t("toast.commande_creee"));
     setShow(false); setSelClient(""); setLines([]); setNotes("");
     load();
   };

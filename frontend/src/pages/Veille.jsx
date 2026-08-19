@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { AlertOctagon, RefreshCw, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 export default function Veille() {
   const [rappels, setRappels] = useState([]);
@@ -18,9 +19,9 @@ export default function Veille() {
     setScanning(true);
     try {
       const { data } = await api.post("/veille/scan-now");
-      toast.success(`Scan RappelConso : ${data.matches} match sur ${data.checked} rappels`);
+      toast.success(t("toast.scan_rappelconso_v1_match_sur_v2_ra", { v1: data.matches, v2: data.checked }));
       load();
-    } catch { toast.error("Erreur scan"); }
+    } catch { toast.error(t("toast.erreur_scan")); }
     finally { setScanning(false); }
   };
 
@@ -29,7 +30,7 @@ export default function Veille() {
     try {
       const { data } = await api.get(`/veille/rappels/${id}/impacted-clients`);
       setImpactModal({ id, ...data, loading: false });
-    } catch { toast.error("Erreur"); setImpactModal(null); }
+    } catch { toast.error(t("toast.erreur")); setImpactModal(null); }
   };
 
   return (

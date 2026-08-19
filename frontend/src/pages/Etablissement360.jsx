@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Phone, ArrowLeft, ClipboardCheck, ShoppingCart, MessageSquare, AlertOctagon, TrendingUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 const CREDIT_COLOR = { vert: "#2D5A4C", orange: "#C78B3A", rouge: "#8C2A2A" };
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", rouge: "COMPTE BLOQUÉ" };
@@ -17,14 +18,14 @@ export default function Etablissement360() {
 
   const load = async () => {
     try { const { data } = await api.get(`/establishments/${id}`); setE(data); }
-    catch { toast.error("Erreur chargement"); }
+    catch { toast.error(t("toast.erreur_chargement")); }
   };
   useEffect(() => { load(); }, [id]);
 
   const askDerog = async () => {
-    if (!derogReason.trim()) { toast.error("Motif requis"); return; }
+    if (!derogReason.trim()) { toast.error(t("toast.motif_requis")); return; }
     await api.post("/derogations", { establishment_id: id, reason: derogReason, requested_amount: parseFloat(amt) || 0 });
-    toast.success("Demande envoyée au gérant");
+    toast.success(t("toast.demande_envoyee_au_gerant"));
     setShowDerog(false); setDerogReason(""); setAmt("");
   };
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { t } from "@/lib/i18n";
 
 const COLS = [
   { key: "prospect", label: "Prospects", color: "#C78B3A" },
@@ -26,8 +27,8 @@ export default function Pipeline() {
     setDragId(null);
     try {
       await api.put(`/clients/${dragId}/status`, { status });
-      toast.success(`${client.name} → ${status}`);
-    } catch { toast.error("Erreur"); load(); }
+      toast.success(t("toast.v1_v2", { v1: client.name, v2: status }));
+    } catch { toast.error(t("toast.erreur")); load(); }
   };
 
   return (

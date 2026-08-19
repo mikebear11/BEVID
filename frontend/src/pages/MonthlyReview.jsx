@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Sparkles, Loader2, TrendingUp, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 export default function MonthlyReview() {
   const [agents, setAgents] = useState([]);
@@ -25,7 +26,7 @@ export default function MonthlyReview() {
     try {
       const { data: r } = await api.post(`/reports/monthly/${agentId}/ai-narrative`, { year, month });
       setAi(r.answer);
-    } catch { toast.error("Erreur IA"); }
+    } catch { toast.error(t("toast.erreur_ia")); }
     finally { setLoading(false); }
   };
 

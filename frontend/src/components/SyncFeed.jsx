@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { CloudDownload, AlertTriangle, ShoppingCart, ClipboardCheck, X, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import ConflictPlaybookModal from "./ConflictPlaybookModal";
+import { t } from "@/lib/i18n";
 
 /**
  * Feed en-tête du dashboard : visites & commandes qui viennent d'arriver
@@ -22,7 +23,7 @@ export default function SyncFeed() {
 
   const dismiss = async (cid) => {
     await api.post(`/conflicts/${cid}/dismiss`);
-    toast.success("Conflit écarté");
+    toast.success(t("toast.conflit_ecarte"));
     load();
   };
 

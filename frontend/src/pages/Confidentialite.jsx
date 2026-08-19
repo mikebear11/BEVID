@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ShieldCheck, MapPin, Mic, Database, FileDown, Trash2 } from "lucide-react";
 import PuceEtat from "@/components/system/PuceEtat";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { t } from "@/lib/i18n";
 
 export default function Confidentialite() {
   const { user } = useAuth();
@@ -28,9 +29,9 @@ export default function Confidentialite() {
     try {
       const { data } = await api.put("/org/settings", settings);
       setSettings(data);
-      toast.success("Réglages sauvegardés");
+      toast.success(t("toast.reglages_sauvegardes"));
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("toast.erreur"));
     } finally { setSaving(false); }
   };
 
@@ -43,9 +44,9 @@ export default function Confidentialite() {
       const a = document.createElement("a");
       a.href = url; a.download = `rgpd-export-${clientId}.json`; a.click();
       URL.revokeObjectURL(url);
-      toast.success("Export téléchargé");
+      toast.success(t("toast.export_telecharge"));
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("toast.erreur"));
     }
   };
 
@@ -54,17 +55,17 @@ export default function Confidentialite() {
     if (!(await confirm({ title: "Supprimer les données du contact ?", message: `Toutes les données du contact ${clientId} seront supprimées définitivement. Cette action est irréversible.`, confirmLabel: "Supprimer définitivement", tone: "danger" }))) return;
     try {
       const { data } = await api.delete(`/rgpd/clients/${clientId}`);
-      toast.success(`Contact supprimé (${data.orders_deleted} commandes, ${data.visits_deleted} visites)`);
+      toast.success(t("toast.contact_supprime_v1_commandes_v2_vi", { v1: data.orders_deleted, v2: data.visits_deleted }));
       setClientId("");
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("toast.erreur"));
     }
   };
 
   const purgeVoice = async () => {
     if (!(await confirm({ title: "Purger les transcriptions vocales ?", message: "Toutes les transcriptions au-delà de la période de rétention seront supprimées.", confirmLabel: "Purger", tone: "danger" }))) return;
     const { data } = await api.post("/admin/voice/purge");
-    toast.success(`${data.purged} transcriptions purgées (rétention ${data.cutoff_days}j)`);
+    toast.success(t("toast.v1_transcriptions_purgees_retention", { v1: data.purged, v2: data.cutoff_days }));
   };
 
   if (!settings) return <div className="p-8 text-stone-500">{t("loading")}</div>;

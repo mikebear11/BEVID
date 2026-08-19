@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGri
 import { Download, Sparkles, Loader2, FileText, FileDown } from "lucide-react";
 import { API } from "@/lib/api";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 const COLORS = ["#4A154B", "#2D5A4C", "#C78B3A", "#8C2A2A", "#6B2D5C"];
 
@@ -29,7 +30,7 @@ export default function Reports() {
         context: ctx,
       });
       setAiSummary(data.answer);
-    } catch { toast.error("Erreur IA"); }
+    } catch { toast.error(t("toast.erreur_ia")); }
     finally { setLoading(false); }
   };
 
@@ -39,7 +40,7 @@ export default function Reports() {
     const blob = new Blob([rows.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `rapport-performance-${Date.now()}.csv`; a.click();
-    toast.success("Rapport exporté");
+    toast.success(t("toast.rapport_exporte"));
   };
 
   if (!kpis) return <div className="text-stone-500">Chargement…</div>;
@@ -58,7 +59,7 @@ export default function Reports() {
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a"); a.href = url; a.download = `bilan-Q${q}-${now.getFullYear()}.pdf`; a.click();
-            toast.success("Bilan trimestriel téléchargé");
+            toast.success(t("toast.bilan_trimestriel_telecharge"));
           }} className="btn-ghost flex items-center gap-2" data-testid="quarterly-pdf-btn"><FileDown size={14} /> Bilan trimestriel PDF</button>
           <button onClick={genSummary} disabled={loading} className="btn-primary flex items-center gap-2" data-testid="ai-summary-btn">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Synthèse IA

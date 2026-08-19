@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { Lock, Unlock, AlertTriangle } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { t } from "@/lib/i18n";
 
 export default function Couts() {
   const { user } = useAuth();
@@ -45,10 +46,10 @@ export default function Couts() {
     try {
       const c = costs[pid];
       await api.post("/product-costs", c);
-      toast.success("Coût enregistré");
+      toast.success(t("toast.cout_enregistre"));
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("toast.erreur"));
     } finally { setSaving(false); }
   };
 
@@ -56,16 +57,16 @@ export default function Couts() {
     if (!(await confirm({ title: "Valider les coûts de revient ?", message: "Confirmez-vous avoir saisi vos coûts de revient de façon sérieuse et vérifiée ? Une fois validé, les écrans de marge s'ouvriront.", confirmLabel: "Valider" }))) return;
     try {
       const { data } = await api.post("/admin/costs/validate");
-      toast.success(`${data.products_validated} coûts validés — marges activées`);
+      toast.success(t("toast.v1_couts_valides_marges_activees", { v1: data.products_validated }));
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("toast.erreur"));
     }
   };
   const invalidate = async () => {
     if (!(await confirm({ title: "Réinvalider les coûts ?", message: "Les écrans de marge seront fermés tant que la validation n'aura pas été refaite.", confirmLabel: "Réinvalider", tone: "danger" }))) return;
     await api.post("/admin/costs/invalidate");
-    toast.success("Coûts réinvalidés");
+    toast.success(t("toast.couts_reinvalides"));
     load();
   };
 

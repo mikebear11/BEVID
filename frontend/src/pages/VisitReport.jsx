@@ -4,6 +4,7 @@ import { api, postOffline } from "@/lib/api";
 import { useVoice } from "@/hooks/useVoice";
 import { Mic, Check, Sparkles, Loader2, CloudOff } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 const MOODS = [
   { v: "excellent", label: "😄 Excellent", color: "#2D5A4C" },
@@ -50,14 +51,14 @@ export default function VisitReport() {
       const clean = data.answer.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
       setForm(f => ({ ...f, ...parsed, summary: parsed.summary || text }));
-      toast.success("Formulaire rempli par l'IA");
-    } catch (e) { toast.error("Extraction IA échouée, complétez à la main"); }
+      toast.success(t("toast.formulaire_rempli_par_l_ia"));
+    } catch (e) { toast.error(t("toast.extraction_ia_echouee_completez_a_l")); }
     finally { setAiLoading(false); }
   };
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.client_id) { toast.error("Sélectionnez un client"); return; }
+    if (!form.client_id) { toast.error(t("toast.selectionnez_un_client")); return; }
     setSubmitting(true);
     try {
       const payload = {
@@ -68,12 +69,12 @@ export default function VisitReport() {
       };
       const res = await postOffline("/visits", payload);
       if (res.offline) {
-        toast.success("Enregistré hors-ligne — sera synchronisé au retour du réseau", { icon: "📶" });
+        toast.success(t("toast.enregistre_hors_ligne_sera_synchron"), { icon: "📶" });
       } else {
-        toast.success("Compte-rendu enregistré");
+        toast.success(t("toast.compte_rendu_enregistre"));
       }
       nav(`/clients/${form.client_id}`);
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error(t("toast.erreur")); }
     finally { setSubmitting(false); }
   };
 

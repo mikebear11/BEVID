@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Users, User, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 const TYPES = ["visite", "reunion", "relance", "tournee", "autre"];
 const TYPE_COLOR = { visite: "#4A154B", reunion: "#2D5A4C", relance: "#C78B3A", tournee: "#8C2A2A", autre: "#5C5C5C" };
@@ -22,7 +23,7 @@ export default function Planning() {
     ev.preventDefault();
     const payload = { ...form, client_id: form.client_id || null };
     await api.post("/events", payload);
-    toast.success("Événement créé");
+    toast.success(t("toast.evenement_cree"));
     setShow(false);
     setForm({ title: "", start: new Date().toISOString().slice(0, 16), type: "visite", client_id: "", shared: false, notes: "" });
     load();

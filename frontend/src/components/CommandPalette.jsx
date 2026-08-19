@@ -19,9 +19,26 @@ export default function CommandPalette({ items }) {
       if (isCmdK) { e.preventDefault(); setOpen((o) => !o); setQ(""); setCursor(0); }
       if (e.key === "Escape") setOpen(false);
     };
+    // Ouverture programmatique (bouton loupe mobile, deep link, etc.)
+    const onOpen = () => { setOpen(true); setQ(""); setCursor(0); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("bevid:open-palette", onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("bevid:open-palette", onOpen);
+    };
   }, []);
+
+  // Auto-focus + déclenche le clavier virtuel mobile à l'ouverture
+  useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => {
+        const el = document.querySelector('[data-testid="command-input"]');
+        if (el) el.focus();
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
 
   const filtered = useMemo(() => {
     if (!q) return items.slice(0, 20);

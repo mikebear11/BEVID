@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { api } from "@/lib/api";
 import { ClipboardList, X, Plus, Trash2, Loader2, Camera } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 /**
  * Formulaire relevé terrain < 20 s (PARTIE 14).
@@ -41,10 +42,10 @@ export default function ReleveTerrainFAB({ clientId }) {
         prix_releves: prix,
         lat, lng,
       });
-      toast.success("Relevé enregistré · +1 pour l'observatoire");
+      toast.success(t("toast.releve_enregistre_1_pour_l_observat"));
       setOpen(false);
       setForm({ marques_presentes: "", nb_lignes_totales: "", prix_releves: [{ marque: "", format: "", prix_consommateur: "" }] });
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error(t("toast.erreur")); }
     finally { setSaving(false); }
   };
 

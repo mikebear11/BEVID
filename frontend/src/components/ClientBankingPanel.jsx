@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { api, API } from "@/lib/api";
 import { toast } from "sonner";
 import { Landmark, FileText, Upload, CheckCircle2, Loader2, ExternalLink } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 /**
  * Panneau KYB/Banking pour ClientDetail — IBAN, BIC, SIRET, TVA + uploads Kbis/RIB.
@@ -23,10 +24,10 @@ export default function ClientBankingPanel({ client, onUpdate }) {
     setSaving(true);
     try {
       await api.post(`/clients/${client.id}/banking`, form);
-      toast.success("Coordonnées bancaires enregistrées");
+      toast.success(t("toast.coordonnees_bancaires_enregistrees"));
       onUpdate?.();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Erreur");
+      toast.error(e.response?.data?.detail || t("toast.erreur"));
     } finally { setSaving(false); }
   };
 
@@ -43,7 +44,7 @@ export default function ClientBankingPanel({ client, onUpdate }) {
       });
       const b = await res.json();
       if (!res.ok) throw new Error(b.detail || "Upload échoué");
-      toast.success(`${kind === "kbis" ? "Kbis" : "RIB"} téléversé (${(b.size / 1024).toFixed(0)} Ko)`);
+      toast.success(t("toast.v1_televerse_v2_ko", { v1: kind === "kbis" ? "Kbis" : "RIB", v2: (b.size / 1024).toFixed(0) }));
       onUpdate?.();
     } catch (err) {
       toast.error(err.message);
@@ -104,12 +105,12 @@ export default function ClientBankingPanel({ client, onUpdate }) {
           Enregistrer
         </button>
         <button onClick={async () => {
-          if (!form.tva_intra) return toast.error("Saisir un n° TVA");
+          if (!form.tva_intra) return toast.error(t("toast.saisir_un_n_tva"));
           try {
             const { data } = await api.post("/tools/vies-check", { vat_number: form.tva_intra });
-            if (data.valid) toast.success(`VIES ✓ ${data.name || ""}`);
-            else toast.error(data.error || "TVA non valide côté VIES");
-          } catch { toast.error("VIES indisponible"); }
+            if (data.valid) toast.success(t("toast.vies_v1", { v1: data.name || "" }));
+            else toast.error(data.error || t("toast.tva_non_valide_cote_vies"));
+          } catch { toast.error(t("toast.vies_indisponible")); }
         }} className="btn-ghost text-xs min-h-[40px]" data-testid="vies-check-btn">
           Vérifier VIES
         </button>

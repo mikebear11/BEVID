@@ -3,6 +3,7 @@ import { api, API } from "@/lib/api";
 import { Plus, MapPin, Calendar, Locate, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import TourMap from "@/components/TourMap";
+import { t } from "@/lib/i18n";
 
 export default function Tours() {
   const [tours, setTours] = useState([]);
@@ -23,9 +24,9 @@ export default function Tours() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (form.client_ids.length === 0) { toast.error("Ajoutez au moins un client"); return; }
+    if (form.client_ids.length === 0) { toast.error(t("toast.tour_add_client")); return; }
     const { data } = await api.post("/tours", form);
-    toast.success("Tournée créée");
+    toast.success(t("toast.tour_created"));
     setShow(false); setForm({ name: "", date: new Date().toISOString().slice(0,10), client_ids: [] });
     setSelectedTour(data);
     load();
@@ -39,9 +40,9 @@ export default function Tours() {
     setGeocoding(true);
     try {
       const { data } = await api.post("/clients/geocode-all");
-      toast.success(`${data.updated} clients géolocalisés`);
+      toast.success(t("toast.v1_clients_geolocalises", { v1: data.updated }));
       await load();
-    } catch { toast.error("Erreur géocodage"); }
+    } catch { toast.error(t("toast.geocode_error")); }
     finally { setGeocoding(false); }
   };
 

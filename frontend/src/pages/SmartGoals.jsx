@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sparkles, Check, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 const KPI_LABEL = { ca: "CA (€)", orders: "Commandes", new_clients: "Nouveaux clients", visits: "Visites" };
 
@@ -23,14 +24,14 @@ export default function SmartGoals() {
 
   const suggest = async () => {
     setLoading(true);
-    try { await api.post(`/goals/smart/suggest/${agentId}`); await load(); toast.success("3 objectifs proposés par l'IA"); }
-    catch { toast.error("Erreur IA"); }
+    try { await api.post(`/goals/smart/suggest/${agentId}`); await load(); toast.success(t("toast.3_objectifs_proposes_par_l_ia")); }
+    catch { toast.error(t("toast.erreur_ia")); }
     finally { setLoading(false); }
   };
 
   const review = async (gid, status) => {
     try { await api.put(`/goals/smart/${gid}`, { status }); await load(); toast.success(status === "approved" ? "Validé" : "Rejeté"); }
-    catch(e) { toast.error(e.response?.data?.detail || "Erreur"); }
+    catch(e) { toast.error(e.response?.data?.detail || t("toast.erreur")); }
   };
 
   const editTarget = async (gid, val) => {

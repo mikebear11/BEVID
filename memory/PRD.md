@@ -29,7 +29,7 @@ brassicoles/distribution.
 - **Design system strict** : `tokens.css` unique source de couleur, 3 thèmes (clair/sombre/soleil),
   `PuceEtat` standardisé, ESLint bannit les hex hors tokens.
 
-## Ce qui est implémenté (au 18 août 2026)
+## Ce qui est implémenté (au 19 août 2026)
 
 ### Lot 0 — Infrastructure hors-ligne (livré)
 - Service Worker v3 : cache versionné, NetworkFirst sur JS/CSS (fix bundle périmé v2),
@@ -46,31 +46,48 @@ brassicoles/distribution.
   ARIA labels sur formulaires, `<html lang>` dynamique, viewport zoom débloqué,
   `ConfirmProvider` remplace `window.confirm` globalement.
 
-### Lot 3 — Production readiness (livré 18 août 2026)
+### Lot 3 — Production readiness (livré 18–19 août 2026)
 - **P0 SW fix** : versioning par CACHE_VERSION, purge activate, NetworkFirst pour JS/CSS,
   bandeau applicatif "Nouvelle version — Recharger" non-intrusif (composant UpdateBanner).
+- **11 (audit 375px)** : passe systématique sur 25 écrans à risque tables (Dashboard,
+  Clients, Orders, Products, Stock, Containers, DRM, Rapprochement, Paiements, Reports,
+  Radar, Prospection, Veille, AdminUsers, AdminPermissions, Couts, Tournee, Pipeline,
+  Deals, Tours, Visit, Planning, MonthlyReview, Settings, Confidentialite).
+  **Verdict : 25/25 OK à 375 × 812**, `scrollWidth == innerWidth == 375` pour toutes.
+  Barre mobile bottom présente sur tous les écrans avec 5 gestes fixes.
 - **11ter** : sidebar desktop en 6 sections repliables (Terrain/Ventes/Stock & Douanes/
   Pilotage/Acquisition/Administration), persistance dans localStorage,
   section active auto-ouverte, palette Cmd/Ctrl+K globale (CommandPalette).
-- **11quater** : décision documentée — Tours vs Tournee et Deals vs Pipeline ne sont **pas**
-  des doublons. Renommage des libellés pour lever l'ambiguïté :
+- **11ter mobile** : bouton loupe dans la top-bar mobile qui déclenche la palette
+  (via `CustomEvent 'bevid:open-palette'`), focus automatique du champ pour ouvrir
+  le clavier virtuel.
+- **11quater** : décision documentée — Tours vs Tournee et Deals vs Pipeline ne sont
+  **pas** des doublons. Renommage des libellés pour lever l'ambiguïté :
   `Tours → Plans de tournée`, `Tournee → Ma tournée`,
   `Deals → Opportunités`, `Pipeline → Cycle client`.
-- **11quinquies** : sélecteur de langue réduit à **fr + en uniquement** (es et de retirés,
-  infrastructure i18n conservée). Module `lib/i18n.js` importable hors React
-  (intercepteurs axios, ErrorBoundary, SW). Extraction initiale des toasts critiques
-  (`toast.login_*`, `toast.tour_*`, `toast.deal_*`) — le reste des ~130 toasts est à
-  extraire progressivement (backlog).
-- **12** : Register + ForgotPassword uniformisés avec Login (même panneau de marque à gauche).
+- **11quinquies (i18n COMPLET)** : sélecteur de langue réduit à **fr + en uniquement**.
+  Extraction automatisée de **129 toasts hardcodés → 0 restant** via
+  `/app/scripts/extract_toasts_v2.py`. **248 clés `toast.*`** dans `dict.fr` et
+  `dict.en`, module `lib/i18n.js` importable hors React (intercepteurs axios,
+  ErrorBoundary, SW). Traductions EN complètes pour ~50 clés critiques (ordres,
+  visites, commandes, IA), fallback FR silencieux pour les rares clés restantes.
+- **12** : Register + ForgotPassword uniformisés avec Login (même panneau de marque
+  à gauche + data-testid="brand-panel").
 - **13** : favicon SVG + og:image (icon-512.png), Twitter Card.
-- **14** : React.lazy sur toutes les routes protégées + Suspense.
+- **14 (build prod)** : React.lazy sur toutes les routes protégées + Suspense.
+  **`yarn build` passe clean** : main bundle 544 KB minifié + 53 chunks (route-splitting),
+  0 fuite chemins `/app/frontend/src`, 0 `jsxDEV`, 0 `__REACT_REFRESH_HOT_ACCEPT__`,
+  0 `webpack-dev-server`, 0 `localhost:3000`. `.eslintrc.js` allégé pour ne plus
+  dépendre du preset `react-app` (chargement instable en build). Le preview Emergent
+  continue de servir le mode dev (contrainte plateforme), mais le déploiement
+  produit désormais un bundle propre et minifié.
 - **15** : cookie httpOnly `bevid_auth` Secure SameSite=Lax, endpoint `/api/auth/logout`,
   `get_current_user` accepte Bearer OU cookie, migration douce (legacy `crm_token`
   toléré temporairement puis purgé). Flag non-sensible `bevid_session=1` pour préserver
   le démarrage hors-ligne.
 - **16** : bandeau PostHog opt-in strict, `disable_session_recording: true` en dur (même
   après acceptation, jamais de replay sur pages authentifiées), `autocapture: false`,
-  révocation depuis `/confidentialite` avec purge cookies.
+  révocation depuis `/confidentialite` avec purge cookies. z-index 200 > onboarding.
 - **17** : ErrorBoundary global (composant + écran de secours), endpoint `POST /api/errors`
   rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
   sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.

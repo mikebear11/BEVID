@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { Radio, RefreshCw, Loader2, Plus, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { t } from "@/lib/i18n";
 
 export default function Radar() {
   const [prospects, setProspects] = useState([]);
@@ -23,7 +24,7 @@ export default function Radar() {
   const saveDepts = async (arr) => {
     await api.post("/settings/monitored-departments", { departments: arr });
     setDepts(arr);
-    toast.success("Départements enregistrés");
+    toast.success(t("toast.departements_enregistres"));
   };
 
   const addDept = () => {
@@ -37,9 +38,9 @@ export default function Radar() {
     setScanning(true);
     try {
       const { data } = await api.post("/radar/scan-now");
-      toast.success(`Scan : ${data.new_prospects} nouveaux CHR (sur ${data.chr_count} filtrés, ${data.bodacc_count} annonces BODACC)`);
+      toast.success(t("toast.scan_v1_nouveaux_chr_sur_v2_filtres", { v1: data.new_prospects, v2: data.chr_count, v3: data.bodacc_count }));
       load();
-    } catch (e) { toast.error("Erreur scan"); }
+    } catch (e) { toast.error(t("toast.erreur_scan")); }
     finally { setScanning(false); }
   };
 

@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { KeyRound, UserPlus, ShieldCheck, ShieldAlert, Copy } from "lucide-react";
 import PuceEtat from "@/components/system/PuceEtat";
+import { t } from "@/lib/i18n";
 
 export default function AdminUsers() {
   const { user } = useAuth();
@@ -36,10 +37,10 @@ export default function AdminUsers() {
       const { data } = await api.post("/admin/users", form);
       setLastTemp({ email: data.user.email, tmp: data.temp_password });
       setForm({ name: "", email: "", role: "commercial" });
-      toast.success("Utilisateur créé");
+      toast.success(t("toast.utilisateur_cree"));
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Erreur");
+      toast.error(err.response?.data?.detail || t("toast.erreur"));
     } finally { setCreating(false); }
   };
 
@@ -47,13 +48,13 @@ export default function AdminUsers() {
     const { data } = await api.post(`/admin/users/${uid}/reset-password`);
     const target = users.find(x => x.id === uid);
     setLastTemp({ email: target?.email, tmp: data.temp_password });
-    toast.success("Mot de passe temporaire généré");
+    toast.success(t("toast.mot_de_passe_temporaire_genere"));
   };
 
   const approveRequest = async (rid) => {
     const { data } = await api.post(`/admin/reset-requests/${rid}/approve`);
     setLastTemp({ email: data.email, tmp: data.temp_password });
-    toast.success("Demande traitée");
+    toast.success(t("toast.demande_traitee"));
     load();
   };
 
@@ -64,7 +65,7 @@ export default function AdminUsers() {
 
   const copy = (txt) => {
     navigator.clipboard.writeText(txt);
-    toast.success("Copié");
+    toast.success(t("toast.copie"));
   };
 
   return (

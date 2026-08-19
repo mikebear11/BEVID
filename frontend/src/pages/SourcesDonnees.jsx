@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Database, ExternalLink, CheckCircle2, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 export default function SourcesDonnees() {
   const [sources, setSources] = useState([]);
@@ -16,7 +17,7 @@ export default function SourcesDonnees() {
         api.get("/ingestion-runs?limit=30"),
       ]);
       setSources(s); setRuns(r);
-    } catch { toast.error("Erreur chargement"); }
+    } catch { toast.error(t("toast.erreur_chargement")); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);

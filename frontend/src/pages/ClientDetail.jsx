@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import ClientBankingPanel from "@/components/ClientBankingPanel";
 import ReleveTerrainFAB from "@/components/ReleveTerrainFAB";
 import PuceEtat from "@/components/system/PuceEtat";
+import { t } from "@/lib/i18n";
 
 export default function ClientDetail() {
   const { id } = useParams();
@@ -39,7 +40,7 @@ export default function ClientDetail() {
     try {
       const { data } = await api.post("/ai/account-insight", { client_id: id });
       setInsight(data.answer);
-    } catch(e) { toast.error("Erreur IA"); }
+    } catch(e) { toast.error(t("toast.erreur_ia")); }
     finally { setLoadingAI(false); }
   };
 
@@ -48,7 +49,7 @@ export default function ClientDetail() {
     if (!note.trim()) return;
     await api.post("/activities", { client_id: id, type: "note", content: note });
     setNote(""); load();
-    toast.success("Note ajoutée");
+    toast.success(t("toast.note_ajoutee"));
   };
 
   const del = async () => {
@@ -60,9 +61,9 @@ export default function ClientDetail() {
   const reorder = async (oid) => {
     try {
       await api.post(`/orders/reorder/${oid}`);
-      toast.success("Recommande créée");
+      toast.success(t("toast.recommande_creee"));
       load();
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error(t("toast.erreur")); }
   };
 
   if (!c) return <div className="text-stone-500">Chargement…</div>;

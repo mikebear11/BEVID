@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Shield, RefreshCw, Loader2, AlertOctagon } from "lucide-react";
 import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 const SEVERITY_MAP = {
   block: { cls: "border-red-500 bg-red-50", label: "Bloqué", color: "text-red-800" },
@@ -23,9 +24,9 @@ export default function Bouclier() {
     setScanning(true);
     try {
       const { data } = await api.post("/bouclier/scan-now");
-      toast.success(`Scan BODACC : ${data.alerts} alertes sur ${data.sirens_scanned} SIREN`);
+      toast.success(t("toast.scan_bodacc_v1_alertes_sur_v2_siren", { v1: data.alerts, v2: data.sirens_scanned }));
       load();
-    } catch { toast.error("Erreur scan"); }
+    } catch { toast.error(t("toast.erreur_scan")); }
     finally { setScanning(false); }
   };
 

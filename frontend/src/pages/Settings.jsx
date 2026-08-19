@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { MessageSquare, Percent, Save, Bell } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export default function SettingsPage() {
   const [s, setS] = useState(null);
@@ -11,8 +12,8 @@ export default function SettingsPage() {
 
   const save = async () => {
     setSaving(true);
-    try { await api.put("/settings", s); toast.success("Préférences enregistrées"); }
-    catch { toast.error("Erreur"); }
+    try { await api.put("/settings", s); toast.success(t("toast.preferences_enregistrees")); }
+    catch { toast.error(t("toast.erreur")); }
     finally { setSaving(false); }
   };
 

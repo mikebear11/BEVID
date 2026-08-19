@@ -1,16 +1,16 @@
 /**
- * ESLint — interdit toute valeur hexadécimale codée en dur dans les composants.
- * Seule exception : le fichier src/design-system/tokens.css (source de vérité).
- *
- * Cible :
- *   - Literal string comme "#4A154B", "#fff", "#0ca30c" dans les .js/.jsx/.ts/.tsx
- *   - JSXAttribute style={{ color: "#ffffff" }}
- *
- * Contournement autorisé : `var(--ds-*)` uniquement.
+ * ESLint — interdit toute valeur hexadécimale codée en dur hors design-system.
+ * Config minimale : parser par défaut (espree) + ecmaFeatures.jsx, sans dépendance
+ * externe pour rester chargeable en dev comme en build.
  */
 module.exports = {
   root: true,
-  extends: ["react-app"],
+  env: { browser: true, es2021: true, node: true },
+  parserOptions: {
+    ecmaVersion: 2022,
+    sourceType: "module",
+    ecmaFeatures: { jsx: true },
+  },
   overrides: [
     {
       files: ["src/**/*.{js,jsx,ts,tsx}"],

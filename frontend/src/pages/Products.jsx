@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { Plus, Trash2, Wine, Beer, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { t } from "@/lib/i18n";
 
 const CATS = ["vin", "biere", "spiritueux", "soft", "eau", "autre"];
 
@@ -26,11 +27,11 @@ export default function Products() {
         volume_liters: parseFloat(form.volume_liters) || null,
       };
       await api.post("/products", payload);
-      toast.success("Produit ajouté");
+      toast.success(t("toast.produit_ajoute"));
       setShow(false);
       setForm({ name: "", category: "vin", price: 0, stock: 0, sku: "", volume_liters: 0, hecto_tiers: [] });
       load();
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error(t("toast.erreur")); }
   };
   const del = async (id) => {
     const ok = await confirm({ title: "Supprimer ce produit ?", message: "Cette action ne peut pas être annulée.", confirmLabel: "Supprimer", tone: "danger" });
@@ -125,9 +126,9 @@ function HectoTiersModal({ product, onClose }) {
     try {
       const sorted = [...tiers].filter(t => t.min_hl > 0).sort((a, b) => a.min_hl - b.min_hl);
       await api.put(`/products/${product.id}`, { hecto_tiers: sorted, volume_liters: parseFloat(volume) || null });
-      toast.success("Tarif hecto sauvegardé");
+      toast.success(t("toast.tarif_hecto_sauvegarde"));
       onClose();
-    } catch { toast.error("Erreur"); }
+    } catch { toast.error(t("toast.erreur")); }
     finally { setSaving(false); }
   };
 

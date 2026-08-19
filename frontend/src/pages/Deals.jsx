@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Plus, Trash2, X, Sparkles, Loader2 } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 const STAGES = [
   { key: "qualification", label: "Qualification", color: "#5C5C5C" },
@@ -25,7 +26,7 @@ export default function Deals() {
     try {
       const { data } = await api.post(`/deals/${id}/ai-coach`);
       setCoaches(prev => ({ ...prev, [id]: data.answer }));
-    } catch { toast.error("Erreur coach IA"); }
+    } catch { toast.error(t("toast.coach_error")); }
     finally { setCoachLoading(null); }
   };
 
@@ -43,14 +44,14 @@ export default function Deals() {
     setDragId(null);
     try {
       await api.put(`/deals/${dragId}`, { stage, probability: stage === "gagne" ? 100 : stage === "perdu" ? 0 : d.probability });
-      toast.success(`${d.title} → ${stage}`);
-    } catch { toast.error("Erreur"); load(); }
+      toast.success(t("toast.v1_v2", { v1: d.title, v2: stage }));
+    } catch { toast.error(t("toast.erreur")); load(); }
   };
 
   const submit = async (e) => {
     e.preventDefault();
     await api.post("/deals", { ...form, amount: parseFloat(form.amount), probability: parseInt(form.probability) });
-    toast.success("Opportunité créée");
+    toast.success(t("toast.deal_created"));
     setShow(false); setForm({ title: "", client_id: "", amount: 1000, probability: 50, stage: "qualification", expected_close: "", notes: "" });
     load();
   };

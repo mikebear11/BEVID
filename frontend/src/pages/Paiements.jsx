@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { TrendingDown, TrendingUp, AlertTriangle, RefreshCw, Bell } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import PuceEtat from "@/components/system/PuceEtat";
+import { t } from "@/lib/i18n";
 
 export default function Paiements() {
   const { user } = useAuth();
@@ -27,7 +28,7 @@ export default function Paiements() {
         api.get("/alerts/bad-payers"),
       ]);
       setDso(d.data); setBad(b.data); setSettings(s.data); setAlerts(al.data);
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    } catch (err) { toast.error(err.response?.data?.detail || t("toast.erreur")); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
@@ -35,7 +36,7 @@ export default function Paiements() {
   const runAction = async (fn, msg) => {
     setBusy(true);
     try { const r = await fn(); toast.success(msg(r.data)); load(); }
-    catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+    catch (err) { toast.error(err.response?.data?.detail || t("toast.erreur")); }
     finally { setBusy(false); }
   };
   const recompute = () => runAction(() => api.post("/establishments/recompute-status"), d => `${d.updated} statuts recalculés`);
@@ -47,8 +48,8 @@ export default function Paiements() {
         bad_payer_alert_score_threshold: settings.bad_payer_alert_score_threshold,
         bad_payer_alert_overdue_amount: settings.bad_payer_alert_overdue_amount,
       });
-      toast.success("Seuils sauvegardés");
-    } catch (err) { toast.error(err.response?.data?.detail || "Erreur"); }
+      toast.success(t("toast.seuils_sauvegardes"));
+    } catch (err) { toast.error(err.response?.data?.detail || t("toast.erreur")); }
   };
   const dismiss = async (aid) => { await api.post(`/alerts/bad-payers/${aid}/dismiss`); load(); };
 

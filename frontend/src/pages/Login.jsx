@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import BevidLogo from "@/components/BevidLogo";
 import PasswordInput from "@/components/PasswordInput";
+import { t } from "@/lib/i18n";
 
 export default function Login() {
   const { login } = useAuth();
@@ -40,9 +41,9 @@ export default function Login() {
       } else if (status === 422 && data?.errors) {
         setErrors(data.errors);
       } else if (status === 429) {
-        toast.error(data?.detail || "Trop de tentatives. Réessaie plus tard.");
+        toast.error(data?.detail || t("toast.login_ratelimit"));
       } else {
-        toast.error(data?.detail || "Identifiants invalides");
+        toast.error(data?.detail || t("toast.login_invalid"));
       }
     } finally { setLoading(false); }
   };
