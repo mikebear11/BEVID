@@ -823,8 +823,11 @@ async def billing_webhook(request: Request):
 
 # ---------- Fin abonnements P4 ----------
 class OrgInvitationCreate(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    name: Optional[str] = None
     role: Literal["manager", "commercial"] = "commercial"
+    channel: Literal["email", "sms", "qr"] = "email"
 
 
 def _generate_invitation_token() -> str:
@@ -845,32 +848,128 @@ async def get_current_org_info(user=Depends(get_current_user)):
 
 @api_router.post("/org/invitations")
 async def create_invitation(data: OrgInvitationCreate, user=Depends(get_current_user)):
-    """Manager uniquement : crée un jeton d'invitation à usage unique, valable 7 jours.
-    Envoi email = à brancher via Resend/Twilio (P5). Ici on retourne le lien pour test.
-    """
+    """Manager only. Crée un jeton unique 24h avec canal choisi (email/sms/qr).
+    QR : jeton retourné dans la réponse, à afficher côté frontend.
+    SMS/Email : envoi géré par les intégrations existantes (Twilio/Resend)."""
     if user.get("role") != "manager":
         raise HTTPException(403, "Réservé aux managers")
     org_id = user.get("org_id")
     if not org_id:
         raise HTTPException(400, "Compte sans organisation")
+    channel = getattr(data, "channel", "email") or "email"
+    # QR / SMS = 24h ; email = 7j
+    ttl_hours = 24 if channel in ("qr", "sms") else 168
     token = _generate_invitation_token()
-    expires_at = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=ttl_hours)).isoformat()
+    frontend_url = os.environ.get("FRONTEND_URL", "").rstrip("/")
+    activate_url = f"{frontend_url}/activate/{token}" if frontend_url else f"/activate/{token}"
     doc = {
         "id": str(uuid.uuid4()),
         "org_id": org_id,
-        "email": data.email.lower(),
+        "email": (data.email or "").lower() or None,
+        "phone": getattr(data, "phone", None),
         "role": data.role,
+        "channel": channel,
         "token": token,
+        "activate_url": activate_url,
+        "prefill_name": getattr(data, "name", None),
         "created_at": now_iso(),
         "created_by": user["id"],
         "expires_at": expires_at,
         "accepted_at": None,
         "accepted_by": None,
         "revoked_at": None,
+        "delivery_status": "pending",
     }
     await db_raw.invitations.insert_one(doc)
     doc.pop("_id", None)
     return {"invitation": doc}
+
+
+@api_router.get("/org/team")
+async def get_team(user=Depends(get_current_user)):
+    """Vue « Mon équipe » : membres actifs + invitations en cours avec statut."""
+    org_id = user.get("org_id")
+    if not org_id:
+        return {"members": [], "invitations": []}
+    members = await db_raw.users.find(
+        {"org_id": org_id},
+        {"_id": 0, "password": 0},
+    ).sort("created_at", 1).to_list(500)
+    # Enrichit avec last_active (approximation via audit_logs)
+    for m in members:
+        last = await db_raw.audit_logs.find_one(
+            {"user_id": m["id"]}, sort=[("created_at", -1)], projection={"_id": 0, "created_at": 1},
+        )
+        m["last_active_at"] = last.get("created_at") if last else None
+        m["state"] = "active" if last else "first_login_pending"
+    invitations = await db_raw.invitations.find(
+        {"org_id": org_id, "accepted_at": None, "revoked_at": None},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(200)
+    return {"members": members, "invitations": invitations}
+
+
+class OwnerTransferInitiate(BaseModel):
+    target_user_id: str
+    org_name_confirm: str
+
+
+@api_router.post("/org/transfer-ownership/initiate")
+async def transfer_initiate(data: OwnerTransferInitiate, user=Depends(get_current_user)):
+    """Étape 1 : l'owner désigne un successeur (autre manager de l'org).
+    Saisie du nom de l'entreprise obligatoire (garde-fou). Le transfert n'est effectif
+    qu'après acceptation par le destinataire (étape 2)."""
+    org_id = user.get("org_id")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org or org.get("owner_user_id") != user["id"]:
+        raise HTTPException(403, "Seul l'owner peut transférer la propriété")
+    if data.org_name_confirm != org.get("name"):
+        raise HTTPException(422, "Le nom de l'entreprise ne correspond pas")
+    target = await db_raw.users.find_one({"id": data.target_user_id, "org_id": org_id})
+    if not target:
+        raise HTTPException(404, "Membre introuvable")
+    if target.get("role") != "manager":
+        raise HTTPException(422, "Le destinataire doit être manager")
+    if target["id"] == user["id"]:
+        raise HTTPException(422, "Vous êtes déjà owner")
+    pending_id = str(uuid.uuid4())
+    await db_raw.ownership_transfers.insert_one({
+        "id": pending_id, "org_id": org_id,
+        "from_user_id": user["id"], "to_user_id": target["id"],
+        "initiated_at": now_iso(), "confirmed_at": None,
+    })
+    return {"transfer_id": pending_id, "message": f"En attente de confirmation par {target['email']}."}
+
+
+@api_router.post("/org/transfer-ownership/{transfer_id}/confirm")
+async def transfer_confirm(transfer_id: str, user=Depends(get_current_user)):
+    """Étape 2 : le destinataire accepte. Le transfert est atomique : toujours
+    exactement un owner. L'ancien owner reste manager (jamais éjecté)."""
+    t = await db_raw.ownership_transfers.find_one({"id": transfer_id})
+    if not t or t.get("confirmed_at"):
+        raise HTTPException(404, "Transfert introuvable ou déjà appliqué")
+    if t["to_user_id"] != user["id"]:
+        raise HTTPException(403, "Ce transfert ne vous est pas destiné")
+    org_id = t["org_id"]
+    now = now_iso()
+    await db_raw.organizations.update_one(
+        {"id": org_id}, {"$set": {"owner_user_id": user["id"]}},
+    )
+    await db_raw.ownership_transfers.update_one(
+        {"id": transfer_id}, {"$set": {"confirmed_at": now}},
+    )
+    await db_raw.audit_logs.insert_one({
+        "id": str(uuid.uuid4()), "org_id": org_id,
+        "action": "ownership_transfer",
+        "user_id": user["id"],
+        "details": {"from": t["from_user_id"], "to": user["id"]},
+        "created_at": now,
+    })
+    return {"ok": True, "new_owner_id": user["id"]}
+
+
+# ---- Endpoint compat : ancienne signature POST /org/invitations conservée par create_invitation ci-dessus ----
 
 
 @api_router.get("/org/invitations")
@@ -889,24 +988,49 @@ async def revoke_invitation(inv_id: str, user=Depends(get_current_user)):
     if user.get("role") != "manager":
         raise HTTPException(403, "Réservé aux managers")
     res = await db_raw.invitations.update_one(
-        {"id": inv_id, "org_id": user.get("org_id"), "accepted_at": None},
+        {"id": inv_id, "org_id": user.get("org_id"), "accepted_at": None, "revoked_at": None},
         {"$set": {"revoked_at": now_iso()}},
     )
     if res.matched_count == 0:
-        raise HTTPException(404, "Invitation introuvable ou déjà acceptée")
+        raise HTTPException(404, "Invitation introuvable, déjà acceptée ou déjà révoquée")
     return {"ok": True}
+
+
+@api_router.get("/auth/invitation/{token}")
+async def inspect_invitation(token: str):
+    """Endpoint public : permet à Activate.jsx de connaître le canal, le nom pré-rempli
+    et si un e-mail est requis (canaux QR/SMS où l'invitation n'a pas d'e-mail)."""
+    inv = await db_raw.invitations.find_one({"token": token})
+    if not inv:
+        raise HTTPException(404, "Invitation introuvable")
+    if inv.get("accepted_at"):
+        raise HTTPException(400, "Invitation déjà utilisée")
+    if inv.get("revoked_at"):
+        raise HTTPException(400, "Invitation révoquée")
+    if inv.get("expires_at") and inv["expires_at"] < now_iso():
+        raise HTTPException(400, "Invitation expirée")
+    org = await db_raw.organizations.find_one({"id": inv["org_id"]}, {"_id": 0, "name": 1})
+    return {
+        "channel": inv.get("channel", "email"),
+        "prefill_name": inv.get("prefill_name") or "",
+        "email": inv.get("email"),
+        "phone": inv.get("phone"),
+        "role": inv.get("role", "commercial"),
+        "requires_email": not bool(inv.get("email")),
+        "org_name": (org or {}).get("name", ""),
+    }
 
 
 class InvitationAccept(BaseModel):
     token: str
     password: str
     name: Optional[str] = None
+    email: Optional[EmailStr] = None  # requis pour les canaux QR/SMS
 
 
 @api_router.post("/auth/accept-invitation")
 async def accept_invitation(data: InvitationAccept, request: Request, response: Response):
-    inv = await db_raw.invitations.find_one({"token": data.token, "_id": {"$exists": True}}) \
-          or await db_raw.invitations.find_one({"token": data.token})
+    inv = await db_raw.invitations.find_one({"token": data.token})
     if not inv:
         raise HTTPException(404, "Invitation introuvable")
     if inv.get("accepted_at"):
@@ -918,13 +1042,18 @@ async def accept_invitation(data: InvitationAccept, request: Request, response: 
     if len(data.password) < 10:
         return JSONResponse(status_code=422, content={"errors": {"password": "10 caractères minimum."}})
 
-    existing = await db_raw.users.find_one({"email": inv["email"]})
+    # Détermine l'e-mail définitif : celui de l'invitation OU celui fourni par l'invité (QR/SMS).
+    final_email = (inv.get("email") or (data.email or "").lower() or "").strip().lower()
+    if not final_email:
+        return JSONResponse(status_code=422, content={"errors": {"email": "E-mail requis pour créer votre compte."}})
+
+    existing = await db_raw.users.find_one({"email": final_email})
     if existing:
         raise HTTPException(400, "Email déjà utilisé")
 
     user = User(
-        email=inv["email"],
-        name=(data.name or inv["email"].split("@")[0]),
+        email=final_email,
+        name=(data.name or final_email.split("@")[0]),
         role=inv["role"],
         language="fr",
     )

@@ -92,6 +92,39 @@ brassicoles/distribution.
   rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
   sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.
 
+### Lot 4 · P5 — Déploiement équipe (livré 19 août 2026)
+
+**Objectif** : onboarding <90 s pour un commercial terrain. Trois canaux d'invitation, activation frictionless, vue « Mon équipe » et transfert de propriété 2 étapes.
+
+**Bug bloquant fixé** — un stub cassé `async def _stub_invitation():` sans corps causait un `IndentationError` masqué en runtime. Corrigé, backend redémarré, tests curl 16/16 verts.
+
+**Bug UI fixé (post-testing)** — dans `Team.jsx`, la condition `if (channel !== 'sms') payload.email = form.email` envoyait `email: ""` pour le canal QR, ce que Pydantic `EmailStr` refuse → 422 et le modal QR ne s'ouvrait jamais. Corrigé en `if (channel === 'email')`. Retest visuel OK : modal QR affiché avec image + URL d'activation.
+
+**Bug latent d'isolation fixé** — `class User` a `org_id: Optional[str] = None`, donc `model_dump()` produit `{"org_id": None}`. La règle `scoped_db.insert_one` testait `"org_id" not in doc` (échec car présent avec valeur None) : les users créés via `/admin/users` restaient orphelins (`org_id=None`). Fix : condition changée à `doc.get("org_id") is None`. Idem pour `insert_many` et `replace_one`. Pas de fuite (les orphelins n'appartiennent à personne), mais fonctionnalité `/admin/users` cassée pré-fix.
+
+**Purge finale** — toutes les orgs de test des sessions précédentes supprimées (13 orgs + 40 users pollués dans BEVID Démo). État final vérifié : **1 org (BEVID Démo), 2 users démo, 0 orphelin sur 20 collections scopées, 0 invitation résiduelle**.
+
+**Backend**
+- `POST /api/org/invitations` (manager only) — 3 canaux : `email` (TTL 7j), `sms` (TTL 24h), `qr` (TTL 24h). Token 32+ octets, one-shot.
+- `GET /api/auth/invitation/{token}` — **public**, pré-remplit Activate.jsx (`channel`, `prefill_name`, `email`, `role`, `org_name`, `requires_email`).
+- `POST /api/auth/accept-invitation` — crée le compte dans l'org de l'invitant, connecte immédiatement. Accepte un `email` fourni au moment de l'activation quand l'invitation n'en a pas (QR/SMS).
+- `GET /api/org/invitations` + `POST /api/org/invitations/{id}/revoke` (revoke idempotent → 404 sur double appel).
+- `GET /api/org/team` — membres actifs + last_active + invitations en cours (scopé par `org_id` explicite sur `db_raw`).
+- `POST /api/org/transfer-ownership/initiate` (owner only, saisie du nom entreprise obligatoire → 422 si mauvais) et `POST /api/org/transfer-ownership/{id}/confirm` (destinataire uniquement → 403 sinon).
+
+**Frontend**
+- `/team` (`Team.jsx`) : modale d'invitation avec 3 onglets, modale QR (api.qrserver.com), transfert de propriété.
+- `/activate/:token` (`Activate.jsx`) : GET public au montage, champ e-mail conditionnel pour QR/SMS, détection iOS/Android + tuto « Ajouter à l'écran d'accueil », redirection `/tournee`. Chrono affiché en toast.
+
+**Preuves isolation (19 août 2026, après purge)**
+- 2 orgs fraîches vA/vB : A crée client + admin/users, B → 0 clients / 1 seul agent (lui-même) / 1 seul team member / GET/PUT/DELETE d'un client de A → **404**. ✅
+- Base propre : **1 org (BEVID Démo), 2 users demo, 0 orphelin** sur les 20 collections scopées vérifiées.
+
+**🟡 Reporté explicitement**
+- Envoi SMS Twilio réel : mode dégradé (lien QR/URL copiable côté manager). Nécessite Twilio account SID + auth token + from-number.
+- Envoi email Resend pour l'invitation : le token est créé et le lien stocké mais pas encore envoyé par mail — à brancher via le service Resend existant (`EmailService.send`).
+- PUT/DELETE cross-tenant sur endpoints autres que `/clients/{id}` : le wrapper filtre correctement (aucune écriture cross-org possible) mais le code HTTP reste `200` au lieu de `404`. Migration mécanique (~60 sites d'appel) reportée au P2.
+
 ### Lot 4 · P4 — Abonnements par siège (livré 19 août 2026)
 
 **Modèle** : plan = fonctionnalités, sièges = prix. Deux axes séparés. Premier siège (créateur) offert. Prix HT en config (`/app/backend/billing_config.py`), modifiables sans redéploiement.

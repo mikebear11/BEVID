@@ -85,7 +85,7 @@ class TenantCollection:
     async def insert_one(self, doc, *args, **kwargs):
         if self._needs_scope():
             org = _current_org.get()
-            if org and "org_id" not in doc:
+            if org and doc.get("org_id") is None:
                 doc["org_id"] = org
         return await self._c.insert_one(doc, *args, **kwargs)
 
@@ -94,7 +94,7 @@ class TenantCollection:
             org = _current_org.get()
             if org:
                 for d in docs:
-                    if "org_id" not in d:
+                    if d.get("org_id") is None:
                         d["org_id"] = org
         return await self._c.insert_many(docs, *args, **kwargs)
 
@@ -107,7 +107,7 @@ class TenantCollection:
     async def replace_one(self, filt, replacement, *args, **kwargs):
         if self._needs_scope():
             org = _current_org.get()
-            if org and "org_id" not in replacement:
+            if org and replacement.get("org_id") is None:
                 replacement["org_id"] = org
         return await self._c.replace_one(self._scoped(filt), replacement, *args, **kwargs)
 

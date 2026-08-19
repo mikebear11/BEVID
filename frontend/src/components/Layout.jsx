@@ -63,6 +63,7 @@ const SECTIONS = [
     { to: "/profile", key: "profile", feature: null, icon: UserCog },
     { to: "/org/settings", key: "org_settings", feature: "manager_only", icon: SettingsIcon },
     { to: "/billing", key: "billing", feature: "manager_only", icon: Coins },
+    { to: "/team", key: "team", feature: "manager_only", icon: UserCog },
     { to: "/admin/users", key: "users", feature: "page:users", icon: UserCog },
     { to: "/admin/permissions", key: "permissions", feature: "page:users", icon: ShieldCheck },
     { to: "/connectors", key: "connectors", feature: "page:integrations", icon: Plug },

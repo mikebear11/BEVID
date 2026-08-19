@@ -1,0 +1,44 @@
+{
+  "summary": "Lot 4 P5 (déploiement d'équipe) — backend testé exhaustivement via pytest 15/15 PASS (canaux email/sms/qr, permissions manager-only, meta publique, accept avec/sans email, réutilisation token, revoke idempotent, transfer ownership avec confirm mauvaise-cible et confirm bonne-cible + rollback, isolation multi-tenant). Frontend testé sous Playwright : /activate/{invalid} → 'Lien invalide' OK, /activate/{QR-token} → champ email affiché et flow d'activation → redirection /tournee OK, /activate/{email-token} → champ email masqué OK. **BUG BLOQUANT trouvé sur Team.jsx** : la création d'une invitation QR via l'UI échoue en 422 car le payload envoie `email: \"\"` (chaîne vide) → Pydantic EmailStr refuse → réponse `{\"errors\":{\"email\":\"Adresse email invalide.\"}}`. Impact : impossible de créer une invitation QR depuis l'interface Manager/Team, le modal QR (data-testid=qr-modal) ne s'affiche jamais et l'utilisateur voit uniquement le toast 'Une erreur est survenue'. Le flow email UI n'est pas bloqué (l'input email est rempli).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Création invitation QR depuis /team",
+        "issue": "Team.jsx envoie `payload.email = \"\"` (chaîne vide) pour le canal QR (voir lignes 33-34 : `if (channel !== 'sms') payload.email = form.email`). Le backend rejette avec 422 `{errors:{email:'Adresse email invalide.'}}` car Pydantic EmailStr n'accepte pas la chaîne vide. Le modal data-testid='qr-modal' ne s'ouvre jamais. Correctif suggéré : `if (channel === 'email') payload.email = form.email; else if (channel === 'sms') payload.phone = form.phone;` — ou envoyer `form.email || undefined`. Reproduit 3× (voir screenshot 'Une erreur est survenue').",
+        "affected_selectors": ["[data-testid='invite-submit']", "[data-testid='channel-qr']", "[data-testid='qr-modal']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter19_lot4_p5.py",
+    "/app/test_reports/pytest/iter19_lot4_p5.xml"
+  ],
+  "action_items": [
+    "P0 (bloquant) : Fix Team.jsx submit() → ne pas envoyer `email: ''` pour le canal QR. Une fois corrigé, le flow UI QR complet (invite-btn → channel-qr → invite-submit → qr-modal → qr-image + activate_url) fonctionnera comme les 15 tests backend le prouvent.",
+    "P3 (nice-to-have) : après activation QR, l'utilisateur est redirigé vers /tournee, mais la session semble parfois retomber sur /login (constaté dans un screenshot). Le backend renvoie bien un cookie httpOnly bevid_auth + un token JSON, donc le frontend devrait rester connecté. À investiguer côté AuthContext (peut-être un re-fetch /auth/me avant que le cookie soit posté)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:849-886 (create_invitation) : impeccable — TTL différencié (24h QR/SMS, 7j email), token = uuid.uuid4().hex + uuid.uuid4().hex[:16] (48 chars), FRONTEND_URL récupéré depuis env. Petite remarque : `getattr(data, 'phone', None)` est inutile puisque OrgInvitationCreate déclare déjà `phone: Optional[str]`.",
+    "server.py:986-996 (revoke_invitation) : idempotence via `matched_count == 0 → 404` correcte. Le filtre `accepted_at: None, revoked_at: None` garantit qu'un token consommé ou déjà révoqué renvoie 404 (spec Lot 4 P5 OK).",
+    "server.py:999-1021 (inspect_invitation) : endpoint public bien conçu (ni auth ni CSRF requis), renvoie `requires_email: not bool(inv.get('email'))` — permet à Activate.jsx d'afficher/masquer le champ e-mail proprement.",
+    "server.py:1024-1077 (accept_invitation) : bien pensé — `final_email = inv.get('email') OR data.email` avec fallback sur 422 si absent, cookie httpOnly posé via `_set_auth_cookie`. Le hash bcrypt et l'unicité email sont vérifiés.",
+    "Team.jsx:33-36 : **BUG** — logique inversée. `if (channel !== 'sms') payload.email = form.email` envoie une string vide pour QR. Devrait être `if (channel === 'email') payload.email = form.email`.",
+    "Activate.jsx:121-128 : conditionnel `meta?.requires_email` propre, `required` HTML + validation backend redondante — bon défense en profondeur."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter19_lot4_p5.py (nouveau, 15 tests)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "83% (5/6 items — QR création via UI bloquée par bug Team.jsx)"},
+  "test_credentials": "manager.demo@bevidcrm.fr / Manager!2026Demo (owner org BEVID Démo), commercial.demo@bevidcrm.fr / Commercial!2026Demo. Comptes ad-hoc créés à la volée via /api/auth/register (Passw0rd!!Long).",
+  "seed_data_creation": "Plusieurs invitations `test.*@example.com` créées et acceptées dans db.invitations + utilisateurs correspondants dans db.users. Ownership transféré et re-transféré vers manager.demo (état restauré). Aucune modification des seeds de démo.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Le seul point à corriger avant regression est Team.jsx lignes 33-36 (payload.email vide pour QR). Après fix, refaire le flow /team → invite-btn → channel-qr → invite-name → invite-submit → attendre qr-modal + qr-image + parse activate_url. Les tests backend pytest sont dans /app/backend/tests/test_iter19_lot4_p5.py — invocation : `REACT_APP_BACKEND_URL=<url> python -m pytest backend/tests/test_iter19_lot4_p5.py -v -o addopts=` (le pytest.ini du repo pousse xdist qui casse le collect direct — utiliser `-o addopts=`). Le test isolation multi-tenant a été relaxé : `/auth/register` crée un manager owner d'une nouvelle org (pas un commercial comme le laisse penser test_credentials.md), donc l'isolation se prouve via `invitation A absente de la liste B` + `revoke 404 sur invitation A`.",
+  "rca of the issue": "Bug Team.jsx : lors du refactor des 3 canaux (email/sms/qr), la condition `if (channel !== 'sms') payload.email = form.email` inclut à tort le canal QR. Pour un canal QR, `form.email` reste à sa valeur initiale '' (chaîne vide). Le backend Pydantic `email: Optional[EmailStr]` accepte `None` mais pas `''` → renvoie 422. Reproduction : login manager → /team → Inviter un membre → onglet QR code → renseigner Nom → Créer l'invitation. Attendu : modal QR. Observé : toast 'Une erreur est survenue' + POST /api/org/invitations 422. Mitigation : corriger la condition à `if (channel === 'email')` OU envoyer `form.email || undefined`. Aucun impact backend, purement client."
+}
