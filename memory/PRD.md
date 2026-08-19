@@ -123,7 +123,7 @@ brassicoles/distribution.
 **🟡 Reporté explicitement**
 - Envoi SMS Twilio réel : mode dégradé (lien QR/URL copiable côté manager). Nécessite Twilio account SID + auth token + from-number.
 - Envoi email Resend pour l'invitation : le token est créé et le lien stocké mais pas encore envoyé par mail — à brancher via le service Resend existant (`EmailService.send`).
-- PUT/DELETE cross-tenant sur endpoints autres que `/clients/{id}` : le wrapper filtre correctement (aucune écriture cross-org possible) mais le code HTTP reste `200` au lieu de `404`. Migration mécanique (~60 sites d'appel) reportée au P2.
+- PUT/DELETE cross-tenant sur endpoints autres que `/clients/{id}` : ✅ **livré** (Lot 4 P5 · 19/08/2026) — 14 endpoints patchés avec `matched_count == 0 → 404` (`/products`, `/orders`, `/tours`, `/events`, `/clients/{cid}/status`, `/deals`, `/connectors`, `/goals/smart`, `/establishments`, `/derogations`, `/segments`, `/admin/users` PUT + `/admin/users/{uid}/reset-password`, `/rgpd/clients`, `/establishments/{eid}/enriched-field/{field}`). 24 tests curl verts (11 cross-tenant + 4 same-tenant + 9 IDs inexistants). Test de régression : `/app/backend/tests/test_iter20_cross_tenant_404.py`.
 
 ### Lot 4 · P4 — Abonnements par siège (livré 19 août 2026)
 

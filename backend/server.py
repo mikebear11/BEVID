@@ -1203,12 +1203,16 @@ async def create_product(data: dict, user=Depends(get_current_user)):
 @api_router.put("/products/{pid}")
 async def update_product(pid: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None)
-    await db.products.update_one({"id": pid}, {"$set": data})
+    res = await db.products.update_one({"id": pid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Produit introuvable")
     return await db.products.find_one({"id": pid}, {"_id": 0})
 
 @api_router.delete("/products/{pid}")
 async def delete_product(pid: str, user=Depends(get_current_user)):
-    await db.products.delete_one({"id": pid})
+    res = await db.products.delete_one({"id": pid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Produit introuvable")
     return {"ok": True}
 
 # ---------- ORDERS ----------
@@ -1272,7 +1276,9 @@ async def create_order(data: dict, user=Depends(get_current_user)):
 @api_router.put("/orders/{oid}")
 async def update_order(oid: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None)
-    await db.orders.update_one({"id": oid}, {"$set": data})
+    res = await db.orders.update_one({"id": oid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Commande introuvable")
     return await db.orders.find_one({"id": oid}, {"_id": 0})
 
 # ---------- TOURS ----------
@@ -1293,7 +1299,9 @@ async def create_tour(data: dict, user=Depends(get_current_user)):
 @api_router.put("/tours/{tid}")
 async def update_tour(tid: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None)
-    await db.tours.update_one({"id": tid}, {"$set": data})
+    res = await db.tours.update_one({"id": tid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Tournée introuvable")
     return await db.tours.find_one({"id": tid}, {"_id": 0})
 
 # ---------- ACTIVITIES ----------
@@ -1876,12 +1884,16 @@ async def create_event(data: dict, user=Depends(get_current_user)):
 @api_router.put("/events/{eid}")
 async def update_event(eid: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None)
-    await db.events.update_one({"id": eid}, {"$set": data})
+    res = await db.events.update_one({"id": eid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Événement introuvable")
     return await db.events.find_one({"id": eid}, {"_id": 0})
 
 @api_router.delete("/events/{eid}")
 async def delete_event(eid: str, user=Depends(get_current_user)):
-    await db.events.delete_one({"id": eid})
+    res = await db.events.delete_one({"id": eid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Événement introuvable")
     return {"ok": True}
 
 # ---------- MONTHLY REVIEW ----------
@@ -1991,7 +2003,9 @@ async def update_client_status(cid: str, data: dict, user=Depends(get_current_us
     new_status = data.get("status")
     if new_status not in ["prospect", "actif", "vip", "inactif"]:
         raise HTTPException(400, "Statut invalide")
-    await db.clients.update_one({"id": cid}, {"$set": {"status": new_status, "updated_at": now_iso()}})
+    res = await db.clients.update_one({"id": cid}, {"$set": {"status": new_status, "updated_at": now_iso()}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Client introuvable")
     return {"ok": True}
 
 # ---------- DEALS (Kanban opportunities) ----------
@@ -2030,12 +2044,16 @@ async def create_deal(data: dict, user=Depends(get_current_user)):
 @api_router.put("/deals/{did}")
 async def update_deal(did: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None)
-    await db.deals.update_one({"id": did}, {"$set": data})
+    res = await db.deals.update_one({"id": did}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Opportunité introuvable")
     return await db.deals.find_one({"id": did}, {"_id": 0})
 
 @api_router.delete("/deals/{did}")
 async def delete_deal(did: str, user=Depends(get_current_user)):
-    await db.deals.delete_one({"id": did})
+    res = await db.deals.delete_one({"id": did})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Opportunité introuvable")
     return {"ok": True}
 
 # ---------- TEAM GOAL ----------
@@ -2086,12 +2104,16 @@ async def create_connector(data: dict, user=Depends(get_current_user)):
 @api_router.put("/connectors/{cid}")
 async def update_connector(cid: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None)
-    await db.connectors.update_one({"id": cid}, {"$set": data})
+    res = await db.connectors.update_one({"id": cid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Connecteur introuvable")
     return {"ok": True}
 
 @api_router.delete("/connectors/{cid}")
 async def delete_connector(cid: str, user=Depends(get_current_user)):
-    await db.connectors.delete_one({"id": cid})
+    res = await db.connectors.delete_one({"id": cid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Connecteur introuvable")
     return {"ok": True}
 
 @api_router.post("/connectors/{cid}/test")
@@ -2904,7 +2926,9 @@ async def review_smart(gid: str, data: dict, user=Depends(get_current_user)):
         upd["target_value"] = float(data["target_value"])
     if "title" in data:
         upd["title"] = data["title"]
-    await db.smart_goals.update_one({"id": gid}, {"$set": upd})
+    res = await db.smart_goals.update_one({"id": gid}, {"$set": upd})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Objectif introuvable")
     g = await db.smart_goals.find_one({"id": gid}, {"_id": 0})
     # If approved and ca goal, sync to monthly Goals collection
     if new_status == "approved" and g and g.get("kpi_type") == "ca":
@@ -3080,7 +3104,9 @@ async def get_establishment(eid: str, user=Depends(get_current_user)):
 async def update_est(eid: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None); data.pop("owner_id", None)
     data["updated_at"] = now_iso()
-    await db.establishments.update_one({"id": eid}, {"$set": data})
+    res = await db.establishments.update_one({"id": eid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Établissement introuvable")
     return await db.establishments.find_one({"id": eid}, {"_id": 0})
 
 @api_router.get("/price-lists")
@@ -3177,7 +3203,9 @@ async def review_derogation(did: str, data: dict, user=Depends(get_current_user)
     st = data.get("status")
     if st not in ("approved", "rejected"):
         raise HTTPException(400, "status invalide")
-    await db.derogations.update_one({"id": did}, {"$set": {"status": st, "reviewed_by": user["id"], "reviewed_at": now_iso()}})
+    res = await db.derogations.update_one({"id": did}, {"$set": {"status": st, "reviewed_by": user["id"], "reviewed_at": now_iso()}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Dérogation introuvable")
     return await db.derogations.find_one({"id": did}, {"_id": 0})
 
 # ---------- SYNC BOOTSTRAP (offline PWA) ----------
@@ -3316,7 +3344,9 @@ async def update_segment(sid: str, data: dict, user=Depends(get_current_user)):
     if user["role"] not in ("manager", "gerant"):
         raise HTTPException(403, "Manager only")
     data.pop("id", None); data.pop("_id", None)
-    await db.segments.update_one({"id": sid}, {"$set": data})
+    res = await db.segments.update_one({"id": sid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Segment introuvable")
     return await db.segments.find_one({"id": sid}, {"_id": 0})
 
 @api_router.get("/tasks/today")
@@ -3579,9 +3609,14 @@ async def admin_update_user(uid: str, data: dict, user=Depends(get_current_user)
         if k in data:
             updates[k] = data[k]
     if updates:
-        await db.users.update_one({"id": uid}, {"$set": updates})
+        res = await db.users.update_one({"id": uid}, {"$set": updates})
+        if res.matched_count == 0:
+            raise HTTPException(404, "Utilisateur introuvable")
         await audit_log(user["id"], "user_update", {"target_user_id": uid, "fields": list(updates.keys())})
-    return await db.users.find_one({"id": uid}, {"_id": 0, "password": 0})
+    updated = await db.users.find_one({"id": uid}, {"_id": 0, "password": 0})
+    if not updated:
+        raise HTTPException(404, "Utilisateur introuvable")
+    return updated
 
 @api_router.post("/admin/users/{uid}/reset-password")
 async def admin_reset_password(uid: str, user=Depends(get_current_user)):
@@ -3589,7 +3624,9 @@ async def admin_reset_password(uid: str, user=Depends(get_current_user)):
         raise HTTPException(403, "Manager only")
     import secrets, string
     tmp_pwd = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
-    await db.users.update_one({"id": uid}, {"$set": {"password": hash_password(tmp_pwd), "must_reset": True}})
+    res = await db.users.update_one({"id": uid}, {"$set": {"password": hash_password(tmp_pwd), "must_reset": True}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Utilisateur introuvable")
     await audit_log(user["id"], "password_reset_admin", {"target_user_id": uid})
     return {"temp_password": tmp_pwd}
 
@@ -3751,7 +3788,9 @@ async def rgpd_delete(cid: str, user=Depends(get_current_user)):
         raise HTTPException(403, "Manager only")
     n_orders = await db.orders.count_documents({"client_id": cid})
     n_visits = await db.visits.count_documents({"client_id": cid})
-    await db.clients.delete_one({"id": cid})
+    res = await db.clients.delete_one({"id": cid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Client introuvable")
     await db.establishments.delete_one({"id": cid})
     await db.orders.delete_many({"client_id": cid})
     await db.visits.delete_many({"client_id": cid})
@@ -5937,10 +5976,12 @@ async def establishment_set_enriched_field(eid: str, field: str, data: dict, use
         raise HTTPException(400, f"Champ non autorisé : {field}")
     valeur = data.get("valeur")
     doc = user_locked_update(valeur)
-    await db.establishments.update_one(
+    res = await db.establishments.update_one(
         {"id": eid},
         {"$set": {f"enrichissement.{field}": doc, "enrichissement_updated_at": now_iso()}},
     )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Établissement introuvable")
     return {"ok": True, "field": field, "locked": True}
 
 
