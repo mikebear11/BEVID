@@ -181,6 +181,13 @@ export const dict = {
     "toast.tarif_hecto_sauvegarde": "Tarif hecto sauvegardé",
     "toast.utilisateur_cree": "Utilisateur créé",
     "toast.vies_indisponible": "VIES indisponible",
+    "toast.invitation_sent": "Invitation envoyée",
+    "toast.invitation_revoked": "Invitation révoquée",
+    "toast.password_min_10": "10 caractères minimum",
+    "toast.email_required": "E-mail requis",
+    "toast.account_activated": "Compte activé en {seconds}s ✓",
+    "toast.billing_read_only": "Modification bloquée — abonnement en lecture seule",
+    "confirm.revoke_invitation": "Révoquer cette invitation ?",
   },
   en: {
     dashboard: "Dashboard", clients: "Clients", products: "Catalog", orders: "Orders",
@@ -345,6 +352,13 @@ export const dict = {
     "toast.tarif_hecto_sauvegarde": "Hecto price saved",
     "toast.utilisateur_cree": "User created",
     "toast.vies_indisponible": "VIES indisponible",
+    "toast.invitation_sent": "Invitation sent",
+    "toast.invitation_revoked": "Invitation revoked",
+    "toast.password_min_10": "10 characters minimum",
+    "toast.email_required": "Email required",
+    "toast.account_activated": "Account activated in {seconds}s ✓",
+    "toast.billing_read_only": "Change blocked — subscription in read-only mode",
+    "confirm.revoke_invitation": "Revoke this invitation?",
   },
 };
 

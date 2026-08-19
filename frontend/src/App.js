@@ -16,6 +16,7 @@ import Layout from "@/components/Layout";
 // Publiques : chargées immédiatement (petites, indispensables au démarrage)
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
+import Pricing from "@/pages/Pricing";
 
 // Toutes les autres pages : chargées à la demande via React.lazy pour réduire
 // significativement la taille du bundle initial.
@@ -102,6 +103,9 @@ function App() {
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/reset-password/:token" element={<ResetPassword />} />
                         <Route path="/sign/:token" element={<PublicSignature />} />
+                        <Route path="/pricing" element={<Pricing />} />
+                        <Route path="/tarifs" element={<Pricing />} />
+                        <Route path="/plans" element={<Pricing />} />
                         <Route path="/change-password" element={<Protected><ChangePassword /></Protected>} />
                         <Route path="/admin/users" element={<Protected><AdminUsers /></Protected>} />
                         <Route path="/admin/couts" element={<Protected><Couts /></Protected>} />

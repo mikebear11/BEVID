@@ -18,6 +18,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import PuceEtat from "@/components/system/PuceEtat";
 import OfflineBanner from "@/components/OfflineBanner";
 import CommandPalette from "@/components/CommandPalette";
+import BillingBanner from "@/components/BillingBanner";
 
 /**
  * Navigation organisée en 6 sections repliables.
@@ -266,6 +267,7 @@ export default function Layout({ children }) {
 
       {/* Main */}
       <main className="flex-1 md:ml-0 pt-16 md:pt-0 pb-20 md:pb-0 overflow-x-hidden">
+        <BillingBanner />
         <OfflineBanner />
         <div className="max-w-7xl mx-auto p-4 md:p-8">
           {children}

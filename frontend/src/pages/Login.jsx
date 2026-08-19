@@ -129,6 +129,8 @@ export default function Login() {
           )}
           <p className="text-sm text-stone-500 text-center">
             <Link to="/register" className="text-[#4A154B] font-medium">{t("register")}</Link>
+            {" · "}
+            <Link to="/pricing" className="text-[#4A154B] font-medium" data-testid="login-pricing-link">Voir les tarifs</Link>
           </p>
         </form>
       </div>

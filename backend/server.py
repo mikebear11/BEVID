@@ -662,15 +662,27 @@ async def _active_seats(org_id: str) -> int:
 
 
 def _compute_effective_status(org: dict) -> str:
-    """Retourne le statut effectif : trial | active | read_only | suspended.
+    """Retourne le statut effectif : trial | active | past_due | read_only | suspended.
 
-    L'org.status en base peut être 'active' ou 'trial' ; on calcule les phases
-    de dégradation à partir de trial_ends_at et suspend_after.
+    Priorités (dans l'ordre) :
+    1. `billing_status_stripe=past_due` (webhook Stripe) → past_due
+    2. `billing_status_stripe` ∈ {canceled, unpaid} → suspended
+    3. `status=active` en base → active
+    4. Sinon calcule à partir de `trial_ends_at` :
+       - avant échéance → trial
+       - après échéance depuis < READ_ONLY_DAYS_AFTER_TRIAL → read_only
+       - au-delà → suspended
     """
+    stripe_status = (org.get("billing_status_stripe") or "").lower()
+    if stripe_status == "past_due":
+        return "past_due"
+    if stripe_status in ("canceled", "unpaid"):
+        return "suspended"
+
     now = datetime.now(timezone.utc)
-    trial_ends = org.get("trial_ends_at")
     if org.get("status") == "active":
         return "active"
+    trial_ends = org.get("trial_ends_at")
     if not trial_ends:
         return org.get("status", "trial")
     try:
@@ -694,6 +706,24 @@ async def list_plans():
         "first_seat_free": FIRST_SEAT_FREE,
         "read_only_days_after_trial": READ_ONLY_DAYS_AFTER_TRIAL,
         "data_retention_days": DATA_RETENTION_DAYS,
+    }
+
+
+@api_router.get("/config/features")
+async def public_features():
+    """Public : indique quelles intégrations optionnelles sont branchées côté
+    serveur pour que le frontend n'affiche pas d'options mortes (ex: SMS Twilio
+    non configuré → onglet désactivé côté /team).
+    """
+    return {
+        "sms_configured": bool(os.environ.get("TWILIO_ACCOUNT_SID", "").strip() and
+                                os.environ.get("TWILIO_AUTH_TOKEN", "").strip() and
+                                os.environ.get("TWILIO_SMS_FROM", "").strip()),
+        "whatsapp_configured": bool(os.environ.get("TWILIO_ACCOUNT_SID", "").strip() and
+                                     os.environ.get("TWILIO_WHATSAPP_FROM", "").strip()),
+        "stripe_configured": bool(os.environ.get("STRIPE_SECRET_KEY", "").strip()),
+        "email_configured": bool(os.environ.get("EMERGENT_EMAIL_KEY", "").strip()),
+        "places_configured": bool(os.environ.get("GOOGLE_PLACES_KEY", "").strip()),
     }
 
 
@@ -5830,6 +5860,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Paywall — bloque les mutations quand l'abonnement est en read_only/suspended.
+# S'applique après CORS pour ne pas casser les preflight OPTIONS.
+from billing_guard import BillingGuardMiddleware, invalidate_status as _invalidate_billing_cache
+app.add_middleware(BillingGuardMiddleware)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

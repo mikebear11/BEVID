@@ -49,15 +49,15 @@ export default function Activate() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (pwd.length < 10) { toast.error("10 caractères minimum"); return; }
-    if (meta?.requires_email && !email) { toast.error("E-mail requis"); return; }
+    if (pwd.length < 10) { toast.error(tt("toast.password_min_10")); return; }
+    if (meta?.requires_email && !email) { toast.error(tt("toast.email_required")); return; }
     setLoading(true);
     try {
       const payload = { token, password: pwd, name };
       if (meta?.requires_email) payload.email = email;
       await api.post("/auth/accept-invitation", payload);
       const elapsed = Math.round((Date.now() - started) / 1000);
-      toast.success(`Compte activé en ${elapsed}s ✓`);
+      toast.success(tt("toast.account_activated", { seconds: elapsed }));
       nav("/tournee", { replace: true });
     } catch (err) {
       toast.error(err.response?.data?.detail || tt("toast.error_generic"));

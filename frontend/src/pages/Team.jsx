@@ -2,10 +2,10 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { UserPlus, Mail, Smartphone, QrCode, RefreshCw, Trash2, Crown } from "lucide-react";
+import { UserPlus, Mail, Smartphone, QrCode, Trash2, Crown } from "lucide-react";
 import { t as tt } from "@/lib/i18n";
 
-/** Encode texte en URL data:image/svg+xml pour QR. Ici on utilise Google Chart via lien direct. */
+/** Encode texte en URL de QR image (générateur public sans dépendance). */
 function qrDataUrl(text) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(text)}`;
 }
@@ -13,6 +13,7 @@ function qrDataUrl(text) {
 export default function Team() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
+  const [features, setFeatures] = useState({ sms_configured: false });
   const [showInvite, setShowInvite] = useState(false);
   const [channel, setChannel] = useState("email");
   const [form, setForm] = useState({ email: "", phone: "", name: "", role: "commercial" });
@@ -22,8 +23,12 @@ export default function Team() {
   const [orgName, setOrgName] = useState("");
 
   const load = async () => {
-    const [team, branding] = await Promise.all([api.get("/org/team"), api.get("/org/branding")]);
-    setData(team.data); setOrgName(branding.data.name);
+    const [team, branding, cfg] = await Promise.all([
+      api.get("/org/team"),
+      api.get("/org/branding"),
+      api.get("/config/features"),
+    ]);
+    setData(team.data); setOrgName(branding.data.name); setFeatures(cfg.data);
   };
   useEffect(() => { load(); }, []);
 
@@ -38,7 +43,7 @@ export default function Team() {
         setQr(r.invitation);
         setShowInvite(false);
       } else {
-        toast.success("Invitation envoyée");
+        toast.success(tt("toast.invitation_sent"));
         setShowInvite(false); setForm({ email: "", phone: "", name: "", role: "commercial" });
       }
       load();
@@ -48,9 +53,9 @@ export default function Team() {
   };
 
   const revoke = async (id) => {
-    if (!window.confirm("Révoquer cette invitation ?")) return;
+    if (!window.confirm(tt("confirm.revoke_invitation"))) return;
     await api.post(`/org/invitations/${id}/revoke`);
-    toast.success("Invitation révoquée"); load();
+    toast.success(tt("toast.invitation_revoked")); load();
   };
 
   const initiateTransfer = async (e) => {
@@ -68,6 +73,7 @@ export default function Team() {
 
   if (!data) return <div className="text-stone-500">{tt("loading")}</div>;
   const isManager = user?.role === "manager";
+  const smsDisabled = !features.sms_configured;
 
   return (
     <div className="space-y-6" data-testid="team-page">
@@ -145,13 +151,23 @@ export default function Team() {
             className="card-crm p-6 w-full max-w-md space-y-4" data-testid="invite-modal">
             <h3 className="font-display text-2xl">Inviter un membre</h3>
             <div className="flex gap-2" role="tablist">
-              {["email", "sms", "qr"].map(c => (
-                <button key={c} type="button" onClick={() => setChannel(c)}
-                  data-testid={`channel-${c}`}
-                  className={`flex-1 min-h-[44px] rounded-lg border ${channel === c ? "bg-[#4A154B] text-white border-transparent" : "bg-white"}`}>
-                  {c === "email" ? "E-mail" : c === "sms" ? "SMS" : "QR code"}
-                </button>
-              ))}
+              {["email", "sms", "qr"].map(c => {
+                const disabled = c === "sms" && smsDisabled;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => !disabled && setChannel(c)}
+                    disabled={disabled}
+                    aria-disabled={disabled}
+                    title={disabled ? "Envoi SMS non configuré — utilisez le QR code ou l'e-mail" : ""}
+                    data-testid={`channel-${c}`}
+                    className={`flex-1 min-h-[44px] rounded-lg border ${channel === c ? "bg-[#4A154B] text-white border-transparent" : "bg-white"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                  >
+                    {c === "email" ? "E-mail" : c === "sms" ? "SMS" : "QR code"}
+                  </button>
+                );
+              })}
             </div>
             <input placeholder="Nom (pré-rempli)" value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
@@ -171,9 +187,11 @@ export default function Team() {
               <option value="commercial">Commercial</option>
               <option value="manager">Manager</option>
             </select>
-            <p className="text-xs text-stone-500">
+            <p className="text-xs text-stone-500" data-testid="channel-hint">
               {channel === "email" && "Lien envoyé par e-mail, valable 7 jours."}
-              {channel === "sms" && "SMS envoyé via Twilio, lien valable 24 h."}
+              {channel === "sms" && (smsDisabled
+                ? "Envoi SMS non configuré — utilisez le QR code ou l'e-mail."
+                : "SMS envoyé via Twilio, lien valable 24 h.")}
               {channel === "qr" && "QR affiché à l'écran, valable 24 h, à usage unique."}
             </p>
             <div className="flex gap-2">
@@ -208,7 +226,6 @@ export default function Team() {
             </p>
             <label className="text-xs text-stone-500 block">Tapez le nom exact de l'entreprise pour confirmer :</label>
             <input placeholder={orgName} required
-              onChange={e => e.target.dataset.value = e.target.value}
               onInput={e => { const el = e.target; el.setCustomValidity(el.value === orgName ? "" : "Nom incorrect"); }}
               className="input-crm min-h-[44px] w-full" data-testid="transfer-confirm-name" />
             <div className="flex gap-2">
