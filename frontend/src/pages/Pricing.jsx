@@ -2,12 +2,29 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import BevidLogo from "@/components/BevidLogo";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight, Wifi, Mic } from "lucide-react";
+import { dict } from "@/lib/i18n";
 
 /**
  * /pricing (alias /tarifs, /plans) — page publique, sans authentification.
  * Tableau comparatif 3 forfaits, bascule mensuel/annuel, CTA « Essayer 7 jours ».
+ *
+ * La page est destinée à un public francophone (BEVID = brasseurs France).
+ * On force donc le libellé FR en priorité, avec repli EN puis masquage
+ * si aucune traduction n'existe. Jamais de clé technique brute affichée.
  */
+function trans(key) {
+  return (dict.fr && dict.fr[key]) || (dict.en && dict.en[key]) || null;
+}
+function labelForFeature(featKey) {
+  return trans(`feature.${featKey}`);
+}
+
+const TRANSVERSE = [
+  { key: "feature.transverse.offline", icon: Wifi },
+  { key: "feature.transverse.voice",   icon: Mic  },
+];
+
 export default function Pricing() {
   const [plans, setPlans] = useState(null);
   const [mode, setMode] = useState("monthly");
@@ -79,46 +96,65 @@ export default function Pricing() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6" data-testid="pricing-cards">
-          {(plans || []).map((p, i) => (
-            <article
-              key={p.id}
-              className={`card-crm p-6 flex flex-col ${p.id === "pro" ? "ring-2 ring-[#4A154B]" : ""}`}
-              data-testid={`pricing-card-${p.id}`}
-            >
-              {p.id === "pro" && (
-                <div className="text-xs uppercase tracking-wide font-medium text-[#4A154B] mb-2" data-testid="pricing-badge-recommended">
-                  Recommandé
-                </div>
-              )}
-              <h3 className="font-display text-2xl mb-1">{p.name}</h3>
-              <p className="text-sm text-stone-600 mb-4">{p.description || ""}</p>
-              <div className="mb-6">
-                <div className="flex items-baseline gap-1">
-                  <span className="font-display text-4xl" data-testid={`pricing-amount-${p.id}`}>
-                    {priceFor(p).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <p className="text-xs text-stone-500 mt-1">{suffix}</p>
-                <p className="text-xs text-stone-500 mt-1">1er siège offert · dégressif dès 10 sièges</p>
-              </div>
-              <ul className="space-y-2 mb-6 flex-1" aria-label={`Fonctionnalités du forfait ${p.name}`}>
-                {(p.features || []).slice(0, 10).map(f => (
-                  <li key={f} className="flex items-start gap-2 text-sm">
-                    <Check size={16} className="text-emerald-600 mt-0.5 flex-shrink-0" aria-hidden />
-                    <span className="text-stone-700">{f.replace(/^page:/, "")}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link
-                to="/register"
-                className="btn-primary text-center min-h-[48px] rounded-lg flex items-center justify-center gap-2"
-                data-testid={`pricing-cta-${p.id}`}
+          {(plans || []).map((p) => {
+            // Traduit les features techniques en libellés métier + filtre les inconnues
+            const items = (p.features || [])
+              .map(f => ({ raw: f, label: labelForFeature(f) }))
+              .filter(x => x.label);
+            return (
+              <article
+                key={p.id}
+                className={`card-crm p-6 flex flex-col ${p.id === "pro" ? "ring-2 ring-[#4A154B]" : ""}`}
+                data-testid={`pricing-card-${p.id}`}
               >
-                Essayer {trialDays} jours gratuitement <ArrowRight size={16} />
-              </Link>
-              <p className="text-xs text-center text-stone-500 mt-2">Sans carte bancaire</p>
-            </article>
-          ))}
+                {p.id === "pro" && (
+                  <div className="text-xs uppercase tracking-wide font-medium text-[#4A154B] mb-2" data-testid="pricing-badge-recommended">
+                    Recommandé
+                  </div>
+                )}
+                <h3 className="font-display text-2xl mb-1">{p.name}</h3>
+                <p className="text-sm text-stone-600 mb-4">{p.description || ""}</p>
+                <div className="mb-6">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-display text-4xl" data-testid={`pricing-amount-${p.id}`}>
+                      {priceFor(p).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 mt-1">{suffix}</p>
+                  <p className="text-xs text-stone-500 mt-1">1er siège offert · dégressif dès 10 sièges</p>
+                </div>
+                <ul className="space-y-2 mb-6 flex-1" aria-label={`Fonctionnalités du forfait ${p.name}`}>
+                  {/* Transverses en tête, mêmes sur les 3 forfaits — arguments produit */}
+                  {TRANSVERSE.map(({ key, icon: Icon }) => {
+                    const lbl = trans(key);
+                    if (!lbl) return null;
+                    return (
+                      <li key={key} className="flex items-start gap-2 text-sm" data-testid={`pricing-transverse-${key}-${p.id}`}>
+                        <Icon size={16} className="text-[#4A154B] mt-0.5 flex-shrink-0" aria-hidden />
+                        <span className="text-stone-700 font-medium">{lbl}</span>
+                      </li>
+                    );
+                  })}
+                  {/* Fonctionnalités du forfait, traduites, tronquées à 10 lignes visibles */}
+                  {items.slice(0, 10).map(({ raw, label }) => (
+                    <li key={raw} className="flex items-start gap-2 text-sm">
+                      <Check size={16} className="text-emerald-600 mt-0.5 flex-shrink-0" aria-hidden />
+                      <span className="text-stone-700">{label}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/register"
+                  className="btn-primary text-center min-h-[48px] rounded-lg flex items-center justify-center gap-2"
+                  data-testid={`pricing-cta-${p.id}`}
+                >
+                  <span className="truncate">Essayer {trialDays} jours gratuitement</span>
+                  <ArrowRight size={16} className="flex-shrink-0" />
+                </Link>
+                <p className="text-xs text-center text-stone-500 mt-2">Sans carte bancaire</p>
+              </article>
+            );
+          })}
           {plans === null && <p className="text-stone-500 col-span-3 text-center">Chargement…</p>}
         </div>
 
@@ -151,3 +187,4 @@ export default function Pricing() {
     </div>
   );
 }
+
