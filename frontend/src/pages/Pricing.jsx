@@ -2,28 +2,31 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import BevidLogo from "@/components/BevidLogo";
-import { Check, ArrowRight, Wifi, Mic } from "lucide-react";
+import { Check, ArrowRight, Wifi, Mic, CornerDownRight } from "lucide-react";
 import { dict } from "@/lib/i18n";
 
 /**
- * /pricing (alias /tarifs, /plans) — page publique, sans authentification.
- * Tableau comparatif 3 forfaits, bascule mensuel/annuel, CTA « Essayer 7 jours ».
+ * /pricing (alias /tarifs, /plans) — page publique.
  *
- * La page est destinée à un public francophone (BEVID = brasseurs France).
- * On force donc le libellé FR en priorité, avec repli EN puis masquage
- * si aucune traduction n'existe. Jamais de clé technique brute affichée.
+ * Affichage cumulatif (Option A) : chaque carte n'affiche que le **delta**
+ * par rapport au forfait immédiatement inférieur. Terrain expose ses 6
+ * fonctionnalités, Pro affiche « Tout le forfait Terrain, plus : » suivi
+ * de ses 5 ajouts, Entreprise idem sur Pro.
+ *
+ * Toute troncature est signalée par `+ N autres fonctionnalités` — jamais
+ * de coupe silencieuse. Toute clé sans libellé i18n est masquée.
  */
 function trans(key) {
   return (dict.fr && dict.fr[key]) || (dict.en && dict.en[key]) || null;
 }
-function labelForFeature(featKey) {
-  return trans(`feature.${featKey}`);
-}
+function labelForFeature(featKey) { return trans(`feature.${featKey}`); }
 
 const TRANSVERSE = [
   { key: "feature.transverse.offline", icon: Wifi },
   { key: "feature.transverse.voice",   icon: Mic  },
 ];
+
+const PLAN_ORDER = ["terrain", "pro", "entreprise"];
 
 export default function Pricing() {
   const [plans, setPlans] = useState(null);
@@ -39,11 +42,22 @@ export default function Pricing() {
 
   const priceFor = (p) => {
     const cents = p.price_per_seat_month_cents;
-    if (mode === "annual") return Math.round(cents * 10) / 100; // 2 mois offerts (10 mois payés)
+    if (mode === "annual") return Math.round(cents * 10) / 100;
     return cents / 100;
   };
-
   const suffix = mode === "annual" ? "€ HT / siège / mois (facturé annuellement)" : "€ HT / siège / mois";
+
+  // Delta = features de ce plan absentes du plan inférieur.
+  const cumulativeItems = (plan, allPlans) => {
+    const idx = PLAN_ORDER.indexOf(plan.id);
+    const lower = idx > 0 ? allPlans.find(x => x.id === PLAN_ORDER[idx - 1]) : null;
+    const lowerFeats = new Set(lower ? lower.features : []);
+    return (plan.features || [])
+      .filter(f => !lowerFeats.has(f))
+      .map(f => ({ raw: f, label: labelForFeature(f) }))
+      .filter(x => x.label)
+      .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  };
 
   return (
     <div className="min-h-screen bg-stone-50" data-testid="pricing-page">
@@ -75,38 +89,28 @@ export default function Pricing() {
         </div>
 
         <div className="flex items-center justify-center gap-2 mb-10" role="tablist" aria-label="Mode de facturation">
-          <button
-            onClick={() => setMode("monthly")}
-            role="tab"
-            aria-selected={mode === "monthly"}
-            data-testid="pricing-mode-monthly"
-            className={`min-h-[44px] px-4 rounded-full text-sm transition-colors ${mode === "monthly" ? "bg-stone-900 text-white" : "bg-white text-stone-700 border"}`}
-          >
+          <button onClick={() => setMode("monthly")} role="tab" aria-selected={mode === "monthly"} data-testid="pricing-mode-monthly"
+            className={`min-h-[44px] px-4 rounded-full text-sm transition-colors ${mode === "monthly" ? "bg-stone-900 text-white" : "bg-white text-stone-700 border"}`}>
             Mensuel
           </button>
-          <button
-            onClick={() => setMode("annual")}
-            role="tab"
-            aria-selected={mode === "annual"}
-            data-testid="pricing-mode-annual"
-            className={`min-h-[44px] px-4 rounded-full text-sm transition-colors ${mode === "annual" ? "bg-stone-900 text-white" : "bg-white text-stone-700 border"}`}
-          >
+          <button onClick={() => setMode("annual")} role="tab" aria-selected={mode === "annual"} data-testid="pricing-mode-annual"
+            className={`min-h-[44px] px-4 rounded-full text-sm transition-colors ${mode === "annual" ? "bg-stone-900 text-white" : "bg-white text-stone-700 border"}`}>
             Annuel <span className="text-xs opacity-70">− 2 mois offerts</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6" data-testid="pricing-cards">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch" data-testid="pricing-cards">
           {(plans || []).map((p) => {
-            // Traduit les features techniques en libellés métier + filtre les inconnues
-            const items = (p.features || [])
-              .map(f => ({ raw: f, label: labelForFeature(f) }))
-              .filter(x => x.label);
+            const idx = PLAN_ORDER.indexOf(p.id);
+            const lower = idx > 0 ? plans.find(x => x.id === PLAN_ORDER[idx - 1]) : null;
+            const items = cumulativeItems(p, plans);
+            const shown = items;
+            const truncated = items.length - shown.length; // 0 aujourd'hui, prêt pour l'avenir
+            const inheritLabel = lower ? `Tout le forfait ${lower.name}, plus :` : null;
             return (
-              <article
-                key={p.id}
+              <article key={p.id}
                 className={`card-crm p-6 flex flex-col ${p.id === "pro" ? "ring-2 ring-[#4A154B]" : ""}`}
-                data-testid={`pricing-card-${p.id}`}
-              >
+                data-testid={`pricing-card-${p.id}`}>
                 {p.id === "pro" && (
                   <div className="text-xs uppercase tracking-wide font-medium text-[#4A154B] mb-2" data-testid="pricing-badge-recommended">
                     Recommandé
@@ -123,8 +127,8 @@ export default function Pricing() {
                   <p className="text-xs text-stone-500 mt-1">{suffix}</p>
                   <p className="text-xs text-stone-500 mt-1">1er siège offert · dégressif dès 10 sièges</p>
                 </div>
+
                 <ul className="space-y-2 mb-6 flex-1" aria-label={`Fonctionnalités du forfait ${p.name}`}>
-                  {/* Transverses en tête, mêmes sur les 3 forfaits — arguments produit */}
                   {TRANSVERSE.map(({ key, icon: Icon }) => {
                     const lbl = trans(key);
                     if (!lbl) return null;
@@ -135,19 +139,28 @@ export default function Pricing() {
                       </li>
                     );
                   })}
-                  {/* Fonctionnalités du forfait, traduites, tronquées à 10 lignes visibles */}
-                  {items.slice(0, 10).map(({ raw, label }) => (
-                    <li key={raw} className="flex items-start gap-2 text-sm">
+                  {inheritLabel && (
+                    <li className="flex items-start gap-2 text-sm pt-1" data-testid={`pricing-inherits-${p.id}`}>
+                      <CornerDownRight size={16} className="text-stone-500 mt-0.5 flex-shrink-0" aria-hidden />
+                      <span className="text-stone-700 font-semibold">{inheritLabel}</span>
+                    </li>
+                  )}
+                  {shown.map(({ raw, label }) => (
+                    <li key={raw} className="flex items-start gap-2 text-sm" data-testid={`pricing-item-${raw}-${p.id}`}>
                       <Check size={16} className="text-emerald-600 mt-0.5 flex-shrink-0" aria-hidden />
                       <span className="text-stone-700">{label}</span>
                     </li>
                   ))}
+                  {truncated > 0 && (
+                    <li className="text-xs text-stone-500 italic pt-1" data-testid={`pricing-more-${p.id}`}>
+                      + {truncated} autre{truncated > 1 ? "s" : ""} fonctionnalité{truncated > 1 ? "s" : ""}
+                    </li>
+                  )}
                 </ul>
-                <Link
-                  to="/register"
+
+                <Link to="/register"
                   className="btn-primary text-center min-h-[48px] rounded-lg flex items-center justify-center gap-2"
-                  data-testid={`pricing-cta-${p.id}`}
-                >
+                  data-testid={`pricing-cta-${p.id}`}>
                   <span className="truncate">Essayer {trialDays} jours gratuitement</span>
                   <ArrowRight size={16} className="flex-shrink-0" />
                 </Link>
@@ -165,20 +178,19 @@ export default function Pricing() {
               <dt className="font-medium">Que se passe-t-il après l'essai gratuit ?</dt>
               <dd className="text-sm text-stone-600 mt-1">
                 Sans souscription à J+7, vous restez en <strong>lecture seule</strong> pendant 15 jours
-                — vos données sont conservées et exportables. Aucune coupure brutale, aucune perte.
+                — vos données sont conservées et exportables.
               </dd>
             </div>
             <div>
               <dt className="font-medium">Comment fonctionne la facturation par siège ?</dt>
               <dd className="text-sm text-stone-600 mt-1">
-                Chaque compte utilisateur actif = 1 siège. Le premier est offert. Ajout/retrait
-                de sièges au fil de l'eau, calcul au prorata.
+                Chaque compte utilisateur actif = 1 siège. Le premier est offert.
               </dd>
             </div>
             <div>
               <dt className="font-medium">Puis-je changer de forfait à tout moment ?</dt>
               <dd className="text-sm text-stone-600 mt-1">
-                Oui. Montée en gamme immédiate, descente prise en compte au prochain cycle.
+                Oui. Montée en gamme immédiate, descente au prochain cycle.
               </dd>
             </div>
           </dl>
@@ -187,4 +199,3 @@ export default function Pricing() {
     </div>
   );
 }
-

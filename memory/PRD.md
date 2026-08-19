@@ -127,10 +127,13 @@ brassicoles/distribution.
 - `/api/me/permissions` (compte Entreprise) : tout à `true` ✅
 - Suite complète pytest : `test_iter20_cross_tenant_404.py` + `test_iter21_paywall.py` + `test_iter22_pricing_coherence.py` = **10/10** ✅
 
-**Page /pricing carte par carte (screenshot validé)**
-- **Terrain (15 €)** : 6 items — Mode hors-ligne, Dictée vocale, Clients, Tableau de bord, Prise de commande, Catalogue, Tournées, Comptes rendus
-- **Pro (29 €)** : 11 items dont **DRM douane** visible, Stock et contenants, Rapports et pilotage, Paiements, Rapprochement
-- **Entreprise (49 €)** : 21 items — Coach IA, Assistant vocal IA, Bouclier, Radar CHR, Veille, Intégrations, Coûts et marges, plus tous les héritages
+**Page /pricing carte par carte (Option A cumulative — screenshot validé)**
+- Affichage **différentiel** : chaque carte n'affiche que ce qu'elle **ajoute** au forfait précédent
+- **Terrain (15 €)** : 8 lignes — 2 transverses + 6 features de base (Clients, Tableau de bord, Prise de commande, Catalogue, Tournées, Comptes rendus)
+- **Pro (29 €)** : 2 transverses + « **Tout le forfait Terrain, plus :** » (icône CornerDownRight) + 5 nouveautés (Stock et contenants, DRM douane, Rapports et pilotage, Paiements et relances, Rapprochement bancaire)
+- **Entreprise (49 €)** : 2 transverses + « **Tout le forfait Pro, plus :** » + 10 nouveautés (Prospection, Radar CHR, Veille, Bouclier, Coach IA, Assistant vocal IA, Coûts et marges, Users, Intégrations, Sources)
+- **Aucune troncature silencieuse** : si un jour on ajoute plus d'items que ce que la carte peut afficher, la ligne `pricing-more-{id}` précisera « + N autres fonctionnalités »
+- Test régression `/app/backend/tests/test_iter23_pricing_hierarchy.py` : hiérarchie affichée Terrain ≤ Pro ≤ Entreprise, marqueur d'héritage présent uniquement sur Pro/Entreprise, jamais de clé technique brute affichée
 
 ### Lot 4 · P5 — Déploiement équipe (livré 19 août 2026)
 
