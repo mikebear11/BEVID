@@ -510,6 +510,132 @@ async def logout(response: Response):
     return {"ok": True}
 
 
+@api_router.get("/me/profile")
+async def get_my_profile(user=Depends(get_current_user)):
+    """Préférences utilisateur : nom affiché, thème, écran d'accueil, format montants, notifs."""
+    doc = await db_raw.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+    if not doc:
+        raise HTTPException(404, "Utilisateur introuvable")
+    return {
+        "id": doc["id"],
+        "email": doc["email"],
+        "name": doc.get("name", ""),
+        "display_name": doc.get("display_name") or doc.get("name", ""),
+        "role": doc.get("role"),
+        "org_id": doc.get("org_id"),
+        "language": doc.get("language", "fr"),
+        "theme": doc.get("theme", "system"),
+        "home_screen": doc.get("home_screen") or ("/tournee" if doc.get("role") == "commercial" else "/"),
+        "amount_format": doc.get("amount_format", "with_cents"),
+        "notif_prefs": doc.get("notif_prefs", {
+            "relance_reminders": True,
+            "unpaid_alerts": True,
+            "morning_summary": False,
+        }),
+    }
+
+
+class ProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    language: Optional[Literal["fr", "en"]] = None
+    theme: Optional[Literal["light", "dark", "system"]] = None
+    home_screen: Optional[str] = None
+    amount_format: Optional[Literal["with_cents", "no_cents"]] = None
+    notif_prefs: Optional[dict] = None
+
+
+ALLOWED_HOME_SCREENS = {
+    "/", "/tournee", "/clients", "/orders", "/products",
+    "/stock", "/reports", "/pipeline", "/deals", "/paiements",
+}
+
+
+@api_router.put("/me/profile")
+async def update_my_profile(data: ProfileUpdate, user=Depends(get_current_user)):
+    updates = {}
+    if data.display_name is not None:
+        updates["display_name"] = data.display_name.strip()[:60]
+    if data.language:
+        updates["language"] = data.language
+    if data.theme:
+        updates["theme"] = data.theme
+    if data.home_screen:
+        if data.home_screen not in ALLOWED_HOME_SCREENS:
+            raise HTTPException(422, "Écran d'accueil non autorisé")
+        updates["home_screen"] = data.home_screen
+    if data.amount_format:
+        updates["amount_format"] = data.amount_format
+    if data.notif_prefs is not None:
+        allowed = {"relance_reminders", "unpaid_alerts", "morning_summary"}
+        updates["notif_prefs"] = {k: bool(v) for k, v in data.notif_prefs.items() if k in allowed}
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    await db_raw.users.update_one({"id": user["id"]}, {"$set": updates})
+    return await get_my_profile(user)
+
+
+# ---------- Réglages entreprise (manager only) ----------
+class OrgSettingsUpdate(BaseModel):
+    name: Optional[str] = None
+    accent_color: Optional[Literal["indigo", "purple", "emerald", "amber", "rose", "teal"]] = None
+    currency: Optional[Literal["EUR", "USD", "GBP", "CHF"]] = None
+    timezone: Optional[str] = None
+    legal_notice: Optional[str] = None
+    logo_url: Optional[str] = None
+
+
+ACCENT_PALETTE = {
+    "indigo":  {"hex": "#4A154B", "name": "Aubergine"},
+    "purple":  {"hex": "#7C3AED", "name": "Violet"},
+    "emerald": {"hex": "#059669", "name": "Émeraude"},
+    "amber":   {"hex": "#B45309", "name": "Ambre"},
+    "rose":    {"hex": "#BE185D", "name": "Rose"},
+    "teal":    {"hex": "#0F766E", "name": "Sarcelle"},
+}
+
+
+@api_router.get("/org/branding")
+async def get_org_branding(user=Depends(get_current_user)):
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(404, "Organisation introuvable")
+    return {
+        "id": org["id"],
+        "name": org.get("name", ""),
+        "slug": org.get("slug", ""),
+        "accent_color": org.get("accent_color", "indigo"),
+        "currency": org.get("currency", "EUR"),
+        "timezone": org.get("timezone", "Europe/Paris"),
+        "legal_notice": org.get("legal_notice", ""),
+        "logo_url": org.get("logo_url", ""),
+        "palette": ACCENT_PALETTE,
+        "plan": org.get("plan"),
+        "status": org.get("status"),
+        "trial_ends_at": org.get("trial_ends_at"),
+    }
+
+
+@api_router.put("/org/branding")
+async def update_org_branding(data: OrgSettingsUpdate, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    updates = {}
+    for f in ("name", "accent_color", "currency", "timezone", "legal_notice", "logo_url"):
+        v = getattr(data, f)
+        if v is not None:
+            updates[f] = v.strip() if isinstance(v, str) else v
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    await db_raw.organizations.update_one({"id": org_id}, {"$set": updates})
+    return await get_org_branding(user)
+
+
 # ---------- Multi-tenant : Organisations & Invitations ----------
 class OrgInvitationCreate(BaseModel):
     email: EmailStr

@@ -22,7 +22,7 @@ export default function Login() {
 
   const from = location.state?.from?.pathname && location.state.from.pathname !== "/login"
     ? location.state.from.pathname + (location.state.from.search || "")
-    : "/";
+    : null;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -32,7 +32,9 @@ export default function Login() {
       const u = await login(email, password);
       if (u.language) setLanguage(u.language);
       toast.success(t("login") + " ✓");
-      nav(u.must_reset ? "/change-password" : from, { replace: true });
+      // Redirection : deep-link explicite > home_screen préférence > racine
+      const dest = u.must_reset ? "/change-password" : (from || u.home_screen || "/");
+      nav(dest, { replace: true });
     } catch (err) {
       const status = err?.response?.status;
       const data = err?.response?.data;

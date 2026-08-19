@@ -60,6 +60,8 @@ const SECTIONS = [
     { to: "/sources-donnees", key: "sources", feature: "page:sources-donnees", icon: Database },
   ]},
   { key: "section_admin", entries: [
+    { to: "/profile", key: "profile", feature: null, icon: UserCog },
+    { to: "/org/settings", key: "org_settings", feature: "manager_only", icon: SettingsIcon },
     { to: "/admin/users", key: "users", feature: "page:users", icon: UserCog },
     { to: "/admin/permissions", key: "permissions", feature: "page:users", icon: ShieldCheck },
     { to: "/connectors", key: "connectors", feature: "page:integrations", icon: Plug },
@@ -110,6 +112,8 @@ export default function Layout({ children }) {
     return SECTIONS.map(section => ({
       ...section,
       entries: section.entries.filter(entry => {
+        if (entry.feature === null) return true;                       // toujours visible (ex: profil perso)
+        if (entry.feature === "manager_only") return role === "manager";
         if (permsLoading) return role === "manager";
         return has(entry.feature);
       }),

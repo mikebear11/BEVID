@@ -92,6 +92,22 @@ brassicoles/distribution.
   rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
   sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.
 
+### Lot 4 · P3 — Personnalisation utilisateur + entreprise (livré 19 août 2026)
+
+**Backend**
+- `GET /api/me/profile` · `PUT /api/me/profile` : display_name, language, theme (light/dark/system), home_screen (whitelist), amount_format (with_cents/no_cents), notif_prefs (3 toggles). Persistés sur `users`.
+- `GET /api/org/branding` · `PUT /api/org/branding` (manager only, 403 sinon) : name, accent_color (palette pré-validée 6 teintes), currency, timezone, legal_notice, logo_url. Persistés sur `organizations`.
+- `/org/settings` opérationnel (marges, rétention voix, seuils bad-payer) reste intact — mes endpoints branding sont séparés pour éviter la collision.
+
+**Frontend**
+- `/profile` : avatar généré côté client (initiales + couleur HSL stable dérivée du nom, aucun aléatoire), tous les toggles, sauvegarde onBlur/onChange, feedback saving.
+- `/org/settings` : palette 6 boutons radio avec pastille couleur + nom, restrictions manager, mentions légales sur PDF.
+- Nav : entrées ajoutées en section Administration (`Mon profil` visible pour tous, `Réglages entreprise` manager only via nouveau feature-flag `manager_only`).
+- Login : redirection post-connexion utilise `user.home_screen` si défini, sinon racine (deep-link `state.from` prioritaire, comme avant).
+
+**🟡 Reporté**
+- Upload de photo de profil (redimensionnement serveur, 2 Mo max) : pas implémenté, l'avatar généré par initiales suffit à un MVP. À brancher via un endpoint `POST /me/avatar` + Sharp/Pillow si besoin.
+
 ### Lot 4 · P2 — Multi-entreprises (livré 19 août 2026)
 
 **Architecture retenue : isolation par construction via contextvars + wrapper Motor.**
