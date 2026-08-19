@@ -26,8 +26,7 @@ export default function Clients() {
     setImporting(true);
     try {
       const fd = new FormData(); fd.append("file", f);
-      const token = localStorage.getItem("crm_token");
-      const res = await fetch(`${API}/clients/bulk-import`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const res = await fetch(`${API}/clients/bulk-import`, { method: "POST", credentials: "include", body: fd });
       const data = await res.json();
       const errPart = data.total_errors ? t("toast.import_with_errors", { n: data.total_errors }) : "";
       toast.success(t("toast.clients_imported", { n: data.created }) + errPart);

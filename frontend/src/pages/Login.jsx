@@ -17,6 +17,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [netError, setNetError] = useState(null);
+  const [rateError, setRateError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const from = location.state?.from?.pathname && location.state.from.pathname !== "/login"
@@ -25,7 +26,7 @@ export default function Login() {
 
   const submit = async (e) => {
     e.preventDefault();
-    setErrors({}); setNetError(null);
+    setErrors({}); setNetError(null); setRateError(null);
     setLoading(true);
     try {
       const u = await login(email, password);
@@ -36,14 +37,14 @@ export default function Login() {
       const status = err?.response?.status;
       const data = err?.response?.data;
       if (!err.response) {
-        // Panne réseau — pas de status HTTP
-        setNetError("Connexion impossible. Vérifie ton réseau et réessaie.");
+        setNetError("Connexion impossible. Vérifiez votre réseau et réessayez.");
       } else if (status === 422 && data?.errors) {
         setErrors(data.errors);
       } else if (status === 429) {
-        toast.error(data?.detail || t("toast.login_ratelimit"));
+        // Message dans le formulaire, pas seulement en toast
+        setRateError(data?.detail || t("toast.login_ratelimit"));
       } else {
-        toast.error(data?.detail || t("toast.login_invalid"));
+        setErrors({ password: data?.detail || "Identifiants invalides" });
       }
     } finally { setLoading(false); }
   };
@@ -93,7 +94,7 @@ export default function Login() {
 
           <div>
             <label htmlFor="login-email" className="text-xs text-stone-600 dark:text-stone-300 block">{t("email")}</label>
-            <input id="login-email" name="email" type="email" autoComplete="username email" required inputMode="email"
+            <input id="login-email" name="email" type="email" autoComplete="username" required inputMode="email"
               value={email} onChange={e => setEmail(e.target.value)}
               aria-invalid={!!errors.email} aria-describedby={errors.email ? "login-email-err" : undefined}
               className="input-crm mt-1 min-h-[48px]" data-testid="login-email" />
@@ -114,6 +115,16 @@ export default function Login() {
           <button type="submit" disabled={loading} className="btn-primary w-full min-h-[48px]" data-testid="login-submit">
             {loading ? "…" : t("login")}
           </button>
+          {rateError && (
+            <p role="alert" data-testid="login-rate-error"
+               className="text-sm text-center"
+               style={{
+                 color: "var(--ds-state-danger-soft-fg)",
+                 background: "var(--ds-state-danger-soft-bg)",
+                 border: "1px solid var(--ds-state-danger)",
+                 padding: "10px 12px", borderRadius: "var(--ds-radius-md)",
+               }}>{rateError}</p>
+          )}
           <p className="text-sm text-stone-500 text-center">
             <Link to="/register" className="text-[#4A154B] font-medium">{t("register")}</Link>
           </p>

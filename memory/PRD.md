@@ -92,7 +92,15 @@ brassicoles/distribution.
   rate-limité (20/15min), scrubbing PII (emails, JWTs, Bearer). Hook Sentry conditionnel
   sur `SENTRY_DSN` env — pas activé faute de DSN, l'endpoint maison prend le relais.
 
-## Intégrations 3rd party
+### Lot 4 · P1 — Connexion réparée (livré 19 août 2026)
+- **1.1 Rate limit repensé.** Login : compteur progressif par compte (`delays = 0/1/2/4/8s`, hard cap 5 → blocage 15 min) + garde-fou IP très permissif (100 échecs / 15 min) pour absorber le NAT. Compteurs séparés (`login` et `login_ip`), purgés à la connexion réussie via `_rate_limit_clear_login`. Message utilisateur en secondes sous 60s, en minutes au-delà, au vouvoiement.
+- **1.2 XFF non forgeable.** `_client_ip` : si le hop TCP n'appartient pas à `TRUSTED_PROXIES` (env, liste CIDR), on ignore `X-Forwarded-For` et on utilise l'IP socket. Comportement par défaut = strict (variable non renseignée = XFF ignoré partout). Prêt à être configuré côté ops sans redéploiement.
+- **1.3 Autoremplissage.** `<input id="login-email" autoComplete="username">` (spec HTML pour l'autofill par gestionnaire de mots de passe). ForgotPassword=`email`, ResetPassword=`new-password`, Register=`new-password`. Verified.
+- **1.4 Migration `crm_token` terminée.** 
+  - Purge au tout premier montage de `AuthContext` : `localStorage.removeItem("crm_token")` idempotent.
+  - Suppression de toutes les lectures : `api.js`, `AuthContext.jsx`, `PermContext.jsx`, `I18nContext.jsx`, `Login.jsx`, `Orders.jsx`, `Rapprochement.jsx`, `Clients.jsx`, `Reports.jsx`, `ClientBankingPanel.jsx`.
+  - Les cinq appels `fetch()` legacy sont passés en `credentials: "include"` (cookie httpOnly utilisé). `grep crm_token src/` retourne uniquement les deux lignes de la purge migratoire (commentaire + `removeItem`).
+- **UX rate limit.** Message affiché sous le bouton `Sign in` dans le formulaire (composant `<p role="alert" data-testid="login-rate-error">`), pas uniquement en toast.
 - **Emergent LLM Key** : ✅ actif (Claude Sonnet pour coach IA, dictée voix)
 - **Twilio (WhatsApp/SMS)** : ✅ config user
 - **Stripe (test)** : ✅ config env

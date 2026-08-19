@@ -52,10 +52,9 @@ export default function Reports() {
         <div className="flex gap-2 flex-wrap">
           <button onClick={exportCsv} className="btn-ghost flex items-center gap-2" data-testid="export-csv-btn"><Download size={14} /> Export CSV</button>
           <button onClick={async () => {
-            const token = localStorage.getItem("crm_token");
             const now = new Date();
             const q = Math.floor(now.getMonth() / 3) + 1;
-            const res = await fetch(`${API}/reports/quarterly/pdf?year=${now.getFullYear()}&quarter=${q}`, { headers: { Authorization: `Bearer ${token}` } });
+            const res = await fetch(`${API}/reports/quarterly/pdf?year=${now.getFullYear()}&quarter=${q}`, { credentials: "include" });
             const blob = await res.blob();
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a"); a.href = url; a.download = `bilan-Q${q}-${now.getFullYear()}.pdf`; a.click();

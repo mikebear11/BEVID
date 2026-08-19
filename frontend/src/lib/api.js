@@ -6,35 +6,19 @@ export const API = `${BACKEND_URL}/api`;
 
 /**
  * Auth : cookie httpOnly `bevid_auth` (Secure, SameSite=Lax) posé par /auth/login.
- * On garde le fallback Bearer pour la période de transition : si le vieux
- * `crm_token` traîne encore dans localStorage, on l'envoie pour permettre au
- * backend de re-poser le cookie, puis on le purge à la première réponse OK.
- * `withCredentials: true` garantit l'envoi du cookie sur toutes les requêtes.
+ * Le token n'est plus stocké côté client. `withCredentials: true` garantit l'envoi
+ * automatique du cookie sur toutes les requêtes.
+ *
+ * Indicateur non sensible `bevid_session` dans localStorage : uniquement pour
+ * savoir s'il faut tenter /auth/me au boot et pour le mode hors-ligne.
  */
 export const api = axios.create({ baseURL: API, withCredentials: true });
 
-api.interceptors.request.use((config) => {
-  const legacy = localStorage.getItem("crm_token");
-  if (legacy && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${legacy}`;
-  }
-  return config;
-});
-
 api.interceptors.response.use(
-  (r) => {
-    // Migration douce : dès qu'on reçoit une réponse authentifiée valide, on
-    // peut retirer le vieux jeton localStorage (le cookie prend le relais).
-    if (r.status < 400 && localStorage.getItem("crm_token") && r.config.url !== "/auth/login" && r.config.url !== "/auth/register") {
-      // On garde le token 24h de plus pour ne pas casser un onglet ouvert offline.
-      // Purge finale : après un logout explicite.
-    }
-    return r;
-  },
+  (r) => r,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("bevid_session");
-      localStorage.removeItem("crm_token");
       const p = window.location.pathname;
       const isPublic = p === "/login" || p === "/register" || p === "/forgot-password"
         || p.startsWith("/reset-password") || p.startsWith("/sign/");

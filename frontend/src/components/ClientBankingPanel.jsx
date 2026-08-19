@@ -37,10 +37,8 @@ export default function ClientBankingPanel({ client, onUpdate }) {
     setUploading(kind);
     try {
       const fd = new FormData(); fd.append("file", f);
-      const token = localStorage.getItem("crm_token");
       const res = await fetch(`${API}/clients/${client.id}/documents?kind=${kind}`, {
-        method: "POST", body: fd,
-        headers: { Authorization: `Bearer ${token}` },
+        method: "POST", body: fd, credentials: "include",
       });
       const b = await res.json();
       if (!res.ok) throw new Error(b.detail || "Upload échoué");
@@ -56,8 +54,7 @@ export default function ClientBankingPanel({ client, onUpdate }) {
 
   const viewFile = async (path) => {
     try {
-      const token = localStorage.getItem("crm_token");
-      const res = await fetch(`${API}/files/${path}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API}/files/${path}`, { credentials: "include" });
       if (!res.ok) throw new Error("Fichier introuvable");
       const blob = await res.blob();
       window.open(URL.createObjectURL(blob), "_blank");

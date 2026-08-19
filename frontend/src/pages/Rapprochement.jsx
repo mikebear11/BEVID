@@ -47,10 +47,8 @@ export default function Rapprochement() {
     setUploading(true);
     try {
       const fd = new FormData(); fd.append("file", f);
-      const token = localStorage.getItem("crm_token");
       const res = await fetch(`${API}/banque/imports`, {
-        method: "POST", body: fd,
-        headers: { Authorization: `Bearer ${token}` },
+        method: "POST", body: fd, credentials: "include",
       });
       const b = await res.json();
       if (!res.ok) throw new Error(b.detail || "Erreur import");

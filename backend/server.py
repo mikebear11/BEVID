@@ -23,26 +23,124 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 # ---------- Rate limiter (in-memory, sliding window) ----------
-from rate_limit import check as _rl_check, record as _rl_record, clear as _rl_clear
+from rate_limit import check as _rl_check, check_progressive as _rl_check_progressive, record as _rl_record, clear as _rl_clear
+
+
+# ---------- Trusted proxies : ne fait confiance à X-Forwarded-For que si le hop
+# immédiat provient d'un proxy connu (env TRUSTED_PROXIES, liste CIDR/IP séparée
+# par virgules). Sinon on ignore l'en-tête et on prend l'IP de la socket.
+def _parse_trusted_proxies() -> list:
+    raw = os.environ.get("TRUSTED_PROXIES", "").strip()
+    if not raw:
+        return []
+    nets = []
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            logging.getLogger("bevid.security").warning("TRUSTED_PROXIES: entrée invalide %r", entry)
+    return nets
+
+
+_TRUSTED_PROXIES = _parse_trusted_proxies()
+
+
+def _is_trusted(ip_str: str) -> bool:
+    if not _TRUSTED_PROXIES:
+        return False
+    try:
+        addr = ipaddress.ip_address(ip_str)
+    except ValueError:
+        return False
+    return any(addr in net for net in _TRUSTED_PROXIES)
 
 
 def _client_ip(request: Request) -> str:
-    xff = request.headers.get("x-forwarded-for", "")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    """Retourne l'IP client réelle.
+
+    Règle : si le hop TCP (request.client.host) est dans TRUSTED_PROXIES,
+    on peut prendre l'IP suivante dans X-Forwarded-For (chaîne right-to-left).
+    Sinon on retourne le hop TCP direct — X-Forwarded-For est ignoré, un attaquant
+    ne peut donc pas forger l'en-tête pour contourner le rate limit.
+    """
+    socket_ip = request.client.host if request.client else "unknown"
+    if not _TRUSTED_PROXIES or not _is_trusted(socket_ip):
+        return socket_ip
+    # Le hop immédiat est un proxy de confiance : on peut consulter XFF.
+    xff = request.headers.get("x-forwarded-for", "").strip()
+    if not xff:
+        return socket_ip
+    chain = [ip.strip() for ip in xff.split(",") if ip.strip()]
+    # Parcours right-to-left, on saute les proxies de confiance, on retourne
+    # la première IP non-trusted rencontrée.
+    for candidate in reversed(chain):
+        if not _is_trusted(candidate):
+            try:
+                ipaddress.ip_address(candidate)  # valide
+                return candidate
+            except ValueError:
+                continue
+    return socket_ip
 
 
 def _rate_limit_check(kind: str, ip: str, email: str, max_attempts: int, window_min: int) -> None:
-    """Vérifie 2 clés indépendantes (IP + email) et lève 429 si dépassement."""
+    """Vérifie 2 clés indépendantes (IP + email) et lève 429 si dépassement.
+
+    Utilisé pour /auth/register (5/15) et /auth/forgot-password (3/15). Pour
+    /auth/login, voir _rate_limit_check_login() qui applique une stratégie
+    progressive par compte.
+    """
     for key in (f"ip:{ip}", f"email:{email}"):
         allowed, retry_after = _rl_check(kind, key, max_attempts, window_min)
         if not allowed:
             raise HTTPException(
                 status_code=429,
-                detail=f"Trop de tentatives. Réessaie dans {retry_after} secondes.",
+                detail=_human_retry_message(retry_after),
                 headers={"Retry-After": str(retry_after)},
             )
+
+
+def _human_retry_message(retry_after_sec: int) -> str:
+    """Formate la durée en minutes, vouvoiement."""
+    minutes = max(1, (retry_after_sec + 59) // 60)
+    unite = "minute" if minutes == 1 else "minutes"
+    return f"Trop de tentatives. Réessayez dans {minutes} {unite}."
+
+
+def _rate_limit_check_login(ip: str, email: str) -> None:
+    """Stratégie de login :
+    1) IP : garde-fou très permissif (100 échecs / 15 min) — laisse passer le NAT.
+    2) Email : blocage progressif par compte, délais 1s/2s/4s/8s, hard cap à 5.
+
+    Le message utilisateur est en minutes et au vouvoiement.
+    """
+    # Garde-fou IP — permissif pour ne pas bloquer les NAT
+    allowed_ip, retry_ip = _rl_check("login_ip", f"ip:{ip}", max_attempts=100, window_min=15)
+    if not allowed_ip:
+        raise HTTPException(
+            status_code=429,
+            detail=_human_retry_message(retry_ip),
+            headers={"Retry-After": str(retry_ip)},
+        )
+    # Blocage progressif par compte
+    allowed, retry, attempts = _rl_check_progressive(
+        kind="login", key=f"email:{email}", hard_cap=5, window_min=15,
+        delays=(0, 1, 2, 4, 8),
+    )
+    if not allowed:
+        # Sous 60s : message en secondes ; sinon minutes.
+        if retry <= 60:
+            msg = f"Trop de tentatives rapides. Patientez {retry} seconde{'s' if retry > 1 else ''}."
+        else:
+            msg = _human_retry_message(retry)
+        raise HTTPException(
+            status_code=429,
+            detail=msg,
+            headers={"Retry-After": str(retry), "X-RateLimit-Attempts": str(attempts)},
+        )
 
 
 def _rate_limit_record(kind: str, ip: str, email: str) -> None:
@@ -50,9 +148,21 @@ def _rate_limit_record(kind: str, ip: str, email: str) -> None:
     _rl_record(kind, f"email:{email}")
 
 
+def _rate_limit_record_login(ip: str, email: str) -> None:
+    """Enregistre un échec de login sur les deux compteurs distincts."""
+    _rl_record("login_ip", f"ip:{ip}")
+    _rl_record("login", f"email:{email}")
+
+
 def _rate_limit_clear(kind: str, ip: str, email: str) -> None:
     _rl_clear(kind, f"ip:{ip}")
     _rl_clear(kind, f"email:{email}")
+
+
+def _rate_limit_clear_login(ip: str, email: str) -> None:
+    """Purge les compteurs de login sur succès."""
+    _rl_clear("login_ip", f"ip:{ip}")
+    _rl_clear("login", f"email:{email}")
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -332,19 +442,16 @@ async def update_language(data: dict, user=Depends(get_current_user)):
 
 @api_router.post("/auth/login")
 async def login(data: UserLogin, request: Request, response: Response):
-    # Rate limit : 5 échecs / 15 min par IP ET par email
     ip = _client_ip(request)
     email_norm = data.email.strip().lower()
-    _rate_limit_check(kind="login", ip=ip, email=email_norm, max_attempts=5, window_min=15)
+    # Rate limit login : progressif par compte + garde-fou IP très permissif
+    _rate_limit_check_login(ip=ip, email=email_norm)
 
     doc = await db.users.find_one({"email": email_norm})
     if not doc or not verify_password(data.password, doc["password"]):
-        # Compte l'échec pour le rate limiter (n'enregistre que sur échec)
-        _rate_limit_record(kind="login", ip=ip, email=email_norm)
-        # Message générique — ne révèle jamais quel champ est faux
+        _rate_limit_record_login(ip=ip, email=email_norm)
         raise HTTPException(401, "Identifiants invalides")
-    # Succès : purge le compteur pour ce couple IP+email
-    _rate_limit_clear(kind="login", ip=ip, email=email_norm)
+    _rate_limit_clear_login(ip=ip, email=email_norm)
     token = create_token(doc["id"])
     _set_auth_cookie(response, token)
     doc.pop("password", None)

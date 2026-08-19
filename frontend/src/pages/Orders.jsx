@@ -18,8 +18,7 @@ export default function Orders() {
   const [payOrderId, setPayOrderId] = useState(null);
 
   const downloadPdf = async (oid) => {
-    const token = localStorage.getItem("crm_token");
-    const res = await fetch(`${API}/orders/${oid}/pdf`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`${API}/orders/${oid}/pdf`, { credentials: "include" });
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `commande-${oid.slice(0,8)}.pdf`; a.click();

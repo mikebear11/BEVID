@@ -16,7 +16,7 @@ export function I18nProvider({ children }) {
     localStorage.setItem("crm_lang", lang);
     _setModuleLang(lang);
     try { document.documentElement.setAttribute("lang", lang); } catch { /* noop */ }
-    if (localStorage.getItem("bevid_session") || localStorage.getItem("crm_token")) {
+    if (localStorage.getItem("bevid_session")) {
       api.put("/auth/language", { language: lang }).catch(() => {});
     }
   }, [lang]);
