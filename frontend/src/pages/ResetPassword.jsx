@@ -3,10 +3,12 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
+import { usePageMeta } from "@/lib/pageMeta";
 import PasswordInput from "@/components/PasswordInput";
 import { t } from "@/lib/i18n";
 
 export default function ResetPassword() {
+  usePageMeta({ title: "Réinitialisation · BEVID", noindex: true });
   const { token } = useParams();
   const nav = useNavigate();
   const [pwd, setPwd] = useState("");

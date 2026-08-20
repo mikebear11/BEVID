@@ -8,7 +8,7 @@ import { useEffect } from "react";
  * Usage :
  *   usePageMeta({ title: "Tarifs · BEVID", canonical: "/pricing" });
  */
-export function usePageMeta({ title, canonical, description } = {}) {
+export function usePageMeta({ title, canonical, description, noindex } = {}) {
   useEffect(() => {
     if (title && typeof document !== "undefined") {
       const prev = document.title;
@@ -44,4 +44,22 @@ export function usePageMeta({ title, canonical, description } = {}) {
       return () => { if (prev) m.setAttribute("content", prev); };
     }
   }, [canonical, description]);
+
+  // Meta robots dynamique — pour les routes portant un jeton d'usage unique
+  // (`/activate/:token`, `/sign/:token`, `/reset-password/:token`, `/change-password`).
+  // Le CDN preview peut intercepter /robots.txt (limite plateforme, non contournable
+  // côté code) : les meta robots sont donc la protection réelle qu'aucun proxy
+  // ne peut écraser.
+  useEffect(() => {
+    if (typeof document === "undefined" || !noindex) return;
+    let m = document.querySelector('meta[name="robots"][data-page-meta]');
+    if (!m) {
+      m = document.createElement("meta");
+      m.setAttribute("name", "robots");
+      m.setAttribute("data-page-meta", "true");
+      document.head.appendChild(m);
+    }
+    m.setAttribute("content", "noindex, nofollow, noarchive, nosnippet");
+    return () => { try { m.remove(); } catch {} };
+  }, [noindex]);
 }

@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Phone, ArrowLeft, ClipboardCheck, ShoppingCart, MessageSquare, AlertOctagon, TrendingUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
+import RunoutList from "@/components/RunoutList";
 
 const CREDIT_COLOR = { vert: "#2D5A4C", orange: "#C78B3A", rouge: "#8C2A2A" };
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", rouge: "COMPTE BLOQUÉ" };
@@ -80,6 +81,11 @@ export default function Etablissement360() {
           ))}
         </div>
       )}
+
+      <div className="card-crm p-4 mt-3" data-testid="etab-runouts">
+        <p className="overline mb-2">Prochaines ruptures probables</p>
+        <RunoutList clientId={e.client_id || id} />
+      </div>
 
       {e.last_visit && (
         <div className="card-crm p-4 mt-3">

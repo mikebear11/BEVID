@@ -5,8 +5,10 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import PasswordInput from "@/components/PasswordInput";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function ChangePassword() {
+  usePageMeta({ title: "Changer le mot de passe · BEVID", noindex: true });
   const { t } = useI18n();
   const nav = useNavigate();
   const [old_password, setOld] = useState("");

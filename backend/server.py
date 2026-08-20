@@ -1984,6 +1984,34 @@ async def client_stats(cid: str, user=Depends(get_current_user)):
         "frequency_days": frequency_days,
     }
 
+@api_router.get("/clients/{cid}/predicted-runouts")
+async def predicted_runouts(cid: str, user=Depends(get_current_user)):
+    """Lot 6.2 — Prédiction de rupture par (client, produit).
+
+    Règles produit (non négociables) :
+      - Moyenne des intervalles entre commandes, IQR pour écarter les
+        commandes d'événement (14 juillet, festival…).
+      - Se taire si <3 commandes du même produit OU intervalles trop
+        irréguliers (CV > 0.6). Une prédiction hasardeuse détruit la crédibilité.
+      - Le raisonnement est TOUJOURS retourné dans le champ `explanation` :
+        « Blonde 20 L — probablement à sec vendredi. Commande tous les
+          21 jours en moyenne, dernière il y a 23 jours. »
+    """
+    # Vérifie l'existence du client (tenant-scoped via db)
+    client = await db.clients.find_one({"id": cid}, {"_id": 0})
+    if not client:
+        raise HTTPException(404, "Client introuvable")
+    orders = await db.orders.find(
+        {"client_id": cid},
+        {"_id": 0, "created_at": 1, "lines": 1},
+    ).sort("created_at", 1).to_list(500)
+    products = await db.products.find({}, {"_id": 0}).to_list(1000)
+    products_by_id = {p["id"]: p for p in products}
+    from analytics.runout import compute_runouts
+    from datetime import date as _date
+    return compute_runouts(orders, products_by_id, today=_date.today())
+
+
 @api_router.post("/orders/reorder/{oid}")
 async def reorder(oid: str, user=Depends(get_current_user)):
     """Crée une nouvelle commande identique à une précédente (1-clic)."""

@@ -6,6 +6,7 @@ import { Smartphone, CheckCircle2, AlertCircle } from "lucide-react";
 import BevidLogo from "@/components/BevidLogo";
 import PasswordInput from "@/components/PasswordInput";
 import { t as tt } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 /**
  * /activate/:token — Parcours d'activation post-invitation.
@@ -23,6 +24,7 @@ function detectInstall() {
 }
 
 export default function Activate() {
+  usePageMeta({ title: "Activation · BEVID", noindex: true });
   const { token } = useParams();
   const nav = useNavigate();
   const [pwd, setPwd] = useState("");

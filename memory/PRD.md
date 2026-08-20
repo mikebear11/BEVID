@@ -75,7 +75,42 @@ brassicoles/distribution.
 - `/app/frontend/public/{robots.txt,sitemap.xml}` : nouveaux (le CDN externe peut cependant intercepter robots.txt en amont — vérifié sur preview).
 - `/app/backend/tests/test_iter24_lot5_public_hardening.py` : 5 tests dédiés, tous verts.
 
-### Lot 6 — Commande dictée en une phrase (livré 20 février 2026)
+### Lot 6.2 — Rupture prévue chez le client (livré 20 février 2026)
+
+**Backend — `/app/backend/analytics/runout.py` (module pur, testable sans DB)**
+- Regroupement par produit → intervalles entre commandes → moyenne pondérée.
+- Écart des commandes d'événement (quantité > 2,5× médiane) : un bar qui a pris 10 fûts pour le 14 juillet n'a pas changé de rythme, l'intervalle contaminant est retiré du calcul.
+- Filtrage IQR sur les intervalles restants pour retirer les valeurs très atypiques.
+- **Se tait** si <3 commandes du même produit (`too_few_orders`), si tous les intervalles écartés (`all_outliers`), ou si CV > 0,6 (`too_irregular`).
+- Retourne toujours `explanation` en clair : « Blonde 20 L — probablement à sec vendredi. Commande tous les 21 jours en moyenne, dernière il y a 23 jours. »
+- Résolution en langage naturel : `aujourd'hui`, `demain`, `vendredi`, `vendredi prochain`, `vers le 12/03`.
+
+**Endpoint — `GET /api/clients/{cid}/predicted-runouts`**
+- Tenant-scoped, 404 si client inconnu.
+- Retourne `{predictions: [...], excluded: {too_few_orders, too_irregular, all_outliers}}` triées par `days_until_out` ascendant.
+
+**Frontend — intégration discrète**
+- `RunoutList.jsx` : composant réutilisable, affiche une ligne par prédiction avec icône `Clock` neutre. **Aucune alerte, aucun badge rouge, aucune notification.**
+- **Fiche établissement (`Etablissement360.jsx`)** : bloc « Prochaines ruptures probables », affiché après les Top 3 références. Vide et silencieux si l'historique est insuffisant.
+- **Tournée (`Tournee.jsx`)** : chaque carte établissement affiche la 1ʳᵉ prédiction en ligne discrète sous l'adresse. Bouton « Trier : bientôt en rupture » optionnel — remonte les clients concernés sans jamais réorganiser d'autorité. Le commercial garde la main.
+- Chargement par lots de 5 en arrière-plan, chaque erreur silencieuse pour ne pas bloquer l'affichage.
+
+**Tests pytest** — 5/5 vert (`test_iter25_runout_prediction.py`) :
+- Rythme régulier → prédiction émise, avg=21, explication conforme.
+- <3 commandes → silence total, comptée dans `too_few_orders`.
+- Commande d'événement (10× médiane) → écartée du calcul, moyenne préservée.
+- Rythme irrégulier (CV > 0.6) → silence, comptée dans `too_irregular`.
+- L'explication contient toujours les 4 éléments : produit, projection, moyenne, dernière commande.
+
+### Résidu robots.txt — limite plateforme confirmée
+- Vérification finale : `curl localhost:3000/robots.txt` = notre fichier (correct), `curl preview publique` = fichier Cloudflare par défaut. **Le proxy CDN Emergent en preview intercepte et sert son propre robots.txt. Non contournable côté code.** Sera correctement servi sur un déploiement production hors preview.
+- **Protection réelle qui ne peut être écrasée** : `<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">` désormais posé côté application sur les 4 pages à jetons (`/activate/:token`, `/sign/:token`, `/reset-password/:token`, `/change-password`) via extension du hook `usePageMeta({noindex: true})`.
+
+### Résidu Cloudflare beacon — correction reçue
+- La balise `<script>` n'est pas dans notre `index.html` (diff local vs preview le prouve). Injectée par le proxy Cloudflare en périphérie. Non retirable côté code. Le sujet se règle dans le tableau de bord Cloudflare, hors périmètre. Filtrage silencieux des rapports CSP correspondants côté serveur (fait au Lot 6.1).
+
+### Améliorations Lot 6.1 (rupture réseau terrain)
+- `VoiceOrderReview.jsx` : compteur de secondes affiché pendant l'interprétation. Après 10s, bouton « Trop long — passer au texte » apparaît. Timeout dur à 25s (AbortController) → fallback silencieux automatique. L'utilisateur n'est jamais bloqué à attendre.
 
 **Backend — `POST /api/voice/interpret-order`**
 - Nouveau endpoint dédié à l'interprétation dictée → commande structurée, séparé de `/api/ai/parse-voice` (qui reste pour client / activité / résumé).

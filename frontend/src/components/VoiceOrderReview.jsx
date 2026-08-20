@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { api, postOffline } from "@/lib/api";
 import { Check, X, ChevronDown, Loader2, Sparkles, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +13,9 @@ import { toast } from "sonner";
  *  - Quantité / prix / date modifiables sur place — jamais de « recommencer ».
  *  - Fallback silencieux : si l'interprétation échoue, appelle onFallback(transcript)
  *    pour retomber sur l'ancien flux texte libre. Jamais d'écran vide.
+ *  - Bruit terrain (bar, accent, réseau à une barre) → interprétation > 10s
+ *    déclenche un bouton « Passer au texte » supplémentaire ; l'utilisateur
+ *    n'est jamais bloqué à attendre.
  */
 export default function VoiceOrderReview({ open, onClose, transcript, clientId, onCreated, onFallback }) {
   const [loading, setLoading] = useState(false);
@@ -20,6 +23,9 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
   const [interp, setInterp] = useState(null);  // { lines, delivery_date, notes, ... }
   const [submitting, setSubmitting] = useState(false);
   const [startedAt, setStartedAt] = useState(null);  // chrono dictée → validation
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const timerRef = useRef(null);
+  const abortRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -28,12 +34,25 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
     setLoading(true);
     setError(null);
     setStartedAt(Date.now());
+    setElapsedSec(0);
+    // Compteur de secondes pour afficher la progression sur réseau lent.
+    timerRef.current = setInterval(() => setElapsedSec(s => s + 1), 1000);
+    // Timeout dur de 25s : au-delà, on retombe silencieusement sur le texte.
+    // L'utilisateur peut aussi passer au texte avant, via le bouton dédié >10s.
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const hardTimeout = setTimeout(() => {
+      controller.abort();
+    }, 25000);
     (async () => {
       try {
-        const { data } = await api.post("/voice/interpret-order", { transcript, client_id: clientId });
+        const { data } = await api.post(
+          "/voice/interpret-order",
+          { transcript, client_id: clientId },
+          { signal: controller.signal },
+        );
         if (cancelled) return;
         if (data.fallback) {
-          // Retombe proprement sur le compte rendu texte — pas d'écran d'erreur.
           onFallback?.(transcript, data.reason);
           onClose?.();
           return;
@@ -41,14 +60,21 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
         setInterp(data);
       } catch (e) {
         if (cancelled) return;
-        // Hors-ligne ou 500 → même comportement : fallback silencieux.
-        onFallback?.(transcript, "network");
+        // Hors-ligne, 500, abort (timeout ou passage manuel) → fallback silencieux.
+        onFallback?.(transcript, controller.signal.aborted ? "timeout" : "network");
         onClose?.();
       } finally {
+        clearTimeout(hardTimeout);
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(hardTimeout);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      try { controller.abort(); } catch {}
+    };
   }, [open, transcript, clientId, onFallback, onClose]);
 
   const updateLine = (i, patch) => {
@@ -142,9 +168,24 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
         </div>
 
         {loading && (
-          <div className="py-8 flex items-center justify-center gap-2 text-stone-600" data-testid="voice-order-loading">
-            <Loader2 size={16} className="animate-spin" />
-            Interprétation en cours…
+          <div className="py-8 flex flex-col items-center justify-center gap-3 text-stone-600" data-testid="voice-order-loading">
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin" />
+              <span>Interprétation en cours… {elapsedSec}s</span>
+            </div>
+            {elapsedSec >= 10 && (
+              <button
+                onClick={() => {
+                  try { abortRef.current?.abort(); } catch {}
+                  onFallback?.(transcript, "user_skipped_slow");
+                  onClose?.();
+                }}
+                className="text-xs text-[#4A154B] underline"
+                data-testid="voice-order-skip-slow"
+              >
+                Trop long — passer au texte
+              </button>
+            )}
           </div>
         )}
 

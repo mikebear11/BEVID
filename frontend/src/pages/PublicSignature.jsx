@@ -3,10 +3,12 @@ import { useParams } from "react-router-dom";
 import axios from "axios";
 import SignaturePad from "@/components/SignaturePad";
 import { Check, Loader2 } from "lucide-react";
+import { usePageMeta } from "@/lib/pageMeta";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function PublicSignature() {
+  usePageMeta({ title: "Signature · BEVID", noindex: true });
   const { token } = useParams();
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState("");
