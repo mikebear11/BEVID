@@ -23,7 +23,9 @@ from statistics import mean, stdev
 from typing import Iterable
 
 # Seuils métier — issues des règles fournies par le PO
-MIN_ORDERS_PER_PRODUCT = 3          # se taire en-dessous
+MIN_ORDERS_PER_PRODUCT = 3          # se taire en-dessous (avant tout filtrage)
+MIN_INTERVALS_AFTER_FILTER = 3      # se taire si moins de 3 intervalles retenus APRÈS exclusion
+MIN_DAYS_SINCE_LAST_ORDER = 2       # commande trop récente → info inutile, ne pas afficher
 MAX_COEFFICIENT_OF_VARIATION = 0.6  # au-delà : rythme trop irrégulier, se taire
 QUANTITY_OUTLIER_RATIO = 2.5        # x médiane → commande d'événement, exclue
 
@@ -96,7 +98,13 @@ def compute_runouts(
                 qtys_by_pid[pid].append(0.0)
 
     predictions: list[dict] = []
-    excluded = {"too_few_orders": 0, "too_irregular": 0, "all_outliers": 0}
+    excluded = {
+        "too_few_orders": 0,
+        "too_few_after_outliers": 0,
+        "too_irregular": 0,
+        "all_outliers": 0,
+        "too_recent": 0,
+    }
 
     for pid, dates in dates_by_pid.items():
         if len(dates) < MIN_ORDERS_PER_PRODUCT:
@@ -132,12 +140,20 @@ def compute_runouts(
             excluded["all_outliers"] += 1
             continue
 
+        # 3) Se taire si moins de 3 intervalles RETENUS après filtrage. Une
+        # « moyenne » calculée sur 1 ou 2 mesures n'est pas une moyenne, c'est
+        # une observation isolée présentée comme un rythme — précisément le cas
+        # qui détruit la confiance du commercial.
+        if len(clean_intervals) < MIN_INTERVALS_AFTER_FILTER:
+            excluded["too_few_after_outliers"] += 1
+            continue
+
         avg = mean(clean_intervals)
         if avg <= 0:
             excluded["too_irregular"] += 1
             continue
 
-        # 3) Se taire si le rythme est trop irrégulier (CV > 0.6).
+        # 4) Se taire si le rythme est trop irrégulier (CV > 0.6).
         if len(clean_intervals) >= 2:
             sd = stdev(clean_intervals)
             cv = sd / avg
@@ -147,6 +163,14 @@ def compute_runouts(
 
         last_date = sorted_dates[-1]
         days_since = (today - last_date).days
+
+        # 5) Commande trop récente → prédiction lointaine, info inutile
+        # aujourd'hui, encombre la tournée. Réapparaîtra d'elle-même en
+        # approchant de l'échéance.
+        if days_since < MIN_DAYS_SINCE_LAST_ORDER:
+            excluded["too_recent"] += 1
+            continue
+
         avg_int = int(round(avg))
         predicted_out = last_date + timedelta(days=avg_int)
         days_until_out = (predicted_out - today).days
@@ -155,9 +179,17 @@ def compute_runouts(
         product_name = product.get("name") or "?"
 
         # Phrase de raisonnement — ordre EXACT convenu avec le PO.
+        # Cas particuliers pour la dernière commande — la lecture doit rester naturelle.
+        if days_since == 0:
+            last_order_str = "commandé aujourd'hui"
+        elif days_since == 1:
+            last_order_str = "commandé hier"
+        else:
+            last_order_str = f"dernière il y a {days_since} jours"
+
         explanation = (
             f"{product_name} — probablement à sec {_fr_relative_day(predicted_out, today)}. "
-            f"Commande tous les {avg_int} jours en moyenne, dernière il y a {days_since} jours."
+            f"Commande tous les {avg_int} jours en moyenne, {last_order_str}."
         )
 
         predictions.append({

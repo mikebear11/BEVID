@@ -95,12 +95,12 @@ brassicoles/distribution.
 - **Tournée (`Tournee.jsx`)** : chaque carte établissement affiche la 1ʳᵉ prédiction en ligne discrète sous l'adresse. Bouton « Trier : bientôt en rupture » optionnel — remonte les clients concernés sans jamais réorganiser d'autorité. Le commercial garde la main.
 - Chargement par lots de 5 en arrière-plan, chaque erreur silencieuse pour ne pas bloquer l'affichage.
 
-**Tests pytest** — 5/5 vert (`test_iter25_runout_prediction.py`) :
-- Rythme régulier → prédiction émise, avg=21, explication conforme.
-- <3 commandes → silence total, comptée dans `too_few_orders`.
-- Commande d'événement (10× médiane) → écartée du calcul, moyenne préservée.
-- Rythme irrégulier (CV > 0.6) → silence, comptée dans `too_irregular`.
-- L'explication contient toujours les 4 éléments : produit, projection, moyenne, dernière commande.
+**Corrections après revue PO** :
+- **Seuil ≥3 intervalles APRÈS filtrage** (nouvelle constante `MIN_INTERVALS_AFTER_FILTER=3`). Nouvelle clé `excluded.too_few_after_outliers`. Une moyenne sur 1 mesure n'est plus jamais présentée comme un rythme. Test verrouillant : 4 commandes dont 1 événement au milieu → 0 prédiction.
+- **Phrase naturelle sur cas limites** : « commandé aujourd'hui » / « commandé hier » / « il y a N jours ». Plus jamais de « dernière il y a 0 jours ».
+- **Ne pas prédire sur commande trop récente** (`MIN_DAYS_SINCE_LAST_ORDER=2` jours, nouvelle clé `excluded.too_recent`). La rupture réapparaîtra d'elle-même en approchant de l'échéance ; en attendant, l'information n'encombre pas la tournée.
+
+**7/7 tests pytest verts** — rythme régulier, <3 commandes, <3 intervalles après filtrage, événement isolé sur historique suffisant, CV élevé, commande trop récente, phrase naturelle.
 
 ### Résidu robots.txt — limite plateforme confirmée
 - Vérification finale : `curl localhost:3000/robots.txt` = notre fichier (correct), `curl preview publique` = fichier Cloudflare par défaut. **Le proxy CDN Emergent en preview intercepte et sert son propre robots.txt. Non contournable côté code.** Sera correctement servi sur un déploiement production hors preview.
