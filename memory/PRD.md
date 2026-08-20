@@ -129,9 +129,10 @@ brassicoles/distribution.
 
 **Page /pricing carte par carte (Option A cumulative — screenshot validé)**
 - Affichage **différentiel** : chaque carte n'affiche que ce qu'elle **ajoute** au forfait précédent
-- **Terrain (15 €)** : 8 lignes — 2 transverses + 6 features de base (Clients, Tableau de bord, Prise de commande, Catalogue, Tournées, Comptes rendus)
-- **Pro (29 €)** : 2 transverses + « **Tout le forfait Terrain, plus :** » (icône CornerDownRight) + 5 nouveautés (Stock et contenants, DRM douane, Rapports et pilotage, Paiements et relances, Rapprochement bancaire)
-- **Entreprise (49 €)** : 2 transverses + « **Tout le forfait Pro, plus :** » + 10 nouveautés (Prospection, Radar CHR, Veille, Bouclier, Coach IA, Assistant vocal IA, Coûts et marges, Users, Intégrations, Sources)
+- **Terrain (15 €/mois)** : 2 transverses + 6 features de base (Clients, Tableau de bord, Prise de commande, Catalogue, Tournées, Comptes rendus)
+- **Pro (29 €/mois)** : 2 transverses + « **Tout le forfait Terrain, plus :** » + 5 nouveautés (DRM douane, Paiements, Rapports, Rapprochement, Stock)
+- **Entreprise (49 €/mois)** : 2 transverses + « **Tout le forfait Pro, plus :** » + 10 nouveautés (Assistant vocal IA, Bouclier, Coach IA, Coûts et marges, Users, Intégrations, Prospection, Radar, Sources, Veille)
+- **Annuel par défaut** (livré 20 août 2026) : le sélecteur ouvre sur `annual`, prix affichés en équivalent mensuel avec 2 mois offerts — Terrain 12,50 €, Pro 24,17 €, Entreprise 40,83 € (formule `cents × 10 / 12 / 100`). Bug corrigé au passage : l'ancien calcul `cents × 10 / 100` affichait le montant annuel entier (150 €, 290 €, 490 €) alors que le suffix disait « / mois ».
 - **Aucune troncature silencieuse** : si un jour on ajoute plus d'items que ce que la carte peut afficher, la ligne `pricing-more-{id}` précisera « + N autres fonctionnalités »
 - Test régression `/app/backend/tests/test_iter23_pricing_hierarchy.py` : hiérarchie affichée Terrain ≤ Pro ≤ Entreprise, marqueur d'héritage présent uniquement sur Pro/Entreprise, jamais de clé technique brute affichée
 

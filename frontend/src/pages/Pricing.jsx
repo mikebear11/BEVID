@@ -30,7 +30,7 @@ const PLAN_ORDER = ["terrain", "pro", "entreprise"];
 
 export default function Pricing() {
   const [plans, setPlans] = useState(null);
-  const [mode, setMode] = useState("monthly");
+  const [mode, setMode] = useState("annual");
   const [trialDays, setTrialDays] = useState(7);
 
   useEffect(() => {
@@ -42,7 +42,9 @@ export default function Pricing() {
 
   const priceFor = (p) => {
     const cents = p.price_per_seat_month_cents;
-    if (mode === "annual") return Math.round(cents * 10) / 100;
+    // Annuel = 2 mois offerts (10 mois payés) — on affiche l'équivalent mensuel
+    // pour rester comparable au tarif mensuel : 10 mois × prix ÷ 12 mois.
+    if (mode === "annual") return Math.round((cents * 10) / 12) / 100;
     return cents / 100;
   };
   const suffix = mode === "annual" ? "€ HT / siège / mois (facturé annuellement)" : "€ HT / siège / mois";
