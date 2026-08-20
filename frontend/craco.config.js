@@ -30,12 +30,15 @@ function makeDevServerV5Compatible(devServerConfig) {
   // === Lot 5 P1 — En-têtes de sécurité (dev server) ===
   // Content-Security-Policy en mode Report-Only tant que P2 n'est pas terminé.
   // On observe via /api/csp-report avant de basculer en mode bloquant.
-  const cspReportOnly = [
+  const cspBlocking = [
     "default-src 'self'",
-    // 'unsafe-inline'/'unsafe-eval' provisoirement pour le bootstrap CRA et le
-    // script inline de thème. Le beacon Cloudflare est whitelisté pour éviter
-    // un bruit inutile de rapports en preview (injecté par le proxy).
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh https://static.cloudflareinsights.com https://*.i.posthog.com",
+    // CSP resserrée — plus aucune whitelist pour Cloudflare beacon (bloqué),
+    // ni pour assets.emergent.sh en production. assets.emergent.sh reste
+    // whitelisté ci-dessous UNIQUEMENT parce que visual-edits l'utilise en
+    // preview ; il sera bloqué automatiquement par CSP sur un vrai déploiement
+    // (visual-edits n'est chargé qu'en preview via le check hostname dans
+    // index.html).
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh https://*.i.posthog.com",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.i.posthog.com",
@@ -70,7 +73,16 @@ function makeDevServerV5Compatible(devServerConfig) {
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": permissionsPolicy,
-    "Content-Security-Policy-Report-Only": cspReportOnly,
+    // === Lot 5 P1 (bascule bloquante) ===
+    // Émission simultanée : CSP appliquée (bloquante) ET Report-Only conservé
+    // pour continuer à observer d'éventuelles régressions pendant 48h.
+    // Les deux directives sont identiques → tout ce qui viole en réel est
+    // remonté à /api/csp-report.
+    "Content-Security-Policy": cspBlocking,
+    "Content-Security-Policy-Report-Only": cspBlocking,
+    // Neutralise l'en-tête bavard injecté par webpack-dev-server. Le proxy CDN
+    // amont peut le réinjecter en preview, hors périmètre code.
+    "X-Powered-By": "",
   };
 
   if (onBeforeSetupMiddleware || setupMiddlewares) {

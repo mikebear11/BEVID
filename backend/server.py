@@ -931,6 +931,37 @@ async def create_invitation(data: OrgInvitationCreate, user=Depends(get_current_
     }
     await db_raw.invitations.insert_one(doc)
     doc.pop("_id", None)
+
+    # === Dispatch canal SMS ===
+    # Envoi réel si TWILIO_ACCOUNT_SID/AUTH_TOKEN/SMS_FROM sont fournis, sinon
+    # simulation transparente (log serveur). Le doc invitation est déjà persisté ;
+    # l'échec d'envoi n'annule pas la création (le lien reste consultable via QR
+    # ou copie manuelle par le manager).
+    if channel == "sms":
+        phone = (getattr(data, "phone", None) or "").strip()
+        if not phone:
+            raise HTTPException(422, "Numéro de téléphone requis pour un envoi SMS")
+        if not phone.startswith("+"):
+            phone = "+33" + phone.lstrip("0")
+        # Corps FR standardisé — court pour éviter la double facturation SMS.
+        prefill = (getattr(data, "name", None) or "").strip()
+        greeting = f"Bonjour {prefill}," if prefill else "Bonjour,"
+        body = (
+            f"{greeting} vous êtes invité(e) à rejoindre BEVID. "
+            f"Activez votre compte : {activate_url} (lien valable 24h)."
+        )
+        sms_result = await send_sms(phone, body)
+        # Met à jour le statut de livraison pour traçabilité côté équipe.
+        new_status = "sent" if sms_result.get("ok") else "failed"
+        if sms_result.get("simulated"):
+            new_status = "simulated"
+        await db_raw.invitations.update_one(
+            {"id": doc["id"]},
+            {"$set": {"delivery_status": new_status, "delivery_reason": sms_result.get("reason")}},
+        )
+        doc["delivery_status"] = new_status
+        doc["delivery_reason"] = sms_result.get("reason")
+
     return {"invitation": doc}
 
 
@@ -1139,83 +1170,10 @@ async def list_org_members(user=Depends(get_current_user)):
 
 
 # ---------- Reporting d'erreurs client (ErrorBoundary / fetch keepalive) ----------
-class ErrorReport(BaseModel):
-    message: str = ""
-    stack: str = ""
-    url: str = ""
-    user_agent: str = ""
+# NOTE: Les endpoints /api/errors et /api/csp-report ont été extraits dans
+# routes/telemetry.py (Lot 5 P4 — phase 1 du découpage de server.py).
+# Voir montage via api_router.include_router() en fin de fichier.
 
-
-def _scrub_pii(text: str) -> str:
-    """Retire emails, JWTs, headers Authorization avant persistance."""
-    if not text:
-        return ""
-    t = re.sub(r"[\w.+-]+@[\w-]+\.[\w.-]+", "[email]", text)
-    t = re.sub(r"eyJ[A-Za-z0-9_\-\.]+", "[token]", t)
-    t = re.sub(r"Bearer\s+\S+", "Bearer [token]", t, flags=re.I)
-    return t[:4000]
-
-
-@api_router.post("/csp-report")
-async def report_csp_violation(request: Request):
-    """Endpoint de rapport CSP (envoi navigateur, content-type application/csp-report).
-
-    - Rate limité : 60 rapports / 15 min par IP (les navigateurs peuvent en émettre
-      plusieurs par chargement de page).
-    - Corps troué à 4 Ko max, journalisé côté fichier serveur uniquement.
-    - Aucune persistance MongoDB : usage strict "observation" avant bascule
-      CSP bloquante (Lot 5 P1.2).
-    """
-    ip = _client_ip(request)
-    try:
-        _rate_limit_check(kind="csp-report", ip=ip, email="", max_attempts=60, window_min=15)
-        _rate_limit_record(kind="csp-report", ip=ip, email="")
-    except HTTPException:
-        # Silencieux si rate-limité — pas d'erreur remontée au navigateur
-        return Response(status_code=204)
-    try:
-        raw = (await request.body())[:4096]
-        logging.getLogger("bevid.csp").info("csp-violation ip=%s body=%s", ip[:32], raw.decode("utf-8", "ignore")[:2000])
-    except Exception:
-        pass
-    return Response(status_code=204)
-
-
-@api_router.post("/errors")
-async def report_error(data: ErrorReport, request: Request):
-    """Réceptionne les erreurs frontend, tronquées et anonymisées.
-
-    - Rate limité : 20 rapports / 15 min par IP.
-    - PII scrubbée avant écriture (emails, JWT, Bearer tokens).
-    - Si SENTRY_DSN est défini côté serveur, un hook Sentry peut prendre le relais.
-    """
-    ip = _client_ip(request)
-    _rate_limit_check(kind="errors", ip=ip, email="", max_attempts=20, window_min=15)
-    _rate_limit_record(kind="errors", ip=ip, email="")
-
-    import hashlib
-    doc = {
-        "id": str(uuid.uuid4()),
-        "created_at": now_iso(),
-        "ip_hash": hashlib.sha256(ip.encode()).hexdigest()[:12],
-        "message": _scrub_pii(data.message)[:500],
-        "stack": _scrub_pii(data.stack)[:4000],
-        "url": _scrub_pii(data.url)[:500],
-        "user_agent": (data.user_agent or "")[:200],
-    }
-    # Hook Sentry — désactivé tant que SENTRY_DSN n'est pas défini
-    sentry_dsn = os.environ.get("SENTRY_DSN", "").strip()
-    if sentry_dsn:
-        # Point d'intégration : si le DSN est là un jour, brancher sentry_sdk ici.
-        # Pour ne pas ajouter de dépendance externe non désirée, on log simplement.
-        logging.getLogger("bevid.errors").warning(
-            "sentry-would-send %s %s", doc["message"][:80], doc["url"]
-        )
-    try:
-        await db.error_reports.insert_one(doc)
-    except Exception:
-        pass
-    return {"ok": True, "id": doc["id"]}
 
 @api_router.get("/auth/me")
 async def me(user=Depends(get_current_user)):
@@ -2635,15 +2593,41 @@ async def send_wa(to_phone: str, body: str):
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 
+
+def _mask_phone(p: str) -> str:
+    """Masque le numéro pour les logs : +33612345678 -> +33 6****78."""
+    if not p:
+        return ""
+    p = p.replace(" ", "")
+    if len(p) < 6:
+        return p[:2] + "****"
+    return f"{p[:4]} {p[4]}****{p[-2:]}"
+
+
 async def send_sms(to_phone: str, body: str):
+    """Envoi SMS via Twilio, avec mode simulation transparent.
+
+    - Si TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_SMS_FROM sont tous présents,
+      envoi réel via l'API Twilio.
+    - Sinon, mode simulation : le contenu est journalisé sous `bevid.sms.simulate`
+      avec le numéro masqué. La fonction renvoie `ok=True, simulated=True` pour
+      que l'appelant considère l'envoi comme réussi (pas d'échec bloquant en dev).
+
+    Aucune persistance MongoDB : la simulation reste dans les logs serveur.
+    """
     tw = _twilio()
-    if not tw or not TWILIO_SMS_FROM:
-        return {"ok": False, "reason": "Twilio SMS non configuré"}
-    try:
-        msg = tw.messages.create(body=body, from_=TWILIO_SMS_FROM, to=to_phone)
-        return {"ok": True, "sid": msg.sid}
-    except Exception as e:
-        return {"ok": False, "reason": str(e)[:200]}
+    if tw and TWILIO_SMS_FROM:
+        try:
+            msg = tw.messages.create(body=body, from_=TWILIO_SMS_FROM, to=to_phone)
+            return {"ok": True, "sid": msg.sid, "simulated": False}
+        except Exception as e:
+            return {"ok": False, "reason": str(e)[:200]}
+    # Mode simulation — clés absentes
+    logging.getLogger("bevid.sms.simulate").info(
+        "[SIMU-SMS] to=%s len=%d body=%s",
+        _mask_phone(to_phone), len(body), body[:200].replace("\n", " ⏎ "),
+    )
+    return {"ok": True, "simulated": True, "reason": "Twilio non configuré — envoi simulé (log serveur)"}
 
 @api_router.post("/orders/{oid}/send-receipt-whatsapp")
 async def send_receipt_wa(oid: str, user=Depends(get_current_user)):
@@ -6334,6 +6318,23 @@ async def voice_transcribe(
     await db.voice_uploads.insert_one(doc)
     return {"ok": True, "id": doc_id, "transcript": ""}
 
+
+# === Lot 5 P4 — Phase 1 du découpage de server.py ===
+# Le routeur de télémétrie (/api/errors, /api/csp-report) vit maintenant dans
+# routes/telemetry.py et est monté ici via injection de dépendances (db + helpers
+# rate-limit + _client_ip). Aucun import circulaire : le module `routes.telemetry`
+# ne référence pas server.py.
+#
+# IMPORTANT : monter AVANT `app.include_router(api_router)`. Une inclusion faite
+# APRÈS ne prend pas effet (FastAPI a déjà figé l'agrégation), les routes
+# retournent alors 404. Régression corrigée après incident de production.
+from routes.telemetry import build_router as _build_telemetry_router
+api_router.include_router(_build_telemetry_router(
+    db=db,
+    client_ip_fn=_client_ip,
+    rate_limit_check=_rate_limit_check,
+    rate_limit_record=_rate_limit_record,
+))
 
 app.include_router(api_router)
 

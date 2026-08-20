@@ -75,10 +75,31 @@ brassicoles/distribution.
 - `/app/frontend/public/{robots.txt,sitemap.xml}` : nouveaux (le CDN externe peut cependant intercepter robots.txt en amont — vérifié sur preview).
 - `/app/backend/tests/test_iter24_lot5_public_hardening.py` : 5 tests dédiés, tous verts.
 
+### Lot 5 P4 — Découpage server.py (phase 1 uniquement)
+- Créé `/app/backend/routes/telemetry.py` : `POST /api/errors` et `POST /api/csp-report` extraits via fabrique `build_router(db, client_ip_fn, rate_limit_check, rate_limit_record)`. Injection de dépendances → zéro import circulaire avec server.py.
+- Créé `/app/backend/core/` et `/app/backend/routes/` (packages `__init__.py`) — squelette prêt pour phases suivantes.
+- **Incident de production** (résolu) : montage du sous-routeur placé **après** `app.include_router(api_router)` → FastAPI avait déjà figé l'agrégation, les 2 endpoints retournaient 404 côté application servie. Corrigé en inversant l'ordre : `api_router.include_router(_build_telemetry_router(...))` **avant** `app.include_router(api_router)`. Règle mémorisée : ne jamais retirer un endpoint de son emplacement d'origine sans vérifier que le nouveau répond en HTTP réel externe.
+- **Découpage server.py stoppé après cette phase** sur décision utilisateur. Le fichier reste à 6393 lignes. Reprise reportée quand le reste sera stabilisé.
+
+### Lot 5 P1 — Bascule CSP bloquante + resserrement
+- CSP passée de Report-Only à double émission (`Content-Security-Policy` + `Content-Security-Policy-Report-Only` identiques) — le blocage est effectif, les violations continuent d'être remontées pendant la période d'observation.
+- **CSP resserrée** : suppression de `https://static.cloudflareinsights.com` du `script-src`. Vérifié via Playwright : le beacon Cloudflare est **bloqué par CSP** (2 requêtes échouées, 4 rapports remontés à `/api/csp-report`). Résultat : cohérence avec PostHog opt-in strict — plus aucun traceur ne s'exécute sans consentement.
+- `assets.emergent.sh` conservé dans `script-src` uniquement pour visual-edits en preview (chargé conditionnellement via hostname check). Sera bloqué automatiquement sur un déploiement production.
+- `X-Powered-By` retiré côté webpack-dev-server via `devServer.headers` (émis vide). Le proxy CDN amont peut le réinjecter en preview, hors périmètre code.
+
+### Lot 5 P5 — Twilio SMS branché (avec mode simulation)
+- Fonction `send_sms()` refactorée avec fallback simulation transparent :
+  - Si `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_SMS_FROM` présents → envoi réel via Twilio SDK.
+  - Sinon → log `bevid.sms.simulate` (numéro masqué `+336 1****78`, corps tronqué à 200 chars) + retour `{ok: true, simulated: true}`.
+- `POST /api/org/invitations` avec `channel="sms"` déclenche automatiquement l'envoi (réel ou simulé). Le doc invitation est persisté avant tentative d'envoi (l'échec ne rollback pas la création — le lien reste consultable par QR/copie).
+- Champs `delivery_status` (`sent`/`simulated`/`failed`) + `delivery_reason` remontés dans la réponse et dans le doc Mongo pour traçabilité.
+- Aucune persistance MongoDB des simulations SMS (log serveur uniquement — traçabilité minimale).
+- **Activation live** : dès que les 3 variables Twilio sont renseignées dans `/app/backend/.env`, l'envoi devient réel sans aucune modification de code.
+
 **Ce qui reste dépendant du proxy amont (non maîtrisable côté code)**
-- `X-Powered-By: Express` observable sur `/` (webpack-dev-server interne, présent uniquement en preview).
-- `robots.txt` sur le domaine `preview.emergentagent.com` intercepté par Cloudflare — le nôtre est correctement servi par webpack (`localhost:3000/robots.txt` OK) et sera correctement exposé sur un déploiement final.
+- `robots.txt` sur `preview.emergentagent.com` intercepté par Cloudflare — le nôtre est correctement servi par webpack (`localhost:3000/robots.txt` OK) et sera correctement exposé sur un déploiement final.
 - `access-control-allow-origin: *` observé sur `/` : injecté par le proxy Cloudflare, hors périmètre. Nos réponses `/api` non-marketing n'émettent plus `*`.
+- `X-Powered-By: Express` peut réapparaître sur `/` en preview si le proxy CDN le réinjecte APRÈS webpack-dev-server (hors périmètre code — nos réponses `/api` et `/` webpack émettent bien un en-tête vide).
 
 ## Ce qui est implémenté (au 19 août 2026)
 ### Lot 0 — Infrastructure hors-ligne (livré)
