@@ -38,11 +38,11 @@ function makeDevServerV5Compatible(devServerConfig) {
     // preview ; il sera bloqué automatiquement par CSP sur un vrai déploiement
     // (visual-edits n'est chargé qu'en preview via le check hostname dans
     // index.html).
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh https://*.i.posthog.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh https://ap.emergent.sh https://*.i.posthog.com",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.i.posthog.com",
-    "connect-src 'self' https://*.i.posthog.com https://drink-sales-hub-8.preview.emergentagent.com wss: ws:",
+    "connect-src 'self' https://ap.emergent.sh https://*.i.posthog.com https://drink-sales-hub-8.preview.emergentagent.com wss: ws:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

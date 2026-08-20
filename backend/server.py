@@ -1491,6 +1491,182 @@ class VoiceParseRequest(BaseModel):
     transcript: str
     intent: Literal["client", "activity", "order_note"] = "client"
 
+
+class VoiceOrderRequest(BaseModel):
+    """Interprétation dictée → commande structurée.
+
+    - `transcript` : sortie brute de la dictée (Speech API ou Whisper).
+    - `client_id` : établissement destinataire, obligatoire — sert à récupérer
+      l'historique de commandes qui désambiguïse « la blonde », « les mêmes
+      qu'en juin », etc.
+    """
+    transcript: str
+    client_id: str
+
+
+@api_router.post("/voice/interpret-order")
+async def interpret_voice_order(req: VoiceOrderRequest, user=Depends(get_current_user)):
+    """Interprète une phrase dictée en commande structurée.
+
+    Le contexte injecté au modèle est la clé de la fiabilité :
+      1. Catalogue produits de l'organisation (nom, format, prix, catégorie).
+      2. Dernières 5 commandes de ce client précis (produits, quantités, dates).
+      3. Date d'aujourd'hui pour résoudre « jeudi », « la semaine prochaine ».
+
+    La sortie contient toujours pour chaque ligne :
+      - product_id / product_name (résolus contre le catalogue)
+      - quantity, unit (fût, carton, bouteille…)
+      - unit_price (repris du catalogue)
+      - source_phrase (fragment du transcript qui a produit la ligne)
+      - confidence ("high" | "low")
+      - alternatives (0 à 2, jamais plus — écran mobile, pas de scroll)
+
+    Si le LLM échoue OU si aucune ligne n'est identifiable, retourne
+    `{fallback: true, transcript}` — l'UI retombe alors sur le compte rendu
+    texte actuel. Jamais d'écran vide, jamais d'erreur technique.
+    """
+    if not EMERGENT_LLM_KEY:
+        return {"fallback": True, "transcript": req.transcript, "reason": "llm_key_missing"}
+    transcript = (req.transcript or "").strip()
+    if not transcript:
+        return {"fallback": True, "transcript": "", "reason": "empty_transcript"}
+
+    # 1) Contexte client
+    client_doc = await db.clients.find_one({"id": req.client_id}, {"_id": 0})
+    if not client_doc:
+        raise HTTPException(404, "Client introuvable")
+    client_name = client_doc.get("name", "")
+
+    # 2) Catalogue produits (borné à 200 pour rester dans le budget prompt)
+    products = await db.products.find({}, {"_id": 0}).sort("name", 1).to_list(200)
+    if not products:
+        return {"fallback": True, "transcript": transcript, "reason": "catalog_empty"}
+
+    # 3) Historique client — 5 dernières commandes, extrait des lignes uniquement
+    recent_orders = await db.orders.find(
+        {"client_id": req.client_id},
+        {"_id": 0, "lines": 1, "created_at": 1, "delivery_date": 1},
+    ).sort("created_at", -1).to_list(5)
+
+    # 4) Construction contexte compact JSON
+    import json as _json
+    catalog_ctx = [
+        {
+            "id": p["id"],
+            "name": p.get("name", ""),
+            "category": p.get("category", ""),
+            "unit": p.get("unit", "bouteille"),
+            "price": p.get("price", 0),
+            "volume_liters": p.get("volume_liters"),
+        }
+        for p in products
+    ]
+    history_ctx = []
+    for o in recent_orders:
+        history_ctx.append({
+            "date": (o.get("created_at") or "")[:10],
+            "lines": [
+                {"product_id": l.get("product_id"), "product_name": l.get("product_name"),
+                 "quantity": l.get("quantity"), "unit_price": l.get("unit_price")}
+                for l in (o.get("lines") or [])[:10]
+            ],
+        })
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    system = (
+        "Tu es un assistant BEVID qui interprète une phrase dictée par un commercial "
+        "terrain en commande structurée. Tu réponds UNIQUEMENT en JSON strict, sans "
+        "markdown, sans commentaire. Règles strictes :\n"
+        "1. Chaque ligne retournée DOIT référencer un product_id existant du catalogue fourni.\n"
+        "2. Ne JAMAIS inventer un produit absent du catalogue — préfère alternatives ou omission.\n"
+        "3. Résous les quantités : « trois fûts » -> quantity=3, unit=\"fût\".\n"
+        "4. Si un produit est ambigu (« la blonde »), consulte l'historique client : si le "
+        "client en a commandé un seul dans le passé, prends-le en confidence=\"high\". Sinon, "
+        "propose au maximum 2 alternatives (jamais plus) et confidence=\"low\".\n"
+        "5. Résous les dates relatives (« jeudi », « la semaine prochaine ») en date "
+        "YYYY-MM-DD à partir de la date d'aujourd'hui.\n"
+        "6. `source_phrase` = fragment EXACT du transcript qui a produit cette ligne.\n"
+        "7. `notes` = ce qui n'a pas pu être interprété comme ligne de commande."
+    )
+    user_prompt = _json.dumps({
+        "today": today,
+        "client": client_name,
+        "transcript": transcript,
+        "catalog": catalog_ctx,
+        "history": history_ctx,
+        "output_schema": {
+            "lines": [{
+                "product_id": "string (obligatoire, du catalogue)",
+                "product_name": "string",
+                "quantity": "integer",
+                "unit": "string (fût|carton|bouteille…)",
+                "unit_price": "number",
+                "source_phrase": "string (fragment du transcript)",
+                "confidence": "high|low",
+                "alternatives": [{"product_id": "…", "product_name": "…"}],
+            }],
+            "delivery_date": "YYYY-MM-DD ou null",
+            "notes": "string — parties non interprétées",
+        },
+    }, ensure_ascii=False)
+
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"voice-order-{uuid.uuid4().hex[:8]}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-5")
+
+    try:
+        reply = await chat.send_message(UserMessage(text=user_prompt))
+        clean = re.sub(r"```(?:json)?", "", reply or "").strip("` \n")
+        parsed = _json.loads(clean)
+    except Exception as e:
+        logging.getLogger("bevid.voice.interpret").warning(
+            "LLM failure — fallback: %s", str(e)[:200]
+        )
+        return {"fallback": True, "transcript": transcript, "reason": "llm_error"}
+
+    # Validation défensive : rejeter les product_id inconnus (le modèle en inventerait
+    # potentiellement) — on retire silencieusement les lignes invalides.
+    valid_ids = {p["id"] for p in products}
+    price_by_id = {p["id"]: p.get("price", 0) for p in products}
+    unit_by_id = {p["id"]: p.get("unit", "bouteille") for p in products}
+    name_by_id = {p["id"]: p.get("name", "") for p in products}
+    lines_out = []
+    for l in (parsed.get("lines") or [])[:20]:  # cap dur à 20 lignes/dictée
+        pid = l.get("product_id")
+        if not pid or pid not in valid_ids:
+            continue
+        alts = []
+        for a in (l.get("alternatives") or [])[:2]:  # cap à 2 alternatives
+            apid = a.get("product_id")
+            if apid and apid in valid_ids and apid != pid:
+                alts.append({"product_id": apid, "product_name": name_by_id[apid]})
+        lines_out.append({
+            "product_id": pid,
+            "product_name": name_by_id[pid],
+            "quantity": max(1, int(l.get("quantity") or 1)),
+            "unit": l.get("unit") or unit_by_id[pid],
+            "unit_price": float(l.get("unit_price") or price_by_id[pid]),
+            "source_phrase": (l.get("source_phrase") or "")[:200],
+            "confidence": "low" if l.get("confidence") == "low" else "high",
+            "alternatives": alts,
+        })
+
+    if not lines_out:
+        return {"fallback": True, "transcript": transcript, "reason": "no_lines_interpreted"}
+
+    return {
+        "fallback": False,
+        "client_id": req.client_id,
+        "client_name": client_name,
+        "lines": lines_out,
+        "delivery_date": parsed.get("delivery_date"),
+        "notes": (parsed.get("notes") or "")[:500],
+        "transcript": transcript,
+    }
+
+
 @api_router.post("/ai/parse-voice")
 async def parse_voice(req: VoiceParseRequest, user=Depends(get_current_user)):
     """Extrait des champs structurés depuis une transcription vocale."""

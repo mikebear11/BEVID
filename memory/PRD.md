@@ -75,7 +75,57 @@ brassicoles/distribution.
 - `/app/frontend/public/{robots.txt,sitemap.xml}` : nouveaux (le CDN externe peut cependant intercepter robots.txt en amont — vérifié sur preview).
 - `/app/backend/tests/test_iter24_lot5_public_hardening.py` : 5 tests dédiés, tous verts.
 
-### Lot 5 P4 — Découpage server.py (phase 1 uniquement)
+### Lot 6 — Commande dictée en une phrase (livré 20 février 2026)
+
+**Backend — `POST /api/voice/interpret-order`**
+- Nouveau endpoint dédié à l'interprétation dictée → commande structurée, séparé de `/api/ai/parse-voice` (qui reste pour client / activité / résumé).
+- Contexte injecté au modèle (**clé de la fiabilité, pas la puissance du LLM**) :
+  - **Catalogue produits** de l'organisation (nom, catégorie, format, prix, volume, ABV) borné à 200 entrées.
+  - **Historique client** : 5 dernières commandes de ce client précis, avec produits/quantités/dates — permet à « la blonde » de résoudre en produit habituel.
+  - **Date d'aujourd'hui** (UTC ISO) pour résoudre les dates relatives (« jeudi », « la semaine prochaine »).
+- Modèle : `claude-sonnet-5` via `emergentintegrations` (clé `EMERGENT_LLM_KEY`).
+- Sortie strictement validée côté serveur :
+  - `product_id` inconnu → ligne rejetée silencieusement (le modèle ne peut pas inventer).
+  - Max 2 alternatives par ligne (jamais plus — écran mobile, pas de scroll).
+  - Cap dur à 20 lignes par dictée.
+  - Champs obligatoires : `product_id`, `product_name`, `quantity`, `unit`, `unit_price`, `source_phrase`, `confidence`, `alternatives`.
+- **Fallback silencieux** avec 5 raisons distinctes (`llm_key_missing`, `empty_transcript`, `catalog_empty`, `llm_error`, `no_lines_interpreted`) → l'UI retombe sur le compte rendu texte actuel, jamais d'écran d'erreur.
+- Client inconnu → 404 explicite (bug d'appelant, pas un fallback).
+
+**Frontend — `VoiceOrderReview.jsx`**
+- Composant modal invocable depuis n'importe quel écran passant `transcript + clientId`. Aucun nouveau menu, aucun nouvel écran de premier niveau.
+- Chaque ligne affiche : produit, quantité (éditable), format (résolu), prix (éditable), **fragment source** en italique, badge « À confirmer » si `confidence === "low"`.
+- Alternatives affichées comme puces cliquables (max 2). Un tap → échange le produit courant avec l'alternative sans perdre la quantité.
+- Date de livraison éditable, affichée en clair pour confirmation.
+- Total HT calculé en direct.
+- Bouton « Revenir au texte » (fallback explicite utilisateur) et « Valider la commande » (aucune création automatique).
+- `postOffline("/orders", ...)` : hors-ligne, l'ordre part dans la file de sync existante.
+- Chronomètre côté client : dictée → validation, retourné dans le toast de succès (« Commande créée en Ns »).
+
+**Point d'entrée — `VisitReport.jsx`**
+- Bouton discret « Interpréter en commande » (icône `ShoppingCart`) apparaît à côté du « Remplir formulaire avec l'IA » existant, uniquement si un client est sélectionné et transcript ≥ 9 caractères.
+- Aucun nouveau bouton dans la nav, aucune nouvelle page. Même geste (dictée), meilleur résultat.
+- Fallback géré via `onFallback(txt, reason)` : le texte est réinjecté dans le champ `summary`, l'utilisateur poursuit son compte rendu sans friction.
+
+**Validation LLM sur cas réaliste**
+- Input : *« trois fûts de blonde et deux cartons d'IPA, livraison jeudi »*
+- Catalogue : Blonde de Ratisbonne fût 20L, Blonde Bio fût 30L, IPA Houblonée carton 24×33cl
+- Sortie :
+  - Ligne 1 : 3 × Blonde Bio 30L (source_phrase="trois fûts de blonde", **confidence=low**, alternative proposée = Blonde de Ratisbonne 20L) — désambiguïsation correcte.
+  - Ligne 2 : 2 × IPA Houblonée (source_phrase="deux cartons d'IPA", **confidence=high**, un seul IPA au catalogue).
+  - delivery_date : `2026-08-27` (jeudi suivant, calculé depuis today=20/08).
+- Aucune ligne inventée, aucune hallucination.
+
+**Résidu CSP CF fermé**
+- Filtrage des rapports CSP dans `routes/telemetry.py` : les blocked-uri contenant `cloudflareinsights` ou `cdn-cgi/challenge-platform` sont ignorés (204 silencieux, pas de log). Élimine le bruit du beacon injecté par le proxy Cloudflare en preview.
+- Ajout `https://ap.emergent.sh` au CSP `script-src` + `connect-src` : PostHog légitime (après opt-in) n'est plus bloqué à tort.
+
+**Fichiers**
+- `/app/backend/server.py` : nouveau modèle `VoiceOrderRequest` + endpoint `/api/voice/interpret-order`.
+- `/app/backend/routes/telemetry.py` : filtre bruit CSP.
+- `/app/frontend/craco.config.js` : CSP ajusté (`ap.emergent.sh` autorisé).
+- `/app/frontend/src/components/VoiceOrderReview.jsx` : composant nouveau.
+- `/app/frontend/src/pages/VisitReport.jsx` : bouton « Interpréter en commande ».
 - Créé `/app/backend/routes/telemetry.py` : `POST /api/errors` et `POST /api/csp-report` extraits via fabrique `build_router(db, client_ip_fn, rate_limit_check, rate_limit_record)`. Injection de dépendances → zéro import circulaire avec server.py.
 - Créé `/app/backend/core/` et `/app/backend/routes/` (packages `__init__.py`) — squelette prêt pour phases suivantes.
 - **Incident de production** (résolu) : montage du sous-routeur placé **après** `app.include_router(api_router)` → FastAPI avait déjà figé l'agrégation, les 2 endpoints retournaient 404 côté application servie. Corrigé en inversant l'ordre : `api_router.include_router(_build_telemetry_router(...))` **avant** `app.include_router(api_router)`. Règle mémorisée : ne jamais retirer un endpoint de son emplacement d'origine sans vérifier que le nouveau répond en HTTP réel externe.

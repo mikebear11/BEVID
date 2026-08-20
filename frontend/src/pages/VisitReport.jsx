@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, postOffline } from "@/lib/api";
 import { useVoice } from "@/hooks/useVoice";
-import { Mic, Check, Sparkles, Loader2, CloudOff } from "lucide-react";
+import { Mic, Check, Sparkles, Loader2, CloudOff, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
+import VoiceOrderReview from "@/components/VoiceOrderReview";
 
 const MOODS = [
   { v: "excellent", label: "😄 Excellent", color: "#2D5A4C" },
@@ -36,6 +37,7 @@ export default function VisitReport() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [orderReviewOpen, setOrderReviewOpen] = useState(false);
   const { supported, listening, transcript, start, stop, reset, setTranscript } = useVoice("fr-FR");
 
   useEffect(() => { api.get("/clients").then(r => setClients(r.data)); }, []);
@@ -116,12 +118,45 @@ export default function VisitReport() {
             onChange={e => { setTranscript(""); setForm({ ...form, summary: e.target.value }); }}
             className="input-crm" data-testid="visit-summary" />
           {(transcript || form.summary) && (
-            <button type="button" onClick={aiFill} disabled={aiLoading} className="text-xs text-[#4A154B] font-medium mt-2 flex items-center gap-1" data-testid="visit-ai-fill">
-              {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-              Remplir le formulaire avec l'IA
-            </button>
+            <div className="flex flex-wrap gap-3 mt-2">
+              <button type="button" onClick={aiFill} disabled={aiLoading} className="text-xs text-[#4A154B] font-medium flex items-center gap-1" data-testid="visit-ai-fill">
+                {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                Remplir le formulaire avec l'IA
+              </button>
+              {form.client_id && (transcript || form.summary).trim().length > 8 && (
+                <button
+                  type="button"
+                  onClick={() => setOrderReviewOpen(true)}
+                  className="text-xs text-[#4A154B] font-medium flex items-center gap-1"
+                  data-testid="visit-order-from-voice"
+                >
+                  <ShoppingCart size={12} />
+                  Interpréter en commande
+                </button>
+              )}
+            </div>
           )}
         </div>
+
+        <VoiceOrderReview
+          open={orderReviewOpen}
+          transcript={(transcript || form.summary).trim()}
+          clientId={form.client_id}
+          onClose={() => setOrderReviewOpen(false)}
+          onCreated={(order) => {
+            const oid = order?.id || order?.data?.id;
+            if (oid) {
+              toast.success("Commande enregistrée depuis la dictée");
+            }
+          }}
+          onFallback={(txt, reason) => {
+            // Retombe sur le compte rendu texte — jamais d'écran d'erreur.
+            if (reason && reason !== "user_canceled") {
+              toast.message("Interprétation impossible — conservez le texte tel quel");
+            }
+            setForm(f => ({ ...f, summary: txt || f.summary }));
+          }}
+        />
 
         <div>
           <label className="overline">Ambiance</label>

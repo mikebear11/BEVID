@@ -76,10 +76,16 @@ def build_router(
             return Response(status_code=204)
         try:
             raw = (await request.body())[:4096]
+            body_text = raw.decode("utf-8", "ignore")
+            # Silence sur le bruit inévitable en preview : le proxy Cloudflare
+            # injecte un beacon `cloudflareinsights.com` que la CSP bloque
+            # légitimement. Rapports ignorés pour ne pas polluer les logs.
+            if "cloudflareinsights" in body_text or "cdn-cgi/challenge-platform" in body_text:
+                return Response(status_code=204)
             logging.getLogger("bevid.csp").info(
                 "csp-violation ip=%s body=%s",
                 ip[:32],
-                raw.decode("utf-8", "ignore")[:2000],
+                body_text[:2000],
             )
         except Exception:
             pass
