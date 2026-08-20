@@ -29,8 +29,58 @@ brassicoles/distribution.
 - **Design system strict** : `tokens.css` unique source de couleur, 3 thèmes (clair/sombre/soleil),
   `PuceEtat` standardisé, ESLint bannit les hex hors tokens.
 
-## Ce qui est implémenté (au 19 août 2026)
+### Lot 5 — Durcissement de la couche publique (livré 20 février 2026)
 
+**P1 — En-têtes de sécurité (dev server + API)**
+- `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` (protection clickjacking).
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`.
+- `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`.
+- `Permissions-Policy` : `camera=(self)`, `microphone=(self)`, `geolocation=(self)`,
+  `fullscreen=(self)` autorisés ; tout le reste (payment, usb, midi, accelerometer,
+  gyroscope, magnetometer, autoplay, ambient-light-sensor) refusé.
+- **CSP en Report-Only** avec `report-uri /api/csp-report`. Bascule bloquante planifiée
+  après période d'observation (~2 semaines de trafic).
+- Endpoint `POST /api/csp-report` : accepte `application/csp-report`, rate limité
+  60 rapports / 15 min / IP, silencieux si rate-limité (204), aucune persistance MongoDB.
+- **CORS restreint** : `CORS_ORIGINS` env → une seule origine autorisée. Exception
+  ouverte (`Access-Control-Allow-Origin: *`) uniquement sur `/api/billing/plans` et
+  `/api/config/features` (contenus marketing publics).
+- Middleware `SecurityHeadersMiddleware` FastAPI : applique les en-têtes sur toutes
+  les réponses `/api` et retire `X-Powered-By` si le proxy amont l'a injecté.
+
+**P2 — Dépendances externes purgées**
+- Leaflet CSS : `@import unpkg.com/leaflet@1.9.4/dist/leaflet.css` → `import "leaflet/dist/leaflet.css"` bundlé.
+- Marker icons TourMap : `unpkg.com/leaflet/.../marker-icon*.png` → imports webpack depuis `leaflet/dist/images/`.
+- Google Fonts (Playfair Display, Outfit, Inter) : purgés. `Inter` retiré (reliquat inutilisé). `Playfair Display` + `Outfit` servis via `@fontsource/*` bundlés. **Zéro appel réseau vers fonts.googleapis.com ni fonts.gstatic.com**. Bénéfice bonus : disponibles hors-ligne.
+- Script Emergent (`assets.emergent.sh/scripts/emergent-main.js`) : chargé conditionnellement à l'exécution uniquement si `hostname` contient `preview.emergentagent.com` ou `localhost`. Jamais dans un déploiement production.
+- **Beacon Cloudflare** (`beacon.min.js`) : injecté par le proxy CF, échappe au contrôle code. Sera bloqué naturellement par CSP en mode bloquant (post-période d'observation).
+
+**P3 — Référencement de la page de vente**
+- `robots.txt` : remplace celui par défaut du CDN. Autorise `/`, `/pricing`, `/tarifs`, `/plans`, `/login`, `/register`. Interdit explicitement `/activate/`, `/sign/`, `/reset-password/` et toutes les routes authentifiées.
+- `sitemap.xml` : liste les 6 pages publiques (`/`, `/pricing`, `/tarifs`, `/plans`, `/login`, `/register`).
+- **Vrai statut HTTP 404** : middleware `bevid-spa-404` inséré via `devServer.app.use` APRÈS `withVisualEdits` (qui écrasait `setupMiddlewares`). Compare `req.originalUrl` (préservé avant historyApiFallback) à une liste de 55 patterns regex de routes valides extraite de `App.js`. Assets statiques et `/api/*` traités normalement.
+- **Titres et canonical par page publique** : hook `usePageMeta` (sans dépendance react-helmet). Appliqué sur Login, Register, ForgotPassword, Pricing, NotFound. Titre unique + `<link rel="canonical">` par page.
+- **Pré-rendu SSR** : non implémenté. CRA ne le supporte pas nativement, coût disproportionné pour la page vendeuse actuelle. Question rouverte si besoin de SEO plus poussé.
+
+**Fichiers modifiés / créés**
+- `/app/backend/server.py` : `POST /api/csp-report`, `SecurityHeadersMiddleware`, CORS strict + exception marketing.
+- `/app/backend/.env` : `CORS_ORIGINS` restreint à `FRONTEND_URL`.
+- `/app/frontend/craco.config.js` : en-têtes de sécurité dev server + middleware 404 SPA (avec 55 patterns de routes).
+- `/app/frontend/public/index.html` : suppression fonts.googleapis.com + Emergent script conditionnel + `<link rel=canonical>` par défaut.
+- `/app/frontend/src/index.css` : suppression `@import unpkg` et `@import fonts.googleapis`.
+- `/app/frontend/src/App.js` : imports `@fontsource/*` + `leaflet/dist/leaflet.css` bundlés.
+- `/app/frontend/src/components/TourMap.jsx` : imports webpack pour marker icons.
+- `/app/frontend/src/lib/pageMeta.js` : hook `usePageMeta` (nouveau).
+- `/app/frontend/src/pages/{Login,Register,ForgotPassword,Pricing,NotFound}.jsx` : application du hook.
+- `/app/frontend/public/{robots.txt,sitemap.xml}` : nouveaux (le CDN externe peut cependant intercepter robots.txt en amont — vérifié sur preview).
+- `/app/backend/tests/test_iter24_lot5_public_hardening.py` : 5 tests dédiés, tous verts.
+
+**Ce qui reste dépendant du proxy amont (non maîtrisable côté code)**
+- `X-Powered-By: Express` observable sur `/` (webpack-dev-server interne, présent uniquement en preview).
+- `robots.txt` sur le domaine `preview.emergentagent.com` intercepté par Cloudflare — le nôtre est correctement servi par webpack (`localhost:3000/robots.txt` OK) et sera correctement exposé sur un déploiement final.
+- `access-control-allow-origin: *` observé sur `/` : injecté par le proxy Cloudflare, hors périmètre. Nos réponses `/api` non-marketing n'émettent plus `*`.
+
+## Ce qui est implémenté (au 19 août 2026)
 ### Lot 0 — Infrastructure hors-ligne (livré)
 - Service Worker v3 : cache versionné, NetworkFirst sur JS/CSS (fix bundle périmé v2),
   message-based SKIP_WAITING (bandeau utilisateur), pas de coupure en pleine saisie.

@@ -5,8 +5,13 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { Mail, CheckCircle2 } from "lucide-react";
 import BevidLogo from "@/components/BevidLogo";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function ForgotPassword() {
+  usePageMeta({
+    title: "Mot de passe oublié · BEVID",
+    canonical: "/forgot-password",
+  });
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);

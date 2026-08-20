@@ -7,8 +7,14 @@ import { WifiOff } from "lucide-react";
 import BevidLogo from "@/components/BevidLogo";
 import PasswordInput from "@/components/PasswordInput";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function Login() {
+  usePageMeta({
+    title: "Connexion · BEVID",
+    canonical: "/login",
+    description: "Accédez à votre CRM BEVID — distribution de boissons, tournée terrain, prise de commande hors-ligne.",
+  });
   const { login } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
   const nav = useNavigate();

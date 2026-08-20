@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import BevidLogo from "@/components/BevidLogo";
 import PasswordInput from "@/components/PasswordInput";
+import { usePageMeta } from "@/lib/pageMeta";
 
 function scorePassword(pwd) {
   if (!pwd) return { score: 0, label: "" };
@@ -19,6 +20,11 @@ function scorePassword(pwd) {
 }
 
 export default function Register() {
+  usePageMeta({
+    title: "Créer un compte · BEVID",
+    canonical: "/register",
+    description: "Démarrez votre essai BEVID — 7 jours gratuits, sans carte bancaire.",
+  });
   const { register } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
   const nav = useNavigate();

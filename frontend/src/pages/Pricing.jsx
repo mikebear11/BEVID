@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import BevidLogo from "@/components/BevidLogo";
 import { Check, ArrowRight, Wifi, Mic, CornerDownRight } from "lucide-react";
 import { dict } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 /**
  * /pricing (alias /tarifs, /plans) — page publique.
@@ -29,6 +30,11 @@ const TRANSVERSE = [
 const PLAN_ORDER = ["terrain", "pro", "entreprise"];
 
 export default function Pricing() {
+  usePageMeta({
+    title: "Tarifs · BEVID — CRM pour la distribution de boissons",
+    canonical: "/pricing",
+    description: "3 formules : Terrain, Pro, Entreprise. Essai 7 jours sans carte. Facturation par siège, résiliable à tout moment.",
+  });
   const [plans, setPlans] = useState(null);
   const [mode, setMode] = useState("annual");
   const [trialDays, setTrialDays] = useState(7);

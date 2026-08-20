@@ -1156,6 +1156,31 @@ def _scrub_pii(text: str) -> str:
     return t[:4000]
 
 
+@api_router.post("/csp-report")
+async def report_csp_violation(request: Request):
+    """Endpoint de rapport CSP (envoi navigateur, content-type application/csp-report).
+
+    - Rate limité : 60 rapports / 15 min par IP (les navigateurs peuvent en émettre
+      plusieurs par chargement de page).
+    - Corps troué à 4 Ko max, journalisé côté fichier serveur uniquement.
+    - Aucune persistance MongoDB : usage strict "observation" avant bascule
+      CSP bloquante (Lot 5 P1.2).
+    """
+    ip = _client_ip(request)
+    try:
+        _rate_limit_check(kind="csp-report", ip=ip, email="", max_attempts=60, window_min=15)
+        _rate_limit_record(kind="csp-report", ip=ip, email="")
+    except HTTPException:
+        # Silencieux si rate-limité — pas d'erreur remontée au navigateur
+        return Response(status_code=204)
+    try:
+        raw = (await request.body())[:4096]
+        logging.getLogger("bevid.csp").info("csp-violation ip=%s body=%s", ip[:32], raw.decode("utf-8", "ignore")[:2000])
+    except Exception:
+        pass
+    return Response(status_code=204)
+
+
 @api_router.post("/errors")
 async def report_error(data: ErrorReport, request: Request):
     """Réceptionne les erreurs frontend, tronquées et anonymisées.
@@ -5871,13 +5896,68 @@ async def send_order_pdf_email(oid: str, data: dict = None, user=Depends(get_cur
     return {"ok": True, "email_id": email_id, "to": to_email, "expires": exp}
 
 
+# === Lot 5 P1.4 — CORS restreint à l'origine de l'application ===
+# CORS_ORIGINS doit lister explicitement les origines autorisées (FRONTEND_URL).
+# Fallback: reprend FRONTEND_URL si CORS_ORIGINS n'est pas défini. Le "*" n'est
+# plus jamais accepté par défaut depuis le passage au cookie httpOnly.
+_cors_env = (os.environ.get('CORS_ORIGINS') or os.environ.get('FRONTEND_URL') or '').strip()
+_cors_origins = [o.strip() for o in _cors_env.split(',') if o.strip()]
+if not _cors_origins:
+    # Sécurité par défaut : aucun origin autorisé plutôt que d'ouvrir en grand.
+    _cors_origins = ["https://drink-sales-hub-8.preview.emergentagent.com"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# === Lot 5 P1 — En-têtes de sécurité côté API ===
+# S'appliquent à toute réponse /api. Miroir des en-têtes servis par le devServer
+# frontend : ne dépendent pas d'une éventuelle réécriture par le proxy ingress.
+from starlette.middleware.base import BaseHTTPMiddleware
+
+_PERMISSIONS_POLICY = ", ".join([
+    "camera=(self)", "microphone=(self)", "geolocation=(self)",
+    "fullscreen=(self)", "payment=()", "usb=()", "midi=()",
+    "magnetometer=()", "gyroscope=()", "accelerometer=()",
+    "autoplay=()", "ambient-light-sensor=()",
+])
+
+# Endpoints publics (marketing) : Access-Control-Allow-Origin: * autorisé
+# pour permettre l'affichage tarifs / features depuis n'importe quel origin.
+_PUBLIC_OPEN_CORS_PATHS = {"/api/billing/plans", "/api/config/features"}
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", _PERMISSIONS_POLICY)
+        # Retire l'en-tête bavard s'il a été injecté en amont.
+        if "x-powered-by" in {k.lower() for k in response.headers.keys()}:
+            try:
+                del response.headers["x-powered-by"]
+            except Exception:
+                pass
+        # Ouverture CORS ciblée pour les 2 endpoints publics marketing.
+        try:
+            path = request.url.path
+            if path in _PUBLIC_OPEN_CORS_PATHS:
+                response.headers["Access-Control-Allow-Origin"] = "*"
+                response.headers["Vary"] = "Origin"
+        except Exception:
+            pass
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Paywall — bloque les mutations quand l'abonnement est en read_only/suspended.
 # S'applique après CORS pour ne pas casser les preflight OPTIONS.

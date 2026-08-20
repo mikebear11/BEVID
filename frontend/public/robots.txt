@@ -1,0 +1,59 @@
+# BEVID — robots.txt
+# Ce fichier remplace le robots.txt par défaut du CDN et déclare
+# explicitement les zones publiques et privées de l'application.
+
+User-agent: *
+
+# Pages publiques indexables
+Allow: /$
+Allow: /login
+Allow: /register
+Allow: /forgot-password
+Allow: /pricing
+Allow: /tarifs
+Allow: /plans
+
+# Zones porteuses de jetons à usage unique — jamais indexer
+Disallow: /activate/
+Disallow: /sign/
+Disallow: /reset-password/
+
+# API et routes authentifiées — pas de valeur d'indexation
+Disallow: /api/
+Disallow: /admin/
+Disallow: /billing
+Disallow: /team
+Disallow: /profile
+Disallow: /settings
+Disallow: /org/
+Disallow: /paiements
+Disallow: /confidentialite
+Disallow: /change-password
+Disallow: /clients
+Disallow: /orders
+Disallow: /products
+Disallow: /tours
+Disallow: /reports
+Disallow: /agents
+Disallow: /visit
+Disallow: /planning
+Disallow: /monthly-review
+Disallow: /pipeline
+Disallow: /deals
+Disallow: /connectors
+Disallow: /smart-goals
+Disallow: /tournee
+Disallow: /etab/
+Disallow: /stock
+Disallow: /containers
+Disallow: /scan
+Disallow: /drm
+Disallow: /rapprochement
+Disallow: /sources-donnees
+Disallow: /prospection
+Disallow: /radar
+Disallow: /veille
+Disallow: /bouclier
+Disallow: /design-system
+
+Sitemap: https://drink-sales-hub-8.preview.emergentagent.com/sitemap.xml

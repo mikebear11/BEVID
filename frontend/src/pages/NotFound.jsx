@@ -3,8 +3,13 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Home, LogIn } from "lucide-react";
 import BevidLogo from "@/components/BevidLogo";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function NotFound() {
+  usePageMeta({
+    title: "Page introuvable · BEVID",
+    description: "Cette adresse ne correspond à aucune page connue.",
+  });
   const { user } = useAuth();
   const target = user ? "/" : "/login";
   const label = user ? "Retour au tableau de bord" : "Retour à la connexion";

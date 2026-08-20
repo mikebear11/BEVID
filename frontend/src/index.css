@@ -1,5 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap');
-@import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+/* Polices auto-hébergées via @fontsource (import réel depuis App.js) et Leaflet
+   importé depuis le paquet npm dans les pages qui l'utilisent. Aucune requête
+   externe pour les polices ou le CSS Leaflet : promesse hors-ligne respectée. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

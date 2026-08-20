@@ -1,4 +1,16 @@
 import React, { Suspense, lazy } from "react";
+// Polices auto-hébergées via @fontsource — plus aucune requête vers fonts.googleapis.com
+import "@fontsource/playfair-display/500.css";
+import "@fontsource/playfair-display/600.css";
+import "@fontsource/playfair-display/700.css";
+import "@fontsource/playfair-display/800.css";
+import "@fontsource/outfit/300.css";
+import "@fontsource/outfit/400.css";
+import "@fontsource/outfit/500.css";
+import "@fontsource/outfit/600.css";
+import "@fontsource/outfit/700.css";
+// Leaflet CSS depuis le paquet npm — plus aucune requête vers unpkg.com
+import "leaflet/dist/leaflet.css";
 import "@/design-system/tokens.css";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";

@@ -27,9 +27,50 @@ function makeDevServerV5Compatible(devServerConfig) {
       : https
         ? "https"
         : "http";
+  // === Lot 5 P1 — En-têtes de sécurité (dev server) ===
+  // Content-Security-Policy en mode Report-Only tant que P2 n'est pas terminé.
+  // On observe via /api/csp-report avant de basculer en mode bloquant.
+  const cspReportOnly = [
+    "default-src 'self'",
+    // 'unsafe-inline'/'unsafe-eval' provisoirement pour le bootstrap CRA et le
+    // script inline de thème. Le beacon Cloudflare est whitelisté pour éviter
+    // un bruit inutile de rapports en preview (injecté par le proxy).
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh https://static.cloudflareinsights.com https://*.i.posthog.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
+    "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.i.posthog.com",
+    "connect-src 'self' https://*.i.posthog.com https://drink-sales-hub-8.preview.emergentagent.com wss: ws:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "report-uri /api/csp-report",
+  ].join("; ");
+
+  const permissionsPolicy = [
+    "camera=(self)",
+    "microphone=(self)",
+    "geolocation=(self)",
+    "fullscreen=(self)",
+    "payment=()",
+    "usb=()",
+    "midi=()",
+    "magnetometer=()",
+    "gyroscope=()",
+    "accelerometer=()",
+    "autoplay=()",
+    "ambient-light-sensor=()",
+  ].join(", ");
+
   compatibleConfig.headers = {
     ...compatibleConfig.headers,
     "Cross-Origin-Resource-Policy": "same-origin",
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": permissionsPolicy,
+    "Content-Security-Policy-Report-Only": cspReportOnly,
   };
 
   if (onBeforeSetupMiddleware || setupMiddlewares) {
@@ -128,6 +169,131 @@ webpackConfig.devServer = (devServerConfig) => {
   return devServerConfig;
 };
 
+// =============================================================================
+// Lot 5 P3.1 — 404 SPA + P1 — Sécurité (appliqués APRÈS withVisualEdits)
+// visual-edits écrase config.setupMiddlewares dans son setupDevServer ; on
+// enveloppe donc APRÈS lui, sinon notre middleware 404 est perdu.
+// =============================================================================
+function wrapWith404AndHeaders(devServerConfig) {
+  // === Lot 5 P3.1 — Vrai statut 404 côté serveur pour les routes SPA inconnues ===
+  // La liste des routes valides vient de App.js. Les routes dynamiques utilisent
+  // un motif regex. Les assets statiques (contenant un point dans le dernier
+  // segment) et l'API sont laissés au comportement webpack habituel.
+  const KNOWN_ROUTES = [
+    /^\/$/,
+    /^\/login$/,
+    /^\/register$/,
+    /^\/forgot-password$/,
+    /^\/reset-password\/[^/]+$/,
+    /^\/sign\/[^/]+$/,
+    /^\/activate\/[^/]+$/,
+    /^\/pricing$/,
+    /^\/tarifs$/,
+    /^\/plans$/,
+    /^\/change-password$/,
+    /^\/admin\/users$/,
+    /^\/admin\/permissions$/,
+    /^\/admin\/couts$/,
+    /^\/paiements$/,
+    /^\/confidentialite$/,
+    /^\/clients$/,
+    /^\/clients\/[^/]+$/,
+    /^\/products$/,
+    /^\/orders$/,
+    /^\/tours$/,
+    /^\/reports$/,
+    /^\/agents$/,
+    /^\/visit$/,
+    /^\/planning$/,
+    /^\/monthly-review$/,
+    /^\/pipeline$/,
+    /^\/deals$/,
+    /^\/connectors$/,
+    /^\/settings$/,
+    /^\/smart-goals$/,
+    /^\/tournee$/,
+    /^\/etab\/new$/,
+    /^\/etab\/[^/]+$/,
+    /^\/etab\/[^/]+\/enrichissement$/,
+    /^\/etab\/[^/]+\/commande$/,
+    /^\/stock$/,
+    /^\/containers$/,
+    /^\/containers\/labels$/,
+    /^\/containers\/[^/]+$/,
+    /^\/scan$/,
+    /^\/drm$/,
+    /^\/rapprochement$/,
+    /^\/sources-donnees$/,
+    /^\/prospection$/,
+    /^\/radar$/,
+    /^\/veille$/,
+    /^\/bouclier$/,
+    /^\/design-system$/,
+    /^\/profile$/,
+    /^\/org\/settings$/,
+    /^\/billing$/,
+    /^\/team$/,
+  ];
+
+  const prevSetup = devServerConfig.setupMiddlewares;
+  devServerConfig.setupMiddlewares = (middlewares, devServer) => {
+    // Chaîne : d'abord la setup précédente (visual-edits enregistre son endpoint
+    // /edit-file via devServer.app.use), puis on injecte notre 404 SPA en tête.
+    if (typeof prevSetup === "function") {
+      middlewares = prevSetup(middlewares, devServer) || middlewares;
+    }
+    // Enregistre AUSSI notre handler 404 comme middleware Express direct pour
+    // qu'il s'exécute avant historyApiFallback (qui vit dans `middlewares`).
+    // devServer.app est l'instance Express interne de webpack-dev-server.
+    const spa404Handler = (req, res, next) => {
+      try {
+        const method = (req.method || "GET").toUpperCase();
+        const originalUrl = req.originalUrl || req.url || "/";
+        if (method !== "GET" && method !== "HEAD") return next();
+        const url = originalUrl;
+        const path = url.split("?")[0].split("#")[0];
+          // Assets webpack (bundle, sockjs, hot-update, sourcemap, etc.) ou API : on ne touche pas.
+          if (
+            path.startsWith("/api/") ||
+            path.startsWith("/static/") ||
+            path.startsWith("/sockjs-node") ||
+            path.startsWith("/ws") ||
+            path.startsWith("/__webpack") ||
+            path.includes(".hot-update.") ||
+            /\.[a-zA-Z0-9]{1,8}$/.test(path)
+          ) {
+            return next();
+          }
+          // Route SPA connue : laisse passer.
+          if (KNOWN_ROUTES.some((r) => r.test(path))) return next();
+
+          // Route inconnue : renvoie 404 avec le HTML SPA (le composant NotFound se rendra).
+        const fs = require("fs");
+        const p = require("path");
+        const indexPath = p.resolve(__dirname, "public", "index.html");
+        fs.readFile(indexPath, "utf8", (err, html) => {
+          if (err) return next(err);
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.setHeader("X-Robots-Tag", "noindex, nofollow");
+          res.end(html);
+        });
+      } catch (e) {
+        return next(e);
+      }
+    };
+    if (devServer && devServer.app && typeof devServer.app.use === "function") {
+      devServer.app.use(spa404Handler);
+    } else {
+      // Fallback : insère en tête de la liste de middlewares.
+      middlewares.unshift({ name: "bevid-spa-404", middleware: spa404Handler });
+    }
+    return middlewares;
+  };
+
+  return devServerConfig;
+}
+
 // Wrap with visual edits (automatically adds babel plugin, dev server, and overlay in dev mode)
 if (isDevServer) {
   try {
@@ -146,6 +312,8 @@ if (isDevServer) {
 
 const configureDevServer = webpackConfig.devServer;
 webpackConfig.devServer = (devServerConfig) =>
-  makeDevServerV5Compatible(configureDevServer(devServerConfig));
+  // Ordre critique : visual-edits d'abord (via configureDevServer), puis notre
+  // 404 SPA par-dessus, puis le shim V5.
+  makeDevServerV5Compatible(wrapWith404AndHeaders(configureDevServer(devServerConfig)));
 
 module.exports = webpackConfig;
