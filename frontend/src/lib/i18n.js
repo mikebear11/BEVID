@@ -17,7 +17,7 @@ export const dict = {
     connectors: "Intégrations", settings: "Paramètres", smart: "Objectifs SMART",
     users: "Membres", payments: "Paiements et relances", privacy: "Confidentialité",
     costs: "Coûts et marges", reconciliation: "Rapprochement bancaire",
-    new_visit: "Nouvelle visite", org_settings: "Paramètres org.", billing: "Abonnement",
+    new_visit: "Visite", org_settings: "Paramètres org.", billing: "Abonnement",
     livreur: "Livraison", team: "Inviter", qr_labels: "Étiquettes QR",
     prospecting: "Prospection", radar: "Radar CHR", veille: "Rappels",
     bouclier: "Bouclier", sources: "Sources", permissions: "Permissions",

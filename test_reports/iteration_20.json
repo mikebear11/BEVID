@@ -1,0 +1,52 @@
+{
+  "summary": "Iter26 — Sidebar refonte + personnalisation commercial. Backend pytest 9/9 PASS (test_iter26_sidebar_prefs.py : GET default never 404, PUT cap 3 & dedup, rejet chars spéciaux, prefix section_ obligatoire, merge partiel, empty body rejet, isolation multi-user, auth required, cleanup). Frontend Playwright walkthrough en tant que commercial.demo — RÉSULTATS : login → cookie httpOnly posé, redirect / ✅. Sidebar affichée avec la nouvelle structure (Tableau, Aujourd'hui, Clients et Ventes, Logistique, Pilotage). Aucun testid interdit dans le DOM (nav-users/nav-permissions/nav-billing/nav-payments/nav-reports/nav-radar/etc. tous absents) ✅. Personnalisation testée EN CHAÎNE : right-click nav-clients → nav-ctx-pin-clients OK → clients apparaît dans nav-pinned ✅ ; épinglage 3 entrées (clients+orders+products) → 4e (pipeline) → menu item aria-disabled=true ✅ ; unpin via nav-ctx-unpin-clients ✅ ; reset section via nav-ctx-reset-section_sales ramène l'ordre par défaut ✅ ; drag&drop persist testé via PUT direct (le drag natif HTML5 est difficile à simuler mais l'ordre PUT est bien appliqué visuellement puis réinitialisable) ✅. i18n toggle EN → 'Customers & sales' ✅. Palette (⌘K), VoiceFAB, ThemeToggle, logout : tous OK ✅. **BUGS bloquants ou visibles** : (1) `nav-pipeline` et `nav-deals` sont VISIBLES pour un commercial car leur `feature='page:clients'` dans Layout.jsx (L63-64), le commercial a page:clients=true donc pipeline+deals apparaissent, alors que le spec demande 'pas Pipeline/Deals car ce sont des features managers'. (2) `nav-scan` (Scanner) ABSENT de la zone Aujourd'hui parce que `page:scan` n'est pas dans les permissions du commercial (effective_permissions retourne seulement page:dashboard, page:clients, page:products, page:orders, page:tours, page:visits). Le spec demande explicitement Ma tournée + Visite + **Scanner** dans Aujourd'hui. (3) Page /clients affiche des données de test résiduelles (TESTP_client_*, PROPTEST-*, BAR LE CENTRAL *, MANUAL *) au lieu des 5 établissements attendus (ADT 64, BEKAST, Brasserie Test 3, SAS CASSOULET, Tour Eiffel Test). Le backend /api/establishments retourne bien les 5 ; c'est /api/clients (db.clients) qui contient des vieux tests. Le seed a été fait sur db.establishments mais la page frontend Clients lit db.clients. Mismatch collection/endpoint. La fiche /etab/{id} affiche correctement ADT 64/BIARRITZ/BAR ✅.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/clients", "issue": "Aucun filtre org_id — Manager voit query={} (tous les clients toutes orgs); Commercial filtré par owner_id/assigned_to seulement. Risque de fuite multi-tenant pour managers. Voir server.py:1257.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "GET /api/me/permissions", "issue": "Pour le commercial (org sur plan pro/TRIAL), page:scan retourne false alors que le spec sidebar demande 'Scanner' dans la zone Aujourd'hui. Soit ajouter page:scan par défaut au rôle commercial dans permissions.py, soit passer PINNED_FIXED[scan].feature=null."},
+      {"endpoint": "seed data /api/clients", "issue": "db.clients contient une trentaine de faux clients (TESTP_*, PROPTEST-*, BAR LE CENTRAL *) assignés au commercial → pollue la page /clients au lieu d'afficher les 5 établissements récemment réassignés (ADT 64, BEKAST, Brasserie Test 3, SAS CASSOULET, Tour Eiffel Test) présents dans db.establishments. Le seed enrichi n'a peuplé que db.establishments."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Layout.jsx sidebar section_sales", "issue": "Pipeline et Deals sont visibles pour un commercial (feature='page:clients' inherite la visibilité). Spec explicite : 'Section Clients et ventes doit contenir dans l'ordre Clients → Commandes → Produits (pas Pipeline/Deals)'. Correctif : mettre feature='manager_only' sur pipeline et deals, OU introduire feature='page:pipeline' + defaults role-based.", "selector": "[data-testid='nav-pipeline'], [data-testid='nav-deals']", "priority": "HIGH"},
+      {"component": "Layout.jsx zone Aujourd'hui", "issue": "Scanner absent car page:scan=false pour un commercial. Résultat visible dans le screenshot : la zone AUJOURD'HUI ne contient QUE 'Ma tournée (5)' et 'Nouvelle visite', pas de 'Scanner'.", "selector": "[data-testid='nav-scan']", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Liste clients (/clients)", "issue": "La page affiche db.clients (données de test polluées) au lieu des 5 établissements attendus par le walkthrough. Deux collections coexistent (db.clients ancien modèle vs db.establishments nouveau). Le lien Clients de la sidebar pointe vers /clients qui appelle GET /api/clients au lieu de GET /api/establishments.", "affected_selectors": ["[data-testid='nav-clients']"]}
+    ],
+    "design_issues": [
+      {"screen": "Zone Aujourd'hui commercial", "issues": ["Le label i18n 'new_visit' apparaît en FR sous 'Nouvelle visite' alors que le spec demande 'Visite'. Cohérence entre spec walkthrough (Ma tournée / Visite / Scanner) et libellés effectifs (Ma tournée / Nouvelle visite / [absent])."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter26_sidebar_prefs.py",
+    "/app/test_reports/pytest/iter26_sidebar_prefs.xml"
+  ],
+  "action_items": [
+    "P0 : Layout.jsx L63-64 — changer `feature: 'page:clients'` en `feature: 'manager_only'` (ou similaire) pour pipeline et deals afin de les masquer aux commerciaux, comme le spec l'exige.",
+    "P1 : permissions.py — ajouter `page:scan` par défaut au rôle commercial, OU dans Layout.jsx PINNED_FIXED faire scan avec feature=null (toujours affiché) pour matcher le spec Aujourd'hui = Ma tournée + Visite + Scanner.",
+    "P1 : Cohérence /clients page vs seed — soit rediriger le lien 'Clients' vers /establishments (nouveau modèle), soit merger les collections db.clients ↔ db.establishments et purger les résidus TESTP_/PROPTEST-. Le walkthrough utilisateur attend de voir les 5 clients récents.",
+    "P2 (SÉCU) : GET /api/clients ne filtre pas par org_id → un manager voit tous les clients toutes orgs confondues. Ajouter `query['org_id'] = user['org_id']` dans list_clients (server.py:1257).",
+    "P3 : i18n libellé — envisager renommer 'new_visit' → 'Visite' (plus court, cohérent avec le spec)."
+  ],
+  "critical_code_review_comments": [
+    "Layout.jsx L63-64 : pipeline+deals réutilisent feature='page:clients' → fuite d'entrées manager côté commercial. Pattern anti-DRY et anti-RBAC.",
+    "Layout.jsx L52 : PINNED_FIXED[scan] utilise feature='page:scan' mais la roadmap veut Scanner disponible pour tout terrain — reconsidérer.",
+    "Layout.jsx L219-225 : savePrefs débouncé 400ms — OK, mais aucune indication UI en cas d'échec réseau (silent catch). Ajouter un toast subtil ou compteur d'erreurs.",
+    "Layout.jsx L189-198 : le fetch /establishments dans Layout charge le badge stops_today mais utilise `.length` ; incorrect si la tournée a 4 arrêts et le portefeuille en a 5 — le badge affiche 5 arrêts au lieu de 4. Utiliser /tours?date=today puis tour.client_ids.length.",
+    "server.py:1257 (list_clients) : absence de filtre org_id — critique. La règle 'commercial voit ses clients' fonctionne par accident (owner_id posé au create) mais un manager d'une autre org verrait tout.",
+    "permissions.py L82-89 : effective_permissions ne retourne pas page:scan pour le rôle commercial → à revisiter avec la définition FEATURES.",
+    "PermContext.jsx L33 : has=perms[key] booléen strict. Bien, mais pas de fallback quand `perms` est vide (permsLoading=false + perms=[] → tout masqué). C'est le comportement voulu, mais engendre l'écran quasi vide pour un user sans permissions surtout si /me/permissions échoue silencieusement (catch vide L21)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (9/9 iter26_sidebar_prefs)", "frontend": "~78% (14/18 items du walkthrough — 3 bugs sidebar/seed + 1 design)"},
+  "test_credentials": "commercial.demo@bevidcrm.fr / Commercial!2026Demo (role=commercial, plan=pro TRIAL). Manager: manager.demo@bevidcrm.fr / Manager!2026Demo.",
+  "seed_data_creation": "Aucun nouveau seed. PUT /api/me/sidebar-prefs a été appelé pour tester pin/unpin/reset — l'état a été remis à {pinned_user:[],section_order:{}} en fin de scénario (test_cleanup_reset backend PASS).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Tests backend iter26 sont verts. Les 3 bugs frontend/seed identifiés sont indépendants : (1) pipeline+deals visibles → fix RBAC Layout.jsx L63-64, (2) Scanner absent → soit permissions.py soit feature=null sur PINNED_FIXED[scan], (3) Clients page pollue avec vieux tests → soit purger db.clients TESTP_/PROPTEST-, soit changer le lien vers /establishments. Après fixes, refaire seulement : Playwright login commercial → vérifier nav-scan présent, nav-pipeline+nav-deals absents, /clients affiche exactement les 5 attendus. La personnalisation (pin/unpin/reset/drag) fonctionne parfaitement, pas besoin de re-tester sauf régression.",
+  "rca of the issue": "Bugs P0/P1 sidebar walkthrough commercial : (a) Layout.jsx définit pipeline+deals avec feature='page:clients' — depuis que le commercial est passé sur plan pro (TRIAL), org_plan_features inclut page:clients et effective_permissions('commercial')['page:clients']=true, donc has('page:clients') est true et ces 2 entrées 'managers' fuitent dans la sidebar. Correction : leur donner une feature distincte (ex 'page:pipeline') avec default={manager:true,commercial:false}, ou 'manager_only'. (b) Scanner : feature='page:scan' — permissions.py ne l'active pas par défaut pour role=commercial (résultat effective_permissions observé : {page:dashboard,page:clients,page:products,page:orders,page:tours,page:visits}). Le spec veut Scanner en zone Aujourd'hui. Correction : soit ajouter page:scan aux defaults commercial dans FEATURES, soit passer PINNED_FIXED[scan].feature=null (toujours visible car outil de terrain universel). (c) /clients pollution : db.clients accumulée par les tests antérieurs (30+ entrées TESTP_*/PROPTEST-*/BAR LE CENTRAL/MANUAL) toutes assignées à owner_id=commercial.id → apparaissent car list_clients ne filtre pas par org_id + les tests n'ont pas cleanup. Le seed récent a peuplé db.establishments (visible via /api/establishments correctement 5 items) mais la page /clients lit db.clients. Reproduction : login commercial → cliquer 'Clients' dans sidebar → observer que 'ADT 64' etc. n'apparaissent pas dans les premières lignes."
+}

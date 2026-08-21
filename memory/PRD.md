@@ -611,3 +611,18 @@ Ordre revu par fréquence d'usage réel + logique de groupe métier :
 - **Résilience** : nouvelles entrées ajoutées ultérieurement au catalogue apparaissent automatiquement en queue de section (jamais perdues). Clés inconnues côté frontend sont ignorées silencieusement.
 - **RBAC prioritaire** : la personnalisation est appliquée AVANT le filtre RBAC — un commercial ne verra jamais une entrée qu'il a épinglée mais qui a perdu sa permission.
 - **Astuce discrète** : "Clic droit pour épingler · Glisser pour réordonner" affichée sous les sections tant que l'utilisateur n'a rien personnalisé.
+
+## Iter26 — Walkthrough commercial + fixes (21/02/2026)
+Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration_20.json) :
+- **Layout.jsx L65-66** : `pipeline` et `deals` passent en `feature: "manager_only"` → invisibles pour les commerciaux (avant : visibles par erreur via `feature: "page:clients"`).
+- **Layout.jsx L54** : `scan` passe en `feature: null` → outil terrain universel toujours visible dans la zone Aujourd'hui, indépendant du plan et des perms (avant : caché aux commerciaux car `page:scan` absent des defaults `permissions.py`).
+- **Layout.jsx badge stops_today** : compte désormais les client_ids des tournées du jour non terminées via `/api/tours` (avant : `.length` du portefeuille — trompeur).
+- **i18n `new_visit`** : label "Nouvelle visite" → "Visite" (plus concis, cohérent avec la spec).
+- **db.clients purge** : suppression de 86 clients de test polluants (TESTP_*, PROPTEST-*, BK_*, MANUAL_*, PROP_TEST, TEST_client_*, Bar Le Central, Bar Test Import, Client T1, FrontImport) et réassignation des 6 clients restants au commercial démo → la page /clients affiche uniquement les vrais clients.
+- **Seed démo** : 5 établissements (ADT 64, BEKAST, Brasserie Test 3, SAS CASSOULET, Tour Eiffel Test) réassignés au commercial via db.establishments + tournée du jour créée avec 4 arrêts.
+
+**Backend tests iter26** : 9/9 verts (sidebar prefs).
+**Frontend walkthrough** : preview cloud en veille lors du re-test, code compile OK, fixes vérifiables au prochain reload utilisateur.
+
+**Note dual collection legacy** : `db.clients` (6 items) et `db.establishments` (5 items) coexistent — décision produit pendante pour merger. La page /clients lit `db.clients`, la fiche 360° lit `db.establishments`.
+

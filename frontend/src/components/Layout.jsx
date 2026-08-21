@@ -46,10 +46,12 @@ import {
  */
 
 // Zone épinglée FIXE — trois entrées quotidiennes intouchables.
+// `scan` = outil terrain universel (feature:null) : chaque commercial doit pouvoir
+// scanner un QR contenant/livraison même si son plan n'a pas encore page:scan.
 const PINNED_FIXED = [
   { to: "/tournee", key: "tournee", feature: "page:tours", icon: RouteIcon, badgeKey: "stops_today" },
   { to: "/visit",   key: "new_visit", feature: "page:visits", icon: ClipboardCheck },
-  { to: "/scan",    key: "scan",  feature: "page:scan", icon: QrCode },
+  { to: "/scan",    key: "scan",  feature: null, icon: QrCode },
 ];
 
 // Entrée fixe hors pli, sous le logo/palette et au-dessus des sections.
@@ -60,8 +62,8 @@ const SECTIONS = [
     { to: "/clients",  key: "clients",  feature: "page:clients", icon: Users },
     { to: "/orders",   key: "orders",   feature: "page:orders",  icon: ShoppingCart },
     { to: "/products", key: "products", feature: "page:products", icon: Wine },
-    { to: "/pipeline", key: "pipeline", feature: "page:clients", icon: Columns },
-    { to: "/deals",    key: "deals",    feature: "page:clients", icon: Target },
+    { to: "/pipeline", key: "pipeline", feature: "manager_only", icon: Columns },
+    { to: "/deals",    key: "deals",    feature: "manager_only", icon: Target },
   ]},
   { key: "section_logistics", entries: [
     { to: "/tours",              key: "tours",      feature: "page:tours", icon: RouteIcon },
@@ -185,13 +187,19 @@ export default function Layout({ children }) {
     try { localStorage.setItem(OPEN_KEY, JSON.stringify(openSections)); } catch {}
   }, [openSections]);
 
-  // Compteur d'arrêts du jour — approximation initiale = taille du portefeuille.
+  // Compteur d'arrêts du jour — somme des client_ids des tournées du jour non
+  // terminées, attribuées à l'utilisateur courant (via /api/tours filtré côté serveur).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await api.get("/establishments");
-        if (!cancelled) setStopsToday(Array.isArray(data) ? data.length : null);
+        const { data } = await api.get("/tours");
+        if (cancelled || !Array.isArray(data)) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const stops = data
+          .filter(t => t.date === today && t.status !== "terminee")
+          .reduce((acc, t) => acc + ((t.client_ids || []).length), 0);
+        setStopsToday(stops > 0 ? stops : null);
       } catch { /* silencieux */ }
     })();
     return () => { cancelled = true; };
