@@ -24,14 +24,35 @@ db.version(2).stores({
   meta: "key",
 });
 
+// v3 — Lot 7 étape 3 : briefs pré-calculés pour la tournée du jour (embarquables offline).
+db.version(3).stores({
+  establishments: "id, name, credit_status, assigned_to",
+  products: "id, name, category, sku",
+  sync_queue: "++id, at, url, method, status, tries",
+  voice_recordings: "++id, at, lang, status, tries",
+  tour_briefs: "establishment_id, computed_at",
+  meta: "key",
+});
+
 export async function saveSnapshot(snapshot) {
-  await db.transaction("rw", db.establishments, db.products, db.meta, async () => {
+  await db.transaction("rw", db.establishments, db.products, db.tour_briefs, db.meta, async () => {
     await db.establishments.clear();
     await db.products.clear();
     if (snapshot.establishments) await db.establishments.bulkPut(snapshot.establishments);
     if (snapshot.products) await db.products.bulkPut(snapshot.products);
+    // Lot 7 étape 3 — Briefs pré-calculés côté serveur, embarqués pour la cave.
+    if (Array.isArray(snapshot.tour_briefs)) {
+      await db.tour_briefs.clear();
+      await db.tour_briefs.bulkPut(snapshot.tour_briefs);
+    }
     await db.meta.put({ key: "snapshot_at", value: snapshot.snapshot_at || new Date().toISOString() });
   });
+}
+
+export async function getOfflineBrief(establishmentId) {
+  try {
+    return await db.tour_briefs.get(establishmentId);
+  } catch { return null; }
 }
 
 export async function enqueueMutation({ url, method = "POST", data }) {

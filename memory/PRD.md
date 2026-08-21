@@ -700,3 +700,40 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Le brief n'est pas encore embarqué dans le snapshot hors-ligne — endpoint `/tours/{tid}/briefs` créé mais pas encore consommé par `bootstrap`.
 - Extraction engagements : owner_id du commercial pour les engagements attribués au « client » — à revoir en étape 4.2 pour distinguer clairement.
 
+
+## Lot 7 étapes 5, 6 + snapshot offline (21/02/2026)
+
+### Backend
+- **Collection `establishment_comments`** scoped multi-tenant.
+- **Endpoints commentaires** :
+  - `GET /api/establishments/{eid}/comments` — épinglés d'abord, puis chrono desc.
+  - `POST /api/establishments/{eid}/comments` — création (auteur = user courant).
+  - `PATCH /api/comments/{cid}` — texte : auteur uniquement (403 sinon) ; épinglage : tout user.
+  - `DELETE /api/comments/{cid}` — auteur ou manager.
+- **Mémoire client** : nouvelle section `pinned_comments` insérée juste après `context`. Recompute automatique sur POST/PATCH/DELETE commentaire.
+- **`GET /api/objections/effective-responses?category=X`** — agrège les `response_used` déjà utilisées dans l'entreprise avec taux de réussite (outcome=levee / uses). Cap 10 items, triés par successes desc puis uses desc.
+- **`/sync/bootstrap`** enrichi : ajoute `tour_briefs` — briefs pré-calculés pour la tournée du jour de l'utilisateur (manager voit toutes les tournées du jour, commercial les siennes).
+- **RGPD étendu** aux commentaires (export + purge).
+
+### Frontend
+- **`CommentsThread.jsx`** (nouveau) : fil complet avec draft, épinglage (tout user), édition/suppression (auteur seul), pinned en tête avec bord ambré.
+- **`Etablissement360.jsx`** : nouveau bloc `etab-comments` sous `etab-objections`.
+- **`ObjectionsList.jsx`** : lors de l'ouverture de « Traiter » sur une objection, charge `/objections/effective-responses?category=...` et affiche les 3 meilleures réponses de l'entreprise avec taux de succès. Clic sur une suggestion → pré-remplit le champ.
+- **`BriefButton.jsx`** : bascule automatique sur le brief en cache IndexedDB (`db.tour_briefs`) si l'API échoue → indicateur `CloudOff` ambré dans le header du modal.
+- **`db.js` v3** : nouveau store `tour_briefs` clé `establishment_id`. `saveSnapshot` bulk put les briefs. Helper `getOfflineBrief(eid)` exposé.
+
+### Règles spec appliquées
+- Auteur seul modifie le texte de son commentaire (test coverage).
+- Commentaire épinglé remonte dans la mémoire client (test coverage).
+- Réponses cross-tenant strictement impossibles (via scoped_db).
+- Brief disponible hors-ligne dans la cave (snapshot embarqué).
+- Aucun appel LLM ajouté par ces 3 features — agrégations pures.
+
+### Tests
+- **`test_iter30_comments_effective_offline.py`** : 8/8 verts (CRUD comments, auteur only edit, texte vide 422, pinned en mémoire, effective shape/rejet catégorie, bootstrap contient tour_briefs, auth).
+- **Régression Lot 7 complet** : 28/28 verts sur iter28+29+30.
+
+### Prochaines étapes du Lot 7
+- **Mesure d'utilité** (pouce haut/bas sur brief + suggestions de réponse) : reste à faire.
+- Vérification à froid par le testing agent : test complet du parcours commercial avec les 6 features branchées.
+

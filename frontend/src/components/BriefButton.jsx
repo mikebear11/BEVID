@@ -1,26 +1,37 @@
 import React, { useState } from "react";
 import { api } from "@/lib/api";
-import { FileText, X, Loader2 } from "lucide-react";
+import { getOfflineBrief } from "@/lib/db";
+import { FileText, X, Loader2, CloudOff } from "lucide-react";
 
 /**
  * Bouton "Préparer" + popover 5 lignes — Lot 7 étape 3.
- * Lit /api/establishments/{eid}/brief (composition pure côté serveur).
- * En hors-ligne : lit depuis la snapshot embarquée (à faire en étape 3.2).
+ * En ligne : lit /api/establishments/{eid}/brief. Hors-ligne : lit depuis IndexedDB
+ * (tour_briefs, embarqué au bootstrap).
  */
 export default function BriefButton({ establishmentId, testId = "brief-btn" }) {
   const [open, setOpen] = useState(false);
   const [brief, setBrief] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   const openPanel = async () => {
     setOpen(true);
     if (brief) return;
     setLoading(true);
+    setOffline(false);
     try {
       const { data } = await api.get(`/establishments/${establishmentId}/brief`);
       setBrief(data);
     } catch {
-      setBrief({ lines: [{ text: "Brief indisponible hors-ligne — reconnectez-vous pour récupérer.", source: null }] });
+      // Fallback offline via IndexedDB
+      const cached = await getOfflineBrief(establishmentId);
+      if (cached) {
+        setBrief(cached);
+        setOffline(true);
+      } else {
+        setBrief({ lines: [{ text: "Brief indisponible — reconnectez-vous pour le récupérer.", source: null }] });
+        setOffline(true);
+      }
     } finally { setLoading(false); }
   };
 
@@ -49,6 +60,7 @@ export default function BriefButton({ establishmentId, testId = "brief-btn" }) {
               <h3 className="font-display text-xl flex items-center gap-2">
                 <FileText size={16} className="text-[#4A154B] dark:text-[#B076B4]" />
                 {brief?.establishment_name || "Préparation"}
+                {offline && <CloudOff size={12} className="text-amber-500" aria-label="mode hors-ligne" />}
               </h3>
               <button onClick={() => setOpen(false)} aria-label="Fermer" className="text-stone-400 hover:text-stone-600">
                 <X size={16} />

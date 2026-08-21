@@ -2728,6 +2728,21 @@ async def _recompute_client_memory(eid: str) -> dict:
     if warn_items:
         sections.append({"key": "warnings", "title": "Points de vigilance", "items": warn_items})
 
+    # 6) Commentaires épinglés (Lot 7 étape 5) — remontent en tête juste après le contexte.
+    pinned_comments = await db.establishment_comments.find(
+        {"establishment_id": eid, "pinned": True}, {"_id": 0}
+    ).sort("created_at", -1).to_list(5)
+    if pinned_comments:
+        pin_items = []
+        for c in pinned_comments:
+            pin_items.append({
+                "text": c.get("text", ""),
+                "source": {"type": "comment", "id": c.get("id"), "label": c.get("author_name") or "auteur", "date": (c.get("created_at") or "")[:10]},
+            })
+        # Insère juste après "Contexte" (index 1) si présent, sinon en tête.
+        insert_at = 1 if sections and sections[0]["key"] == "context" else 0
+        sections.insert(insert_at, {"key": "pinned_comments", "title": "Épinglé", "items": pin_items})
+
     memory = {
         "establishment_id": eid,
         "sections": sections,
@@ -2858,6 +2873,136 @@ async def get_tour_briefs(tid: str, user=Depends(get_current_user)):
         b = await _compute_brief(eid)
         briefs.append(b)
     return {"tour_id": tid, "briefs": briefs, "computed_at": now_iso()}
+
+
+# ---------- Lot 7 étape 5 : Commentaires libres sur la fiche ----------
+class EstablishmentComment(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    establishment_id: str
+    author_id: str
+    author_name: str
+    text: str
+    pinned: bool = False
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+    owner_id: str
+
+
+class CommentCreate(BaseModel):
+    establishment_id: str
+    text: str
+
+
+class CommentPatch(BaseModel):
+    text: Optional[str] = None
+    pinned: Optional[bool] = None
+
+
+@api_router.get("/establishments/{eid}/comments")
+async def list_comments(eid: str, user=Depends(get_current_user)):
+    """Épinglés en premier, puis chrono desc."""
+    items = await db.establishment_comments.find(
+        {"establishment_id": eid}, {"_id": 0}
+    ).sort([("pinned", -1), ("created_at", -1)]).to_list(500)
+    return items
+
+
+@api_router.post("/establishments/{eid}/comments")
+async def create_comment(eid: str, data: CommentCreate, user=Depends(get_current_user)):
+    text_clean = data.text.strip()[:2000]
+    if not text_clean:
+        raise HTTPException(422, "Texte requis")
+    c = EstablishmentComment(
+        establishment_id=eid,
+        author_id=user["id"],
+        author_name=user.get("name") or user.get("email") or "?",
+        text=text_clean,
+        owner_id=user["id"],
+    )
+    await db.establishment_comments.insert_one(c.model_dump())
+    # Recompute mémoire — les commentaires épinglés remontent en tête.
+    try:
+        await _recompute_client_memory(eid)
+    except Exception:
+        pass
+    return c.model_dump()
+
+
+@api_router.patch("/comments/{cid}")
+async def patch_comment(cid: str, data: CommentPatch, user=Depends(get_current_user)):
+    """Édition texte : auteur uniquement. Épinglage : tous les utilisateurs de l'org."""
+    doc = await db.establishment_comments.find_one({"id": cid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Commentaire introuvable")
+    updates = {}
+    if data.text is not None:
+        if doc.get("author_id") != user["id"]:
+            raise HTTPException(403, "Seul l'auteur peut modifier son commentaire")
+        text_clean = data.text.strip()[:2000]
+        if not text_clean:
+            raise HTTPException(422, "Texte requis")
+        updates["text"] = text_clean
+    if data.pinned is not None:
+        updates["pinned"] = bool(data.pinned)
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    updates["updated_at"] = now_iso()
+    await db.establishment_comments.update_one({"id": cid}, {"$set": updates})
+    # Recompute si épinglage change (impacte la mémoire)
+    if "pinned" in updates:
+        try:
+            await _recompute_client_memory(doc["establishment_id"])
+        except Exception:
+            pass
+    return await db.establishment_comments.find_one({"id": cid}, {"_id": 0})
+
+
+@api_router.delete("/comments/{cid}")
+async def delete_comment(cid: str, user=Depends(get_current_user)):
+    doc = await db.establishment_comments.find_one({"id": cid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Commentaire introuvable")
+    if doc.get("author_id") != user["id"] and user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Seul l'auteur ou un manager peut supprimer")
+    await db.establishment_comments.delete_one({"id": cid})
+    try:
+        await _recompute_client_memory(doc["establishment_id"])
+    except Exception:
+        pass
+    return {"ok": True, "deleted_id": cid}
+
+
+# ---------- Lot 7 étape 6 : Réponses qui marchent ----------
+@api_router.get("/objections/effective-responses")
+async def effective_responses(category: str, user=Depends(get_current_user)):
+    """Pour une catégorie donnée, agrège les response_used déjà utilisées dans
+    l'entreprise (via scoped_db) + leur taux de réussite (outcome=levee/count).
+    Strictement intra-organisation — jamais cross-tenant.
+    """
+    if category not in OBJECTION_CATEGORIES:
+        raise HTTPException(422, "Catégorie invalide")
+    treated = await db.objections.find(
+        {"category": category, "status": "traitee", "response_used": {"$exists": True, "$nin": [None, ""]}},
+        {"_id": 0, "response_used": 1, "outcome": 1},
+    ).to_list(2000)
+    from collections import defaultdict
+    stats = defaultdict(lambda: {"uses": 0, "successes": 0})
+    for t in treated:
+        key = (t.get("response_used") or "").strip()
+        if not key:
+            continue
+        stats[key]["uses"] += 1
+        if t.get("outcome") == "levee":
+            stats[key]["successes"] += 1
+    responses = [
+        {"response": k, "uses": v["uses"], "successes": v["successes"],
+         "rate": (v["successes"] / v["uses"]) if v["uses"] else 0.0}
+        for k, v in stats.items()
+    ]
+    # Trie par succès puis usages (les plus fiables en premier)
+    responses.sort(key=lambda x: (-x["successes"], -x["uses"]))
+    return {"category": category, "responses": responses[:10]}
 
 
 # ---------- CALENDAR EVENTS ----------
@@ -4265,6 +4410,21 @@ async def sync_bootstrap(user=Depends(get_current_user)):
     visits_q = {"created_at": {"$gte": since_12m}}
     if not is_mgr: visits_q["client_id"] = {"$in": est_ids}
     visits = await db.visits.find(visits_q, {"_id": 0}).to_list(10000)
+    # Lot 7 étape 3 — Briefs pré-calculés pour la tournée du jour (embarquable hors-ligne).
+    from datetime import date as _date
+    today_str = _date.today().isoformat()
+    tours_today = await db.tours.find(
+        {"date": today_str, **({} if is_mgr else {"agent_id": user["id"]})},
+        {"_id": 0},
+    ).to_list(50)
+    tour_briefs = []
+    for tour in tours_today:
+        for eid in (tour.get("client_ids") or []):
+            try:
+                b = await _compute_brief(eid)
+                tour_briefs.append(b)
+            except Exception:
+                continue
     return {
         "user": {k: user[k] for k in user if k != "password"},
         "server_time": now_iso(),
@@ -4275,6 +4435,7 @@ async def sync_bootstrap(user=Depends(get_current_user)):
         "price_list_items": price_list_items,
         "orders": orders,
         "visits": visits,
+        "tour_briefs": tour_briefs,
     }
 
 @api_router.post("/sync/push")
@@ -4989,11 +5150,12 @@ async def rgpd_export(cid: str, user=Depends(get_current_user)):
     objections = await db.objections.find({"establishment_id": cid}, {"_id": 0}).to_list(1000)
     engagements = await db.engagements.find({"establishment_id": cid}, {"_id": 0}).to_list(1000)
     client_memory = await db.client_memory.find_one({"establishment_id": cid}, {"_id": 0})
+    comments = await db.establishment_comments.find({"establishment_id": cid}, {"_id": 0}).to_list(1000)
     await audit_log(user["id"], "rgpd_export", {"client_id": cid})
     return {"client": client_doc, "establishment": est_doc, "orders": orders,
             "visits": visits, "activities": activities, "objections": objections,
             "engagements": engagements, "client_memory": client_memory,
-            "exported_at": now_iso()}
+            "comments": comments, "exported_at": now_iso()}
 
 @api_router.delete("/rgpd/clients/{cid}")
 async def rgpd_delete(cid: str, user=Depends(get_current_user)):
@@ -5003,6 +5165,7 @@ async def rgpd_delete(cid: str, user=Depends(get_current_user)):
     n_visits = await db.visits.count_documents({"client_id": cid})
     n_objections = await db.objections.count_documents({"establishment_id": cid})
     n_engagements = await db.engagements.count_documents({"establishment_id": cid})
+    n_comments = await db.establishment_comments.count_documents({"establishment_id": cid})
     res = await db.clients.delete_one({"id": cid})
     if res.deleted_count == 0:
         raise HTTPException(404, "Client introuvable")
@@ -5013,8 +5176,9 @@ async def rgpd_delete(cid: str, user=Depends(get_current_user)):
     await db.objections.delete_many({"establishment_id": cid})
     await db.engagements.delete_many({"establishment_id": cid})
     await db.client_memory.delete_many({"establishment_id": cid})
-    await audit_log(user["id"], "rgpd_delete", {"client_id": cid, "orders": n_orders, "visits": n_visits, "objections": n_objections, "engagements": n_engagements})
-    return {"ok": True, "deleted_client_id": cid, "orders_deleted": n_orders, "visits_deleted": n_visits, "objections_deleted": n_objections, "engagements_deleted": n_engagements}
+    await db.establishment_comments.delete_many({"establishment_id": cid})
+    await audit_log(user["id"], "rgpd_delete", {"client_id": cid, "orders": n_orders, "visits": n_visits, "objections": n_objections, "engagements": n_engagements, "comments": n_comments})
+    return {"ok": True, "deleted_client_id": cid, "orders_deleted": n_orders, "visits_deleted": n_visits, "objections_deleted": n_objections, "engagements_deleted": n_engagements, "comments_deleted": n_comments}
 
 # ==========================================================
 # ORG SETTINGS (seuils, RGPD, géoloc, rétention audio)

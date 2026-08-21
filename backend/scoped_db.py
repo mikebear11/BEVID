@@ -52,6 +52,7 @@ SCOPED_COLLECTIONS = {
     "objections",  # Lot 7 étape 1 — objections commerciales scopées par org
     "engagements", # Lot 7 étape 4 — promesses issues des visites
     "client_memory",  # Lot 7 étape 2 — mémoire client cache (recalcul événementiel)
+    "establishment_comments",  # Lot 7 étape 5 — fil de commentaires libres
 }
 
 

@@ -23,6 +23,7 @@ export default function ObjectionsList({ establishmentId }) {
   const [responseText, setResponseText] = useState("");
   const [outcome, setOutcome] = useState("levee");
   const [saving, setSaving] = useState(false);
+  const [effective, setEffective] = useState(null);    // [{response, uses, successes, rate}]
 
   const load = async () => {
     setLoading(true);
@@ -39,6 +40,11 @@ export default function ObjectionsList({ establishmentId }) {
     setOpenId(o.id);
     setResponseText(o.response_used || "");
     setOutcome(o.outcome || "levee");
+    // Lot 7 étape 6 — charge les "réponses qui marchent" pour cette catégorie.
+    setEffective(null);
+    api.get(`/objections/effective-responses?category=${o.category}`)
+      .then(r => setEffective(r.data?.responses || []))
+      .catch(() => setEffective([]));
   };
 
   const markTreated = async (o) => {
@@ -116,6 +122,25 @@ export default function ObjectionsList({ establishmentId }) {
         </div>
         {editing && (
           <div className="mt-2 space-y-2 pt-2 border-t border-stone-200 dark:border-stone-700">
+            {effective && effective.length > 0 && (
+              <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded p-2 space-y-1" data-testid={`objection-effective-${o.id}`}>
+                <p className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  Ce qui a déjà fonctionné dans l'entreprise
+                </p>
+                {effective.slice(0, 3).map((r, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setResponseText(r.response)}
+                    className="w-full text-left text-xs text-stone-700 dark:text-stone-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded px-1.5 py-1"
+                    data-testid={`objection-effective-pick-${o.id}-${i}`}
+                    title="Cliquer pour réutiliser cette réponse"
+                  >
+                    « {r.response} » <span className="text-[10px] text-emerald-700 dark:text-emerald-300 tabular-nums">levée {r.successes}/{r.uses} · {Math.round(r.rate * 100)}%</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
               rows={2}
               placeholder="Réponse utilisée (facultatif)"
