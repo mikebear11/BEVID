@@ -652,3 +652,51 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
   - Préférence sauvegardée en `localStorage.bevid_sidebar_collapsed_v1`.
 - **Cohabitation des 3 features** : les compteurs et pastilles Pro sont mutuellement exclusifs (locked prioritaire). Le drag & drop est désactivé en collapsed ou sur entrée locked.
 
+
+## Lot 7 étapes 2, 3, 4 — Mémoire client + Brief + Engagements (21/02/2026)
+
+### Backend
+- Collections `engagements` et `client_memory` ajoutées à `SCOPED_COLLECTIONS`.
+- **Modèle Engagement** : id, establishment_id, label, owner ∈ {agent, client}, due_date, status ∈ {ouvert, tenu, oublie, annule}, source_visit_id.
+- **Endpoints Engagements** :
+  - `GET /api/establishments/{eid}/engagements` — liste triée due_date asc.
+  - `GET /api/engagements/due?days=N` — ouverts dont la date approche (≤ today+N). Filtré par `owner_id` pour les commerciaux.
+  - `PATCH /api/engagements/{id}` — status/due_date/label.
+  - `POST /api/visits/{vid}/extract-engagements` (GPT-5.6 Sol) → propose.
+  - `POST /api/visits/{vid}/confirm-engagements` → persiste + trigger recompute mémoire.
+- **Mémoire client** (`_recompute_client_memory`) : agrégation pure (5 sections max) — Contexte, Ce qu'il achète et à quel rythme, Objections ouvertes, Engagements en cours, Points de vigilance. Chaque item porte une `source` structurée `{type, id, label, date}`. Aucun appel LLM.
+  - `GET /api/establishments/{eid}/memory` — retourne cache, recalcule si absent OU > 24h.
+  - `POST /api/establishments/{eid}/memory/recompute` — force recompute.
+  - **Trigger événementiel** : POST /visits recompute automatiquement. POST /visits/{vid}/confirm-engagements aussi.
+- **Brief avant visite** (`_compute_brief`, 5 lignes max, agrégation pure) :
+  - `GET /api/establishments/{eid}/brief` — jusqu'à 5 lignes {text, source}.
+  - `GET /api/tours/{tid}/briefs` — pré-calcul batch pour la tournée du jour (embarquable snapshot).
+  - Fallback "Rien de particulier depuis la dernière visite" si aucune ligne à afficher.
+- **RGPD étendu** : `/rgpd/clients/{cid}/export` ajoute `engagements` + `client_memory`. `/rgpd/clients/{cid}` (DELETE) purge les deux.
+
+### Frontend
+- **`ClientMemory.jsx`** (nouveau) : bloc « Ce qu'il faut savoir » avec sources cliquables, timestamp de mise à jour, bouton recompute discret.
+- **`BriefButton.jsx`** (nouveau) : bouton compact + modal 5 lignes.
+- **`EngagementExtractPanel.jsx`** (nouveau) : modal type Objections avec owner + due_date éditables.
+- **`Etablissement360.jsx`** : nouveau bloc `etab-memory` en haut + bouton « Préparer » dans le bandeau vital.
+- **`VisitReport.jsx`** : chaîne Objections → Engagements après soumission ; navigation reportée à la fermeture du 2e panel.
+
+### Tests
+- **`test_iter29_memory_brief_engagements.py`** : 9/9 verts (memory shape, recompute timestamp, brief ≤ 5, confirm engagement, due list, patch enum, extract 404, extract vide, auth).
+
+### Règles respectées
+- Aucune écriture automatique (extraction propose, l'utilisateur valide).
+- Sources affichées sur chaque ligne (« pas de source, pas de ligne »).
+- Aucun appel LLM sur affichage (mémoire, brief : agrégation pure MongoDB).
+- Recalcul événementiel, jamais à l'affichage.
+- Cloisonnement multi-tenant natif via TenantDB.
+- RGPD : export + purge couvrent les nouvelles collections.
+
+### Prochaines étapes du Lot 7
+5. Commentaires libres + épinglage (fil sur la fiche établissement, lu par la mémoire).
+6. Réponses qui marchent — pour chaque objection, taux de réussite des `response_used` observés dans l'entreprise.
+
+### À noter (dette technique connue)
+- Le brief n'est pas encore embarqué dans le snapshot hors-ligne — endpoint `/tours/{tid}/briefs` créé mais pas encore consommé par `bootstrap`.
+- Extraction engagements : owner_id du commercial pour les engagements attribués au « client » — à revoir en étape 4.2 pour distinguer clairement.
+

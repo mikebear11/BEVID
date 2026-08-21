@@ -2196,6 +2196,11 @@ async def create_visit(data: dict, user=Depends(get_current_user)):
         client_id=cid, agent_id=user["id"], type="visite",
         content=content, owner_id=user["id"]
     ).model_dump())
+    # Lot 7 étape 2 — invalidation cache mémoire client (recalcul événementiel)
+    try:
+        await _recompute_client_memory(cid)
+    except Exception as _e:
+        logger.warning(f"[memory] recompute failed after visit : {_e}")
     return v.model_dump()
 
 @api_router.get("/visits")
@@ -2429,6 +2434,430 @@ async def confirm_objections(vid: str, data: ObjectionConfirmRequest, user=Depen
             await db.objections.insert_one(o.model_dump())
             inserted.append(o.model_dump())
     return {"confirmed": inserted, "count": len(inserted)}
+
+
+# ---------- Lot 7 étape 4 : Engagements (promesses issues des visites) ----------
+ENGAGEMENT_STATUS = {"ouvert", "tenu", "oublie", "annule"}
+ENGAGEMENT_OWNERS = {"agent", "client"}
+
+
+class Engagement(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    establishment_id: str
+    label: str
+    owner: str = "agent"     # agent | client
+    due_date: Optional[str] = None
+    status: str = "ouvert"
+    source_visit_id: Optional[str] = None
+    created_by: str
+    owner_id: str
+    first_seen_at: str = Field(default_factory=now_iso)
+    last_updated_at: str = Field(default_factory=now_iso)
+
+
+class EngagementConfirmItem(BaseModel):
+    label: str
+    owner: str = "agent"
+    due_date: Optional[str] = None
+
+
+class EngagementConfirmRequest(BaseModel):
+    items: List[EngagementConfirmItem]
+
+
+class EngagementPatch(BaseModel):
+    status: Optional[str] = None
+    due_date: Optional[str] = None
+    label: Optional[str] = None
+
+
+@api_router.get("/establishments/{eid}/engagements")
+async def list_engagements(eid: str, user=Depends(get_current_user)):
+    items = await db.engagements.find({"establishment_id": eid}, {"_id": 0}).sort("due_date", 1).to_list(200)
+    return items
+
+
+@api_router.get("/engagements/due")
+async def list_engagements_due(days: int = 3, user=Depends(get_current_user)):
+    """Engagements ouverts dont la date approche ou est dépassée (≤ today+days)."""
+    from datetime import date as _date, timedelta as _td
+    cutoff = (_date.today() + _td(days=days)).isoformat()
+    is_mgr = user["role"] in ("manager", "gerant", "owner")
+    q = {"status": "ouvert", "$or": [{"due_date": {"$lte": cutoff}}, {"due_date": None}]}
+    if not is_mgr:
+        q["owner_id"] = user["id"]
+    items = await db.engagements.find(q, {"_id": 0}).sort("due_date", 1).to_list(200)
+    return items
+
+
+@api_router.patch("/engagements/{eid}")
+async def patch_engagement(eid: str, data: EngagementPatch, user=Depends(get_current_user)):
+    updates = {}
+    if data.status is not None:
+        if data.status not in ENGAGEMENT_STATUS:
+            raise HTTPException(422, "Statut invalide")
+        updates["status"] = data.status
+    if data.due_date is not None:
+        updates["due_date"] = data.due_date
+    if data.label is not None:
+        updates["label"] = data.label.strip()[:500]
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    updates["last_updated_at"] = now_iso()
+    r = await db.engagements.update_one({"id": eid}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(404, "Engagement introuvable")
+    return await db.engagements.find_one({"id": eid}, {"_id": 0})
+
+
+@api_router.post("/visits/{vid}/extract-engagements")
+async def extract_engagements(vid: str, user=Depends(get_current_user)):
+    """Propose les promesses (« je vous rappelle lundi », « je regarde pour un tirage »)."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(500, "Clé LLM manquante")
+    v = await db.visits.find_one({"id": vid}, {"_id": 0})
+    if not v:
+        raise HTTPException(404, "Visite introuvable")
+    transcript = (v.get("voice_transcript") or v.get("summary") or "").strip()
+    if not transcript:
+        return {"proposals": [], "reason": "empty_transcript"}
+    visit_date = (v.get("created_at") or now_iso())[:10]
+    system_msg = (
+        "Tu extrais les ENGAGEMENTS pris pendant une visite commerciale (français).\n\n"
+        "Un engagement = une promesse concrète avec une échéance implicite ou explicite. Exemples :\n"
+        "- « Je vous rappelle lundi » (owner=agent, due proche)\n"
+        "- « Je vous envoie un échantillon de l'ambrée cette semaine » (owner=agent)\n"
+        "- « Il me confirme sa commande jeudi » (owner=client)\n"
+        "- « Je regarde pour un tirage pression » (owner=agent, sans date)\n\n"
+        "RÈGLES ABSOLUES :\n"
+        "1. N'invente RIEN. Aucun engagement mentionné → liste vide [].\n"
+        "2. Aucun jugement sur les personnes.\n"
+        "3. label court, formulé au futur (« Envoyer échantillon ambrée »).\n"
+        "4. owner ∈ {agent, client} — qui doit AGIR ?\n"
+        "5. due_date au format YYYY-MM-DD si dérivable de la date de visite "
+        f"({visit_date}), sinon null. Interprète 'lundi', 'jeudi', 'la semaine prochaine' "
+        "par rapport à la date de visite.\n\n"
+        "FORMAT : JSON pur, liste [{\"label\": string, \"owner\": \"agent\"|\"client\", "
+        "\"due_date\": string|null}]. Pas de markdown."
+    )
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"eng-extract-{vid}-{uuid.uuid4().hex[:6]}",
+        system_message=system_msg,
+    ).with_model("openai", "gpt-5.6-sol")
+    try:
+        reply = await chat.send_message(UserMessage(text=f"Date de visite : {visit_date}\n\nCompte rendu :\n{transcript}"))
+    except Exception as e:
+        logger.warning(f"[engagements extract] LLM error : {e}")
+        raise HTTPException(502, "Extraction indisponible")
+    import json as _json
+    clean = re.sub(r"```json|```", "", reply or "").strip()
+    try:
+        data = _json.loads(clean)
+    except Exception:
+        return {"proposals": [], "raw": reply, "reason": "invalid_json"}
+    if not isinstance(data, list):
+        return {"proposals": [], "raw": reply, "reason": "not_a_list"}
+    proposals = []
+    for item in data[:10]:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label", "")).strip()[:500]
+        owner = str(item.get("owner", "agent")).strip()
+        if owner not in ENGAGEMENT_OWNERS:
+            owner = "agent"
+        due_date = item.get("due_date")
+        if due_date is not None:
+            due_date = str(due_date).strip()
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", due_date):
+                due_date = None
+        if not label:
+            continue
+        proposals.append({"label": label, "owner": owner, "due_date": due_date})
+    return {"proposals": proposals, "visit_id": vid}
+
+
+@api_router.post("/visits/{vid}/confirm-engagements")
+async def confirm_engagements(vid: str, data: EngagementConfirmRequest, user=Depends(get_current_user)):
+    v = await db.visits.find_one({"id": vid}, {"_id": 0})
+    if not v:
+        raise HTTPException(404, "Visite introuvable")
+    eid = v.get("client_id")
+    inserted = []
+    for item in data.items[:10]:
+        label_clean = item.label.strip()[:500]
+        if not label_clean:
+            continue
+        owner = item.owner if item.owner in ENGAGEMENT_OWNERS else "agent"
+        e = Engagement(
+            establishment_id=eid,
+            label=label_clean,
+            owner=owner,
+            due_date=item.due_date,
+            source_visit_id=vid,
+            created_by=user["id"],
+            owner_id=user["id"],
+        )
+        await db.engagements.insert_one(e.model_dump())
+        inserted.append(e.model_dump())
+    # Trigger recompute mémoire client
+    try:
+        await _recompute_client_memory(eid)
+    except Exception:
+        pass
+    return {"confirmed": inserted, "count": len(inserted)}
+
+
+# ---------- Lot 7 étape 2 : Mémoire client (bloc « Ce qu'il faut savoir ») ----------
+# Recalculée sur événement (nouvelle visite/commande/engagement), stockée dans
+# `client_memory`, jamais recalculée à l'affichage. Chaque ligne porte sa source.
+async def _recompute_client_memory(eid: str) -> dict:
+    """Agrège en un objet stocké la mémoire d'un établissement.
+    Retourne la mémoire fraîchement calculée. Aucun appel LLM ici.
+    """
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not est:
+        return {}
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+
+    sections = []
+
+    # 1) Contexte (source: fiche établissement)
+    ctx_items = []
+    if est.get("type"):
+        ctx_items.append({
+            "text": f"Type d'établissement : {est.get('type')}",
+            "source": {"type": "establishment", "id": eid, "label": "fiche", "date": (est.get("created_at") or "")[:10]},
+        })
+    if est.get("city"):
+        loc = f"{est.get('city')}"
+        if est.get("postal_code"):
+            loc = f"{est.get('postal_code')} {loc}"
+        ctx_items.append({
+            "text": f"Localisation : {loc}",
+            "source": {"type": "establishment", "id": eid, "label": "fiche", "date": (est.get("created_at") or "")[:10]},
+        })
+    if ctx_items:
+        sections.append({"key": "context", "title": "Contexte", "items": ctx_items})
+
+    # 2) Ce qu'il achète et rythme (source: dernières commandes)
+    orders = await db.orders.find({"client_id": eid}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    if orders:
+        # top 3 produits par quantité totale
+        from collections import Counter
+        prod_qty = Counter()
+        prod_names = {}
+        for o in orders:
+            for line in o.get("lines", []):
+                pid = line.get("product_id")
+                if not pid:
+                    continue
+                prod_qty[pid] += line.get("quantity", 0) or 0
+                prod_names[pid] = line.get("product_name") or pid
+        top = prod_qty.most_common(3)
+        buying_items = []
+        for pid, qty in top:
+            buying_items.append({
+                "text": f"{prod_names[pid]} — {qty} unités cumulées sur les {len(orders)} dernières commandes",
+                "source": {"type": "orders", "id": None, "label": f"{len(orders)} commandes", "date": (orders[0].get("created_at") or "")[:10]},
+            })
+        last = orders[0]
+        buying_items.append({
+            "text": f"Dernière commande : {last.get('total', 0):.0f} € le {(last.get('created_at') or '')[:10]}",
+            "source": {"type": "order", "id": last.get("id"), "label": f"commande #{(last.get('id') or '')[:8]}", "date": (last.get('created_at') or '')[:10]},
+        })
+        sections.append({"key": "buying", "title": "Ce qu'il achète et à quel rythme", "items": buying_items})
+
+    # 3) Objections ouvertes (source: objections)
+    open_obj = await db.objections.find(
+        {"establishment_id": eid, "status": {"$in": ["ouverte", "recurrente"]}},
+        {"_id": 0}
+    ).sort("last_seen_at", -1).to_list(5)
+    if open_obj:
+        obj_items = []
+        for o in open_obj:
+            obj_items.append({
+                "text": f"[{o.get('category')}] {o.get('label')}" + (f" · {o.get('occurrences')} occurrences" if o.get("occurrences", 1) > 1 else ""),
+                "source": {"type": "visit", "id": o.get("source_visit_id"), "label": "visite", "date": (o.get("last_seen_at") or "")[:10]},
+            })
+        sections.append({"key": "objections_open", "title": "Objections ouvertes", "items": obj_items})
+
+    # 4) Engagements en cours (source: engagements)
+    open_eng = await db.engagements.find(
+        {"establishment_id": eid, "status": "ouvert"},
+        {"_id": 0}
+    ).sort("due_date", 1).to_list(5)
+    if open_eng:
+        eng_items = []
+        for e in open_eng:
+            due = e.get("due_date") or "sans date"
+            owner_txt = "à faire" if e.get("owner") == "agent" else "attendu du client"
+            eng_items.append({
+                "text": f"{e.get('label')} — {owner_txt} ({due})",
+                "source": {"type": "visit", "id": e.get("source_visit_id"), "label": "visite", "date": (e.get("first_seen_at") or "")[:10]},
+            })
+        sections.append({"key": "engagements_open", "title": "Engagements en cours", "items": eng_items})
+
+    # 5) Points de vigilance (source: encours + fûts + veille)
+    warn_items = []
+    overdue_days = est.get("overdue_days") or 0
+    overdue_amount = est.get("overdue_amount") or 0
+    if overdue_days > 0 and overdue_amount > 0:
+        warn_items.append({
+            "text": f"Encours en retard : {overdue_amount:.0f} € sur {overdue_days} jours",
+            "source": {"type": "establishment", "id": eid, "label": "solde", "date": now.strftime("%Y-%m-%d")},
+        })
+    n_containers_out = await db.containers.count_documents({"current_location": eid, "status": {"$in": ["chez_client", "sorti"]}})
+    if n_containers_out > 3:
+        warn_items.append({
+            "text": f"{n_containers_out} contenants non retournés",
+            "source": {"type": "containers", "id": None, "label": "stock terrain", "date": now.strftime("%Y-%m-%d")},
+        })
+    # Baisse de fréquence : compare 3 derniers mois vs 3 mois d'avant
+    if len(orders) >= 6:
+        cutoff = (now - _td(days=90)).isoformat()
+        recent = sum(1 for o in orders if (o.get("created_at") or "") >= cutoff)
+        older = len(orders) - recent
+        if older > 0 and recent < older * 0.5:
+            warn_items.append({
+                "text": f"Fréquence de commande en baisse : {recent} sur 3 derniers mois vs {older} avant",
+                "source": {"type": "orders", "id": None, "label": "historique", "date": now.strftime("%Y-%m-%d")},
+            })
+    if warn_items:
+        sections.append({"key": "warnings", "title": "Points de vigilance", "items": warn_items})
+
+    memory = {
+        "establishment_id": eid,
+        "sections": sections,
+        "computed_at": now.isoformat(),
+        "owner_id": est.get("owner_id"),
+    }
+    await db.client_memory.update_one(
+        {"establishment_id": eid},
+        {"$set": memory},
+        upsert=True,
+    )
+    return memory
+
+
+@api_router.get("/establishments/{eid}/memory")
+async def get_client_memory(eid: str, user=Depends(get_current_user)):
+    """Retourne la mémoire client stockée. Recalcule si absente ou stale (> 24h).
+    Ne fait JAMAIS d'appel LLM (agrégation pure). Coût : 3-4 requêtes MongoDB.
+    """
+    mem = await db.client_memory.find_one({"establishment_id": eid}, {"_id": 0})
+    if not mem:
+        mem = await _recompute_client_memory(eid)
+    else:
+        # Stale ? recalcule silencieusement.
+        try:
+            from datetime import datetime as _dt
+            ca = _dt.fromisoformat((mem.get("computed_at") or "").replace("Z", "+00:00"))
+            age_hours = (datetime.now(timezone.utc) - ca).total_seconds() / 3600
+            if age_hours > 24:
+                mem = await _recompute_client_memory(eid)
+        except Exception:
+            pass
+    return mem
+
+
+@api_router.post("/establishments/{eid}/memory/recompute")
+async def force_recompute_memory(eid: str, user=Depends(get_current_user)):
+    return await _recompute_client_memory(eid)
+
+
+# ---------- Lot 7 étape 3 : Brief avant visite (5 lignes max) ----------
+async def _compute_brief(eid: str) -> dict:
+    """5 lignes préparatoires — pré-calculé côté serveur, embarquable hors-ligne.
+    Aucun appel LLM : composition à partir des données déjà en base.
+    """
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not est:
+        return {"lines": [], "reason": "not_found"}
+    from datetime import datetime as _dt, timedelta as _td
+    now = datetime.now(timezone.utc)
+    lines = []
+
+    # 1) Depuis quand pas vu + ce qui s'est passé
+    last_visit = await db.visits.find_one({"client_id": eid}, sort=[("created_at", -1)])
+    if last_visit:
+        days = (now - _dt.fromisoformat(last_visit["created_at"].replace("Z", "+00:00"))).days
+        lines.append({
+            "text": f"Dernière visite il y a {days} jour{'s' if days > 1 else ''} — {last_visit.get('summary', '')[:80] or 'pas de résumé'}",
+            "source": {"type": "visit", "id": last_visit.get("id"), "date": (last_visit.get("created_at") or "")[:10]},
+        })
+
+    # 2) Ce qu'il commande + rythme
+    orders = await db.orders.find({"client_id": eid}, {"_id": 0}).sort("created_at", -1).to_list(10)
+    if orders:
+        last_ord = orders[0]
+        lines.append({
+            "text": f"Dernière commande : {last_ord.get('total', 0):.0f} € le {(last_ord.get('created_at') or '')[:10]}",
+            "source": {"type": "order", "id": last_ord.get("id"), "date": (last_ord.get('created_at') or '')[:10]},
+        })
+
+    # 3) Objection ouverte la plus récente
+    top_obj = await db.objections.find_one(
+        {"establishment_id": eid, "status": {"$in": ["ouverte", "recurrente"]}},
+        {"_id": 0}, sort=[("last_seen_at", -1)]
+    )
+    if top_obj:
+        lines.append({
+            "text": f"Objection ouverte : « {top_obj.get('label')} » ({top_obj.get('category')})",
+            "source": {"type": "visit", "id": top_obj.get("source_visit_id"), "date": (top_obj.get("last_seen_at") or "")[:10]},
+        })
+
+    # 4) Engagement dû non tenu
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    overdue_eng = await db.engagements.find_one(
+        {"establishment_id": eid, "status": "ouvert", "due_date": {"$lte": today}},
+        {"_id": 0}, sort=[("due_date", 1)]
+    )
+    if overdue_eng:
+        lines.append({
+            "text": f"Engagement à honorer : {overdue_eng.get('label')} (dû {overdue_eng.get('due_date') or 'sans date'})",
+            "source": {"type": "visit", "id": overdue_eng.get("source_visit_id"), "date": (overdue_eng.get("first_seen_at") or "")[:10]},
+        })
+
+    # 5) Vigilance financière / logistique
+    overdue_days = est.get("overdue_days") or 0
+    overdue_amount = est.get("overdue_amount") or 0
+    if overdue_days > 0 and overdue_amount > 0:
+        lines.append({
+            "text": f"⚠️ Encours en retard : {overdue_amount:.0f} € · {overdue_days} jours",
+            "source": {"type": "establishment", "id": eid, "date": now.strftime("%Y-%m-%d")},
+        })
+
+    if not lines:
+        lines.append({"text": "Rien de particulier depuis la dernière visite.", "source": None})
+
+    return {
+        "establishment_id": eid,
+        "establishment_name": est.get("name"),
+        "lines": lines[:5],
+        "computed_at": now.isoformat(),
+    }
+
+
+@api_router.get("/establishments/{eid}/brief")
+async def get_establishment_brief(eid: str, user=Depends(get_current_user)):
+    return await _compute_brief(eid)
+
+
+@api_router.get("/tours/{tid}/briefs")
+async def get_tour_briefs(tid: str, user=Depends(get_current_user)):
+    """Pré-calcule les briefs de tous les établissements d'une tournée — payload snapshot."""
+    tour = await db.tours.find_one({"id": tid}, {"_id": 0})
+    if not tour:
+        raise HTTPException(404, "Tournée introuvable")
+    briefs = []
+    for eid in (tour.get("client_ids") or []):
+        b = await _compute_brief(eid)
+        briefs.append(b)
+    return {"tour_id": tid, "briefs": briefs, "computed_at": now_iso()}
 
 
 # ---------- CALENDAR EVENTS ----------
@@ -4558,9 +4987,12 @@ async def rgpd_export(cid: str, user=Depends(get_current_user)):
     visits = await db.visits.find({"client_id": cid}, {"_id": 0}).to_list(1000)
     activities = await db.activities.find({"client_id": cid}, {"_id": 0}).to_list(1000)
     objections = await db.objections.find({"establishment_id": cid}, {"_id": 0}).to_list(1000)
+    engagements = await db.engagements.find({"establishment_id": cid}, {"_id": 0}).to_list(1000)
+    client_memory = await db.client_memory.find_one({"establishment_id": cid}, {"_id": 0})
     await audit_log(user["id"], "rgpd_export", {"client_id": cid})
     return {"client": client_doc, "establishment": est_doc, "orders": orders,
             "visits": visits, "activities": activities, "objections": objections,
+            "engagements": engagements, "client_memory": client_memory,
             "exported_at": now_iso()}
 
 @api_router.delete("/rgpd/clients/{cid}")
@@ -4570,6 +5002,7 @@ async def rgpd_delete(cid: str, user=Depends(get_current_user)):
     n_orders = await db.orders.count_documents({"client_id": cid})
     n_visits = await db.visits.count_documents({"client_id": cid})
     n_objections = await db.objections.count_documents({"establishment_id": cid})
+    n_engagements = await db.engagements.count_documents({"establishment_id": cid})
     res = await db.clients.delete_one({"id": cid})
     if res.deleted_count == 0:
         raise HTTPException(404, "Client introuvable")
@@ -4578,8 +5011,10 @@ async def rgpd_delete(cid: str, user=Depends(get_current_user)):
     await db.visits.delete_many({"client_id": cid})
     await db.activities.delete_many({"client_id": cid})
     await db.objections.delete_many({"establishment_id": cid})
-    await audit_log(user["id"], "rgpd_delete", {"client_id": cid, "orders": n_orders, "visits": n_visits, "objections": n_objections})
-    return {"ok": True, "deleted_client_id": cid, "orders_deleted": n_orders, "visits_deleted": n_visits, "objections_deleted": n_objections}
+    await db.engagements.delete_many({"establishment_id": cid})
+    await db.client_memory.delete_many({"establishment_id": cid})
+    await audit_log(user["id"], "rgpd_delete", {"client_id": cid, "orders": n_orders, "visits": n_visits, "objections": n_objections, "engagements": n_engagements})
+    return {"ok": True, "deleted_client_id": cid, "orders_deleted": n_orders, "visits_deleted": n_visits, "objections_deleted": n_objections, "engagements_deleted": n_engagements}
 
 # ==========================================================
 # ORG SETTINGS (seuils, RGPD, géoloc, rétention audio)

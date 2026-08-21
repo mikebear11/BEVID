@@ -50,6 +50,8 @@ SCOPED_COLLECTIONS = {
     "voice_recordings", "monthly_goals", "prospects", "radar_alerts",
     "veille_alerts", "bouclier_alerts", "drms",
     "objections",  # Lot 7 étape 1 — objections commerciales scopées par org
+    "engagements", # Lot 7 étape 4 — promesses issues des visites
+    "client_memory",  # Lot 7 étape 2 — mémoire client cache (recalcul événementiel)
 }
 
 

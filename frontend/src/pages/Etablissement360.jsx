@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import RunoutList from "@/components/RunoutList";
 import ObjectionsList from "@/components/ObjectionsList";
+import ClientMemory from "@/components/ClientMemory";
+import BriefButton from "@/components/BriefButton";
 
 const CREDIT_COLOR = { vert: "#2D5A4C", orange: "#C78B3A", rouge: "#8C2A2A" };
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", rouge: "COMPTE BLOQUÉ" };
@@ -49,10 +51,13 @@ export default function Etablissement360() {
             <h1 className="font-display text-3xl md:text-4xl">{e.name}</h1>
             {e.city && <p className="text-sm text-stone-500 mt-1">{e.city}</p>}
           </div>
-          <div className="text-right">
-            <p className="overline">Encours</p>
-            <p className="font-display text-2xl" style={{color}}>{(e.current_credit || 0).toLocaleString('fr-FR')} €</p>
-            <span className="text-[10px] uppercase tracking-widest font-bold" style={{color}}>{CREDIT_LABEL[status]}</span>
+          <div className="text-right flex flex-col items-end gap-2">
+            <div>
+              <p className="overline">Encours</p>
+              <p className="font-display text-2xl" style={{color}}>{(e.current_credit || 0).toLocaleString('fr-FR')} €</p>
+              <span className="text-[10px] uppercase tracking-widest font-bold" style={{color}}>{CREDIT_LABEL[status]}</span>
+            </div>
+            <BriefButton establishmentId={id} testId="brief-btn-etab" />
           </div>
         </div>
         {status !== "vert" && (
@@ -72,6 +77,11 @@ export default function Etablissement360() {
         <div className="card-crm p-3"><p className="overline">Volumes 12m</p><p className="font-display text-lg">{(e.volumes_12m?.reduce((s,x)=>s+x.ca,0) || 0).toLocaleString('fr-FR', {maximumFractionDigits:0})} €</p></div>
         <div className="card-crm p-3"><p className="overline">Dernière visite</p><p className="font-display text-lg">{e.last_visit ? new Date(e.last_visit.created_at).toLocaleDateString('fr-FR', {day:'numeric',month:'short'}) : "—"}</p></div>
         <div className="card-crm p-3"><p className="overline">Prochaine action</p><p className="text-xs">{e.last_visit?.next_action || "—"}</p></div>
+      </div>
+
+      {/* Lot 7 étape 2 — Mémoire client "Ce qu'il faut savoir" */}
+      <div className="card-crm p-4 mt-3" data-testid="etab-memory">
+        <ClientMemory establishmentId={id} />
       </div>
 
       {e.top_products?.length > 0 && (

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import VoiceOrderReview from "@/components/VoiceOrderReview";
 import ObjectionExtractPanel from "@/components/ObjectionExtractPanel";
+import EngagementExtractPanel from "@/components/EngagementExtractPanel";
 
 const MOODS = [
   { v: "excellent", label: "😄 Excellent", color: "#2D5A4C" },
@@ -40,6 +41,7 @@ export default function VisitReport() {
   const [aiLoading, setAiLoading] = useState(false);
   const [orderReviewOpen, setOrderReviewOpen] = useState(false);
   const [objectionsOpen, setObjectionsOpen] = useState(false);
+  const [engagementsOpen, setEngagementsOpen] = useState(false);
   const [createdVisitId, setCreatedVisitId] = useState(null);
   const { supported, listening, transcript, start, stop, reset, setTranscript } = useVoice("fr-FR");
 
@@ -208,6 +210,17 @@ export default function VisitReport() {
         visitId={createdVisitId}
         onClose={() => {
           setObjectionsOpen(false);
+          // Enchaîne sur les engagements après les objections.
+          setEngagementsOpen(true);
+        }}
+        onConfirmed={() => { /* toast déjà géré dans le panel */ }}
+      />
+
+      <EngagementExtractPanel
+        open={engagementsOpen}
+        visitId={createdVisitId}
+        onClose={() => {
+          setEngagementsOpen(false);
           if (form.client_id) nav(`/clients/${form.client_id}`);
         }}
         onConfirmed={() => { /* toast déjà géré dans le panel */ }}
