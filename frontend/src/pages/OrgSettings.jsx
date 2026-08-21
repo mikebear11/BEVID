@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Building2, Palette, Coins, Globe } from "lucide-react";
+import { Building2, Palette, Coins, Globe, Sparkles, Loader2 } from "lucide-react";
 import { t as tt } from "@/lib/i18n";
 
 /**
@@ -13,6 +13,8 @@ export default function OrgSettings() {
   const { user } = useAuth();
   const [s, setS] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [consolidating, setConsolidating] = useState(false);
+  const [consolidateReport, setConsolidateReport] = useState(null);
 
   useEffect(() => { api.get("/org/branding").then(r => setS(r.data)); }, []);
 
@@ -90,6 +92,80 @@ export default function OrgSettings() {
           onBlur={(e) => e.target.value !== s.legal_notice && save({ legal_notice: e.target.value })}
           rows={4}
           className="input-crm" data-testid="orgsettings-legal" />
+      </section>
+
+      {/* Zone démo — purge les fake data et enrichit les vrais établissements
+          avec 6 mois d'historique cohérent (visites, commandes, objections,
+          engagements). Idempotent : safe à rejouer. */}
+      <section className="card-crm p-6 space-y-3" data-testid="orgsettings-consolidate-section">
+        <p className="overline flex items-center gap-1"><Sparkles size={12} /> Consolidation des données de démo</p>
+        <p className="text-sm text-stone-600 dark:text-stone-300">
+          Purge les fake clients (TESTP_, PROPTEST-, BAR LE CENTRAL…) et enrichit les
+          établissements réels (ADT 64, BEKAST, SAS CASSOULET…) avec 6 mois d'historique
+          crédible : commandes, visites, objections, engagements. À utiliser en préparation
+          d'une démo.
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            if (!window.confirm("Purger les fake data et enrichir les vrais établissements avec 6 mois d'historique ? Idempotent, safe à rejouer.")) return;
+            setConsolidating(true); setConsolidateReport(null);
+            try {
+              const { data } = await api.post("/admin/demo/consolidate");
+              setConsolidateReport(data);
+              toast.success(`Purgé ${data.establishments_purged + data.clients_purged} fiches / ${data.orders_purged} commandes · ${data.enriched_establishments} enrichi(s)`);
+            } catch (e) {
+              toast.error(e?.response?.data?.detail || "Consolidation impossible");
+            } finally { setConsolidating(false); }
+          }}
+          disabled={consolidating}
+          className="btn-primary flex items-center gap-2"
+          data-testid="orgsettings-consolidate-btn"
+        >
+          {consolidating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          Lancer la consolidation
+        </button>
+        {consolidateReport && (
+          <div className="mt-3 border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden" data-testid="orgsettings-consolidate-report">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-stone-200 dark:bg-stone-700">
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Établiss. purgés</p>
+                <p className="font-display text-lg text-[#8C2A2A]">{consolidateReport.establishments_purged}</p>
+              </div>
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Commandes purgées</p>
+                <p className="font-display text-lg text-[#8C2A2A]">{consolidateReport.orders_purged}</p>
+              </div>
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Produits purgés</p>
+                <p className="font-display text-lg text-[#8C2A2A]">{consolidateReport.products_purged}</p>
+              </div>
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Étab. enrichis</p>
+                <p className="font-display text-lg text-[#2D5A4C]">{consolidateReport.enriched_establishments}</p>
+              </div>
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Commandes créées</p>
+                <p className="font-display text-lg text-[#4A154B]">{consolidateReport.orders_created}</p>
+              </div>
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Visites créées</p>
+                <p className="font-display text-lg text-[#4A154B]">{consolidateReport.visits_created}</p>
+              </div>
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Objections</p>
+                <p className="font-display text-lg text-[#4A154B]">{consolidateReport.objections_created}</p>
+              </div>
+              <div className="bg-white dark:bg-stone-900 p-2 text-center">
+                <p className="overline">Engagements</p>
+                <p className="font-display text-lg text-[#4A154B]">{consolidateReport.engagements_created}</p>
+              </div>
+            </div>
+            <div className="px-3 py-2 text-[11px] text-stone-500 bg-stone-50 dark:bg-stone-800">
+              Préservés : {(consolidateReport.preserved_establishments || []).join(" · ")}
+            </div>
+          </div>
+        )}
       </section>
       {saving && <p className="text-xs text-stone-500">Enregistrement…</p>}
     </div>

@@ -728,6 +728,52 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 8 — Consolidation Test Data (21/02/2026)
+
+### Contexte
+Après 30+ itérations de dev + tests, la base démo était polluée par 300+ fake
+orders (TESTPDF_, PROP_XXX, MANUAL_, BAR LE CENTRAL, BK_…), 13 établissements
+fantômes et 17 produits `TESTP2_prod_*`. Impossible de faire une démo crédible
+sans nettoyer manuellement pendant 20 minutes.
+
+### Backend
+- Nouveau endpoint `POST /api/admin/demo/consolidate` (manager only, 403 sinon).
+- **Étape 1 — Purge** :
+  - Établissements dont le nom n'est pas dans la liste réelle
+    (ADT 64, BEKAST, SAS CASSOULET, Bar de la Poste, Tour Eiffel Test).
+  - `db.clients` (legacy) : mêmes noms + motifs junk explicites
+    (TESTP_, PROPTEST-, MANUAL, TESTPDF_, PROP_XYZ, BAR LE CENTRAL, …).
+  - Cascade sur orders/visits/activities/objections/engagements/comments/memory.
+  - Produits `TESTP*`, `PROP_TEST*`, `MANUAL*` supprimés en masse (regex Mongo).
+- **Étape 2 — Enrichissement** (idempotent via flag `demo_history_seeded`) :
+  - Rythmes de commandes personnalisés par établissement (14/21/28/35 j).
+  - 3 lignes par commande (panier bière + vin + soft).
+  - 1 commande d'événement (qty×4) au milieu de l'historique pour valider
+    le filtrage IQR de la prédiction de rupture.
+  - 1-3 visites par établissement avec `voice_transcript` réaliste.
+  - 0-2 objections crédibles CHR (prix, contrat concurrent, rotation lente).
+  - 0-1 engagement à J+4 à J+14.
+  - Recompute automatique de la mémoire client.
+
+### Frontend
+- Section « Consolidation des données de démo » dans `/org/settings`
+  (manager only) avec bouton `orgsettings-consolidate-btn` + confirmation
+  native + rapport 8 KPI (purgés / créés) après exécution.
+
+### Résultats runtime (base démo)
+- **Purgé** : 13 établissements, 6 clients legacy, 341 commandes, 39 visites,
+  17 produits.
+- **Créé** : 40 commandes, 9 visites, 6 objections, 4 engagements sur 5 vrais
+  établissements.
+- **Idempotence** : 2e et 3e appels → tous compteurs à 0.
+- **État final** : 5 établissements réels, 40 commandes propres, 0 fake data.
+
+### Tests
+- `/app/backend/tests/test_iter35_consolidate.py` : **7 tests**.
+  - 403 pour commercial, shape du rapport, idempotence, aucun junk restant
+    (établissements + orders), établissements réels préservés, historique
+    correctement créé sur ADT 64.
+
 ## Lot 8 — Import / Export XLSX (21/02/2026)
 
 ### Contexte

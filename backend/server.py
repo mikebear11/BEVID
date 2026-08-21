@@ -5674,6 +5674,254 @@ async def enrich_demo_history(user=Depends(get_current_user)):
     }
 
 
+# ---------- Consolidation Test Data (Lot 8 · démo propre) ----------
+# But : purger les fake clients / commandes / produits accumulés pendant les
+# itérations puis enrichir les vrais établissements avec 6 mois d'historique
+# réaliste. Idempotent (safe à rejouer). Ne touche jamais les données prod
+# hors organisation `BEVID Démo`.
+
+# Établissements réels à préserver (liste manuelle — MAJ à la demande).
+_REAL_ESTABLISHMENT_NAMES = {
+    "ADT 64", "BEKAST (BURGER KING)", "SAS CASSOULET",
+    "Bar de la Poste", "Tour Eiffel Test",
+}
+
+# Motifs de test à purger dans db.clients ET db.establishments.
+_JUNK_CLIENT_NAME_PATTERNS = [
+    "TESTP_", "TESTP2_", "PROPTEST-", "PROP_TEST", "PROP_XYZ", "PROP_XXX",
+    "BAR LE CENTRAL", "Bar Le Central",
+    "MANUAL ", "MANUAL_", "TEST_client_", "TESTPDF_", "TESTPDF_NOEMAIL_",
+    "BK_ok", "BK_bad", "XLSX Test", "Test Contacts SARL",
+    "Test Places", "Brasserie Test 1", "Brasserie Test 2",
+    "Brasserie Test 3", "Danone Test", "FrontImport",
+]
+# Legacy dupliqués db.clients ↔ db.establishments — purge complète.
+_LEGACY_DUPLICATE_NAMES = {
+    "Cave du Sud", "Restaurant Chez Paul", "Supermarché Frais",
+    "Hôtel Belvédère", "Cave du Marché", "Le Petit Bistrot",
+}
+
+
+def _looks_like_junk_client(name: str) -> bool:
+    if not name:
+        return True
+    n = name.strip()
+    if n in _LEGACY_DUPLICATE_NAMES:
+        return True
+    return any(pat in n for pat in _JUNK_CLIENT_NAME_PATTERNS)
+
+
+@api_router.post("/admin/demo/consolidate")
+async def consolidate_demo_data(user=Depends(get_current_user)):
+    """Nettoie et reconstruit les données de démo en un seul appel.
+
+    Étape 1 — Purge :
+      - Établissements/clients dont le nom matche un motif de test connu.
+      - Commandes et visites orphelines (clients purgés) + junk order names.
+      - Produits « TESTP_/TESTP2_/PROP_TEST/MANUAL » et autres artefacts.
+
+    Étape 2 — Enrichissement :
+      - Sur chaque établissement réel préservé, insère 6 mois d'historique
+        de commandes, 1-3 visites et 0-2 objections + 0-1 engagement.
+      - Idempotent : `demo_history_seeded=True` bloque le rejeu.
+    """
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Réservé aux managers")
+
+    stats = {
+        "establishments_purged": 0,
+        "clients_purged": 0,
+        "orders_purged": 0,
+        "visits_purged": 0,
+        "products_purged": 0,
+        "enriched_establishments": 0,
+        "orders_created": 0,
+        "visits_created": 0,
+        "objections_created": 0,
+        "engagements_created": 0,
+    }
+    purged_ids: set[str] = set()
+
+    all_ests = await db.establishments.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(2000)
+    for e in all_ests:
+        if e["name"] not in _REAL_ESTABLISHMENT_NAMES:
+            purged_ids.add(e["id"])
+    all_clients_raw = await db_raw.clients.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(2000)
+    for c in all_clients_raw:
+        if _looks_like_junk_client(c.get("name", "")):
+            purged_ids.add(c["id"])
+
+    if purged_ids:
+        r_est = await db.establishments.delete_many({"id": {"$in": list(purged_ids)}})
+        stats["establishments_purged"] = r_est.deleted_count
+        r_cli = await db_raw.clients.delete_many({"id": {"$in": list(purged_ids)}})
+        stats["clients_purged"] = r_cli.deleted_count
+        r_ord = await db.orders.delete_many({"client_id": {"$in": list(purged_ids)}})
+        stats["orders_purged"] += r_ord.deleted_count
+        r_vis = await db.visits.delete_many({"client_id": {"$in": list(purged_ids)}})
+        stats["visits_purged"] += r_vis.deleted_count
+        await db.activities.delete_many({"client_id": {"$in": list(purged_ids)}})
+        await db.objections.delete_many({"establishment_id": {"$in": list(purged_ids)}})
+        await db.engagements.delete_many({"establishment_id": {"$in": list(purged_ids)}})
+        await db.establishment_comments.delete_many({"establishment_id": {"$in": list(purged_ids)}})
+        await db.client_memory.delete_many({"establishment_id": {"$in": list(purged_ids)}})
+
+    all_orders = await db.orders.find({}, {"_id": 0, "id": 1, "client_name": 1}).to_list(5000)
+    junk_order_ids = [o["id"] for o in all_orders if _looks_like_junk_client(o.get("client_name", ""))]
+    if junk_order_ids:
+        r_junk = await db.orders.delete_many({"id": {"$in": junk_order_ids}})
+        stats["orders_purged"] += r_junk.deleted_count
+
+    r_prod = await db.products.delete_many({"name": {"$regex": r"^(TESTP|TESTP2|PROP_TEST|MANUAL)"}})
+    stats["products_purged"] = r_prod.deleted_count
+
+    products = await db.products.find({}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    beers = [p for p in products if p.get("category") == "biere"][:6]
+    wines = [p for p in products if p.get("category") == "vin"][:3]
+    softs = [p for p in products if p.get("category") in ("soft", "eau")][:2]
+    catalog = beers + wines + softs
+    if len(catalog) < 3:
+        return {**stats, "warning": "Catalogue insuffisant pour l'enrichissement (min 3 produits)"}
+
+    real_ests = await db.establishments.find({"name": {"$in": list(_REAL_ESTABLISHMENT_NAMES)}},
+                                              {"_id": 0}).to_list(50)
+    from datetime import timedelta as _td
+    today = datetime.now(timezone.utc)
+
+    rhythms = {
+        "ADT 64": 14,
+        "BEKAST (BURGER KING)": 21,
+        "SAS CASSOULET": 28,
+        "Bar de la Poste": 21,
+        "Tour Eiffel Test": 35,
+    }
+    visit_templates = {
+        "ADT 64": [
+            ("bon", "chaud", "Bonne discussion, cave bien fournie mais demande une IPA plus houblonnée. Va tester le fût 30L la semaine prochaine.", "commande"),
+            ("excellent", "chaud", "Signature commande 6 fûts, paiement à 30j comme d'habitude. Habitué samedi soir.", "relance"),
+            ("neutre", "tiede", "Gérant absent, discussion rapide avec le sommelier. Reviendra sur la sélection vin dans 15j.", "visite"),
+        ],
+        "BEKAST (BURGER KING)": [
+            ("bon", "chaud", "Volume élevé sur les softs. Négociation sur le prix Coca 33cl — demande un geste à partir de 100 unités.", "devis"),
+            ("neutre", "tiede", "Nouveau directeur en place. Reprendre les usages avant tout engagement.", "visite"),
+        ],
+        "SAS CASSOULET": [
+            ("bon", "tiede", "Bonne relation, commandes régulières. Demande une carte des vins locaux plus riche.", "devis"),
+            ("difficile", "froid", "Concurrent local propose -8%. Il faut revoir la grille ou perdre le compte.", "relance"),
+        ],
+        "Bar de la Poste": [
+            ("bon", "chaud", "Terrasse ensoleillée, forte demande blonde et pression IPA. Commande hebdo à mettre en place.", "commande"),
+        ],
+        "Tour Eiffel Test": [
+            ("neutre", "tiede", "Rotation lente sur les gammes premium. À travailler sur les événements mensuels.", "visite"),
+        ],
+    }
+    objection_templates = {
+        "ADT 64": [("prix", "IPA 30L jugée 5% plus chère que la concurrence locale")],
+        "BEKAST (BURGER KING)": [("prix", "Négocie une remise volume sur Coca 33cl"), ("logistique_livraison", "Livraison uniquement en semaine avant 10h")],
+        "SAS CASSOULET": [("contrat_concurrent", "Concurrent local propose -8% sur la Blonde 30L"), ("rotation_lente", "Rotation lente sur le champagne")],
+        "Bar de la Poste": [],
+        "Tour Eiffel Test": [("rotation_lente", "Faible rotation sur les gammes premium")],
+    }
+    engagement_templates = {
+        "ADT 64": [("agent", "Envoyer fiche technique IPA 30L", 7)],
+        "BEKAST (BURGER KING)": [("agent", "Faire un devis remise volume Coca 33cl", 5)],
+        "SAS CASSOULET": [("client", "Rappeler après réunion associés (jeudi)", 4)],
+        "Bar de la Poste": [],
+        "Tour Eiffel Test": [("agent", "Proposer une animation dégustation mensuelle", 14)],
+    }
+
+    for idx, est in enumerate(real_ests):
+        name = est["name"]
+        if est.get("demo_history_seeded"):
+            continue
+        rhythm = rhythms.get(name, 21)
+        n = max(6, min(13, int(180 / rhythm)))
+        last_offset = 3 + (idx % 6)
+        panier = [
+            catalog[idx % len(catalog)],
+            catalog[(idx + 2) % len(catalog)],
+            catalog[(idx + 4) % len(catalog)] if len(catalog) > 4 else catalog[0],
+        ]
+        for i in range(n):
+            days_ago = last_offset + (n - 1 - i) * rhythm
+            created_at = (today - _td(days=days_ago)).isoformat()
+            is_event = (i == n // 2)
+            lines = []
+            total = 0.0
+            for p in panier:
+                base_qty = 3 if p.get("unit") == "fût" else 6
+                qty = base_qty * 4 if is_event else base_qty
+                lines.append({
+                    "product_id": p["id"], "product_name": p.get("name"),
+                    "quantity": qty, "unit_price": p.get("price", 0) or 0,
+                })
+                total += qty * (p.get("price", 0) or 0)
+            doc = {
+                "id": str(uuid.uuid4()),
+                "client_id": est["id"], "client_name": name,
+                "agent_id": user["id"], "agent_name": user.get("name") or user.get("email"),
+                "lines": lines, "total": round(total, 2),
+                "status": "livre" if days_ago > 5 else "confirme",
+                "delivery_status": "livree" if days_ago > 5 else "pending",
+                "created_at": created_at,
+                "delivery_date": (today - _td(days=max(days_ago - 3, 0))).date().isoformat(),
+                "demo_seeded": True,
+            }
+            await db.orders.insert_one(doc)
+            stats["orders_created"] += 1
+
+        last_visit_id = None
+        for j, (mood, interest, summary, next_action) in enumerate(visit_templates.get(name, [])):
+            days_ago = last_offset + (j + 1) * 45
+            vdoc = VisitReport(
+                client_id=est["id"], client_name=name,
+                agent_id=user["id"], owner_id=user["id"],
+                mood=mood, interest=interest, next_action=next_action,
+                summary=summary, voice_transcript=summary,
+                created_at=(today - _td(days=days_ago)).isoformat(),
+            ).model_dump()
+            await db.visits.insert_one(vdoc)
+            stats["visits_created"] += 1
+            last_visit_id = vdoc["id"]
+
+        for cat, label in objection_templates.get(name, []):
+            o = Objection(
+                establishment_id=est["id"], label=label, category=cat,
+                status="ouverte", occurrences=2 if idx % 2 == 0 else 1,
+                source_visit_id=last_visit_id,
+                created_by=user["id"], owner_id=user["id"],
+            ).model_dump()
+            await db.objections.insert_one(o)
+            stats["objections_created"] += 1
+
+        for owner, label, days_ahead in engagement_templates.get(name, []):
+            edoc = {
+                "id": str(uuid.uuid4()),
+                "establishment_id": est["id"], "label": label,
+                "owner": owner, "status": "ouvert",
+                "due_date": (today + _td(days=days_ahead)).date().isoformat(),
+                "source_visit_id": last_visit_id,
+                "owner_id": user["id"], "created_by": user["id"],
+                "created_at": today.isoformat(),
+            }
+            await db.engagements.insert_one(edoc)
+            stats["engagements_created"] += 1
+
+        await db.establishments.update_one(
+            {"id": est["id"]},
+            {"$set": {"demo_history_seeded": True, "updated_at": now_iso()}},
+        )
+        stats["enriched_establishments"] += 1
+
+        try:
+            await _recompute_client_memory(est["id"])
+        except Exception as _e:
+            logger.warning(f"[consolidate] recompute memory failed for {name}: {_e}")
+
+    return {**stats, "preserved_establishments": list(_REAL_ESTABLISHMENT_NAMES)}
+
+
 # ---------- CARNET COMMANDES SIGNÉES NON LIVRÉES + PRÉVISION ----------
 @api_router.get("/orderbook")
 async def orderbook(user=Depends(get_current_user)):
