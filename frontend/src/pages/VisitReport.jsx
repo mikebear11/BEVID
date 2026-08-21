@@ -6,6 +6,7 @@ import { Mic, Check, Sparkles, Loader2, CloudOff, ShoppingCart } from "lucide-re
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import VoiceOrderReview from "@/components/VoiceOrderReview";
+import ObjectionExtractPanel from "@/components/ObjectionExtractPanel";
 
 const MOODS = [
   { v: "excellent", label: "😄 Excellent", color: "#2D5A4C" },
@@ -38,6 +39,8 @@ export default function VisitReport() {
   const [submitting, setSubmitting] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [orderReviewOpen, setOrderReviewOpen] = useState(false);
+  const [objectionsOpen, setObjectionsOpen] = useState(false);
+  const [createdVisitId, setCreatedVisitId] = useState(null);
   const { supported, listening, transcript, start, stop, reset, setTranscript } = useVoice("fr-FR");
 
   useEffect(() => { api.get("/clients").then(r => setClients(r.data)); }, []);
@@ -72,10 +75,20 @@ export default function VisitReport() {
       const res = await postOffline("/visits", payload);
       if (res.offline) {
         toast.success(t("toast.enregistre_hors_ligne_sera_synchron"), { icon: "📶" });
+        nav(`/clients/${form.client_id}`);
       } else {
         toast.success(t("toast.compte_rendu_enregistre"));
+        // Extraction d'objections (Lot 7 étape 1) si transcription vocale présente.
+        // Ouvre le modal ; la navigation vers la fiche client suit sa fermeture.
+        const vid = res?.data?.id;
+        const rawText = ((transcript || form.summary) || "").trim();
+        if (vid && rawText.length > 8) {
+          setCreatedVisitId(vid);
+          setObjectionsOpen(true);
+          return;  // pas de nav ici — voir onClose du panel
+        }
+        nav(`/clients/${form.client_id}`);
       }
-      nav(`/clients/${form.client_id}`);
     } catch { toast.error(t("toast.erreur")); }
     finally { setSubmitting(false); }
   };
@@ -189,6 +202,16 @@ export default function VisitReport() {
           Enregistrer le compte-rendu
         </button>
       </form>
+
+      <ObjectionExtractPanel
+        open={objectionsOpen}
+        visitId={createdVisitId}
+        onClose={() => {
+          setObjectionsOpen(false);
+          if (form.client_id) nav(`/clients/${form.client_id}`);
+        }}
+        onConfirmed={() => { /* toast déjà géré dans le panel */ }}
+      />
     </div>
   );
 }

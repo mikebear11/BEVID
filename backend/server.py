@@ -2204,6 +2204,233 @@ async def list_visits(client_id: Optional[str] = None, user=Depends(get_current_
     items = await db.visits.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
     return items
 
+
+# ---------- Lot 7 étape 1 : Objections commerciales ----------
+# Modèle de premier ordre — extrait des comptes rendus dictés, jamais écrit
+# automatiquement dans la fiche. Le commercial valide ligne par ligne.
+OBJECTION_CATEGORIES = {
+    "prix", "marge", "place_en_cave", "contrat_concurrent",
+    "rotation_lente", "tresorerie", "qualite_percue",
+    "ddm_fraicheur", "logistique_livraison", "autre",
+}
+OBJECTION_STATUS = {"ouverte", "traitee", "recurrente"}
+OBJECTION_OUTCOMES = {"levee", "contournee", "bloquante"}
+
+
+class Objection(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    establishment_id: str
+    label: str
+    category: str
+    first_seen_at: str = Field(default_factory=now_iso)
+    last_seen_at: str = Field(default_factory=now_iso)
+    occurrences: int = 1
+    status: str = "ouverte"
+    response_used: Optional[str] = None
+    outcome: Optional[str] = None
+    source_visit_id: Optional[str] = None
+    created_by: str
+    owner_id: str
+
+
+class ObjectionPatch(BaseModel):
+    status: Optional[str] = None
+    response_used: Optional[str] = None
+    outcome: Optional[str] = None
+    category: Optional[str] = None
+    label: Optional[str] = None
+
+
+class ObjectionCreate(BaseModel):
+    establishment_id: str
+    label: str
+    category: str
+    source_visit_id: Optional[str] = None
+
+
+class ObjectionConfirmItem(BaseModel):
+    label: str
+    category: str
+
+
+class ObjectionConfirmRequest(BaseModel):
+    items: List[ObjectionConfirmItem]
+
+
+@api_router.get("/establishments/{eid}/objections")
+async def list_objections(eid: str, user=Depends(get_current_user)):
+    items = await db.objections.find({"establishment_id": eid}, {"_id": 0}).sort("last_seen_at", -1).to_list(200)
+    return items
+
+
+@api_router.post("/objections")
+async def create_objection(data: ObjectionCreate, user=Depends(get_current_user)):
+    if data.category not in OBJECTION_CATEGORIES:
+        raise HTTPException(422, "Catégorie invalide")
+    label_clean = data.label.strip()[:500]
+    if not label_clean:
+        raise HTTPException(422, "Label requis")
+    o = Objection(
+        establishment_id=data.establishment_id,
+        label=label_clean,
+        category=data.category,
+        source_visit_id=data.source_visit_id,
+        created_by=user["id"],
+        owner_id=user["id"],
+    )
+    await db.objections.insert_one(o.model_dump())
+    return o.model_dump()
+
+
+@api_router.patch("/objections/{oid}")
+async def patch_objection(oid: str, data: ObjectionPatch, user=Depends(get_current_user)):
+    updates = {}
+    if data.status is not None:
+        if data.status not in OBJECTION_STATUS:
+            raise HTTPException(422, "Statut invalide")
+        updates["status"] = data.status
+    if data.response_used is not None:
+        updates["response_used"] = data.response_used.strip()[:500]
+    if data.outcome is not None:
+        if data.outcome not in OBJECTION_OUTCOMES:
+            raise HTTPException(422, "Résultat invalide")
+        updates["outcome"] = data.outcome
+    if data.category is not None:
+        if data.category not in OBJECTION_CATEGORIES:
+            raise HTTPException(422, "Catégorie invalide")
+        updates["category"] = data.category
+    if data.label is not None:
+        updates["label"] = data.label.strip()[:500]
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    updates["last_seen_at"] = now_iso()
+    r = await db.objections.update_one({"id": oid}, {"$set": updates})
+    if r.matched_count == 0:
+        raise HTTPException(404, "Objection introuvable")
+    return await db.objections.find_one({"id": oid}, {"_id": 0})
+
+
+@api_router.post("/visits/{vid}/extract-objections")
+async def extract_objections(vid: str, user=Depends(get_current_user)):
+    """Appelle GPT-5.6 Sol pour proposer des objections structurées.
+    Ne persiste RIEN — retourne uniquement des propositions à valider.
+    """
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(500, "Clé LLM manquante")
+    v = await db.visits.find_one({"id": vid}, {"_id": 0})
+    if not v:
+        raise HTTPException(404, "Visite introuvable")
+    transcript = (v.get("voice_transcript") or v.get("summary") or "").strip()
+    if not transcript:
+        return {"proposals": [], "reason": "empty_transcript"}
+
+    system_msg = (
+        "Tu es un extracteur strict d'objections commerciales à partir de comptes rendus "
+        "de visite en français.\n\n"
+        "RÈGLES ABSOLUES :\n"
+        "1. Aucun jugement sur les personnes (jamais 'gérant difficile', 'peu fiable', etc.).\n"
+        "2. N'invente RIEN. Si aucune objection n'est mentionnée dans le texte, retourne une liste vide [].\n"
+        "3. Le label doit être une phrase COURTE reformulant l'objection du CLIENT "
+        "(verbatim de préférence), pas ta paraphrase du commercial.\n"
+        "4. La catégorie est OBLIGATOIREMENT dans cette liste fermée : "
+        "prix, marge, place_en_cave, contrat_concurrent, rotation_lente, "
+        "tresorerie, qualite_percue, ddm_fraicheur, logistique_livraison, autre.\n"
+        "5. confidence dans [0, 1] — mets >= 0.7 seulement si l'objection est explicite.\n\n"
+        "FORMAT DE SORTIE : uniquement du JSON, une liste "
+        "[{\"label\": string, \"category\": string, \"confidence\": float}]. "
+        "Aucun texte hors JSON, aucune balise markdown."
+    )
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"obj-extract-{vid}-{uuid.uuid4().hex[:6]}",
+        system_message=system_msg,
+    ).with_model("openai", "gpt-5.6-sol")
+    try:
+        reply = await chat.send_message(UserMessage(text=f"Compte rendu à analyser :\n{transcript}"))
+    except Exception as e:
+        logger.warning(f"[objections extract] LLM error : {e}")
+        raise HTTPException(502, "Extraction indisponible")
+
+    import json as _json
+    clean = re.sub(r"```json|```", "", reply or "").strip()
+    try:
+        data = _json.loads(clean)
+    except Exception:
+        return {"proposals": [], "raw": reply, "reason": "invalid_json"}
+
+    if not isinstance(data, list):
+        return {"proposals": [], "raw": reply, "reason": "not_a_list"}
+
+    proposals = []
+    for item in data[:10]:  # cap à 10 propositions
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label", "")).strip()[:500]
+        category = str(item.get("category", "")).strip()
+        confidence = item.get("confidence", 0)
+        if not label or category not in OBJECTION_CATEGORIES:
+            continue
+        try:
+            confidence = float(confidence)
+        except Exception:
+            confidence = 0.5
+        proposals.append({
+            "label": label,
+            "category": category,
+            "confidence": max(0.0, min(1.0, confidence)),
+        })
+    return {"proposals": proposals, "visit_id": vid}
+
+
+@api_router.post("/visits/{vid}/confirm-objections")
+async def confirm_objections(vid: str, data: ObjectionConfirmRequest, user=Depends(get_current_user)):
+    """Valide manuellement les objections proposées → persistance en base.
+    Détecte la récurrence sur la même catégorie / établissement.
+    """
+    v = await db.visits.find_one({"id": vid}, {"_id": 0})
+    if not v:
+        raise HTTPException(404, "Visite introuvable")
+    eid = v.get("client_id")
+    inserted = []
+    for item in data.items[:10]:
+        if item.category not in OBJECTION_CATEGORIES:
+            continue
+        label_clean = item.label.strip()[:500]
+        if not label_clean:
+            continue
+        existing = await db.objections.find_one({
+            "establishment_id": eid,
+            "category": item.category,
+            "status": {"$in": ["ouverte", "recurrente"]},
+        })
+        if existing:
+            await db.objections.update_one(
+                {"id": existing["id"]},
+                {
+                    "$set": {
+                        "last_seen_at": now_iso(),
+                        "status": "recurrente",
+                        "label": label_clean,
+                    },
+                    "$inc": {"occurrences": 1},
+                },
+            )
+            inserted.append(await db.objections.find_one({"id": existing["id"]}, {"_id": 0}))
+        else:
+            o = Objection(
+                establishment_id=eid,
+                label=label_clean,
+                category=item.category,
+                source_visit_id=vid,
+                created_by=user["id"],
+                owner_id=user["id"],
+            )
+            await db.objections.insert_one(o.model_dump())
+            inserted.append(o.model_dump())
+    return {"confirmed": inserted, "count": len(inserted)}
+
+
 # ---------- CALENDAR EVENTS ----------
 class CalendarEvent(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -4330,9 +4557,11 @@ async def rgpd_export(cid: str, user=Depends(get_current_user)):
     orders = await db.orders.find({"client_id": cid}, {"_id": 0}).to_list(10000)
     visits = await db.visits.find({"client_id": cid}, {"_id": 0}).to_list(1000)
     activities = await db.activities.find({"client_id": cid}, {"_id": 0}).to_list(1000)
+    objections = await db.objections.find({"establishment_id": cid}, {"_id": 0}).to_list(1000)
     await audit_log(user["id"], "rgpd_export", {"client_id": cid})
     return {"client": client_doc, "establishment": est_doc, "orders": orders,
-            "visits": visits, "activities": activities, "exported_at": now_iso()}
+            "visits": visits, "activities": activities, "objections": objections,
+            "exported_at": now_iso()}
 
 @api_router.delete("/rgpd/clients/{cid}")
 async def rgpd_delete(cid: str, user=Depends(get_current_user)):
@@ -4340,6 +4569,7 @@ async def rgpd_delete(cid: str, user=Depends(get_current_user)):
         raise HTTPException(403, "Manager only")
     n_orders = await db.orders.count_documents({"client_id": cid})
     n_visits = await db.visits.count_documents({"client_id": cid})
+    n_objections = await db.objections.count_documents({"establishment_id": cid})
     res = await db.clients.delete_one({"id": cid})
     if res.deleted_count == 0:
         raise HTTPException(404, "Client introuvable")
@@ -4347,8 +4577,9 @@ async def rgpd_delete(cid: str, user=Depends(get_current_user)):
     await db.orders.delete_many({"client_id": cid})
     await db.visits.delete_many({"client_id": cid})
     await db.activities.delete_many({"client_id": cid})
-    await audit_log(user["id"], "rgpd_delete", {"client_id": cid, "orders": n_orders, "visits": n_visits})
-    return {"ok": True, "deleted_client_id": cid, "orders_deleted": n_orders, "visits_deleted": n_visits}
+    await db.objections.delete_many({"establishment_id": cid})
+    await audit_log(user["id"], "rgpd_delete", {"client_id": cid, "orders": n_orders, "visits": n_visits, "objections": n_objections})
+    return {"ok": True, "deleted_client_id": cid, "orders_deleted": n_orders, "visits_deleted": n_visits, "objections_deleted": n_objections}
 
 # ==========================================================
 # ORG SETTINGS (seuils, RGPD, géoloc, rétention audio)

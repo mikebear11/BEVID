@@ -49,6 +49,7 @@ SCOPED_COLLECTIONS = {
     "settings", "smart_goals", "sync_conflicts", "voice_uploads", "watch_events",
     "voice_recordings", "monthly_goals", "prospects", "radar_alerts",
     "veille_alerts", "bouclier_alerts", "drms",
+    "objections",  # Lot 7 étape 1 — objections commerciales scopées par org
 }
 
 
