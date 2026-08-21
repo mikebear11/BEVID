@@ -626,3 +626,29 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 
 **Note dual collection legacy** : `db.clients` (6 items) et `db.establishments` (5 items) coexistent — décision produit pendante pour merger. La page /clients lit `db.clients`, la fiche 360° lit `db.establishments`.
 
+
+## Iter27 — Compteurs métier + Grisage forfait + Rail réduit (21/02/2026)
+
+### Backend
+- **`GET /api/sidebar/counters`** — retourne `{payments_overdue, containers_out, orders_pending_signature}` (int, >= 0). Filtré par `agent_id`/`owner_id` pour les commerciaux. Scoped multi-tenant via `db`.
+  - `payments_overdue` : orders non payées créées il y a > 30j.
+  - `containers_out` : containers avec `status ∈ {chez_client, sorti}`.
+  - `orders_pending_signature` : orders `status=confirme` sans signature.
+- **`/auth/me`** expose désormais `plan_id` (`terrain`/`pro`/`entreprise`) — nécessaire pour piloter le grisage forfait côté frontend.
+- Tests `test_iter27_sidebar_counters.py` — 5/5 verts (shape, manager >= commercial, auth requise, plan_id présent, features cohérentes).
+
+### Frontend (`Layout.jsx`)
+- **Compteurs métier** : badge ambré discret (99+ max) sur Paiements (impayés dépassés), Contenants (à retourner), Commandes (à signer). Refresh sur chaque changement de route. En mode collapsed, un point ambré indique l'existence d'un compteur.
+- **Grisage forfait** : mapping `FEATURE_MIN_PLAN` dupliqué du `billing_config.py` backend. Pour chaque entrée :
+  - Si sa feature est absente de `org_plan_features` du user :
+    - Manager/gérant/owner → affichée en gris avec pastille "Pro" ou "Entreprise", clic redirige vers `/billing`.
+    - Commercial → cachée (deny-by-default strict).
+  - Sinon → suit le RBAC standard (has(feature) pour commercial).
+- **Mode rail réduit** :
+  - Bouton toggle (`sidebar-collapse-toggle`) dans le header avec icônes `PanelLeftClose` / `PanelLeftOpen`.
+  - Largeur `w-64` ↔ `w-16` (transition CSS).
+  - Labels masqués, tooltips Radix (side="right", délai 300ms) sur chaque entrée + toggle + palette + profil + logout.
+  - Sections toujours "ouvertes" en collapsed (divider fin entre sections).
+  - Préférence sauvegardée en `localStorage.bevid_sidebar_collapsed_v1`.
+- **Cohabitation des 3 features** : les compteurs et pastilles Pro sont mutuellement exclusifs (locked prioritaire). Le drag & drop est désactivé en collapsed ou sur entrée locked.
+

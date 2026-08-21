@@ -410,6 +410,7 @@ async def get_current_user(
         org = await db_raw.organizations.find_one({"id": user.get("org_id")},
                                                    {"_id": 0, "plan": 1})
         plan_id = (org or {}).get("plan") or "terrain"
+        user["plan_id"] = plan_id
         plan = PLANS.get(plan_id)
         # `"*"` ⇒ plan illimité (ne devrait plus arriver mais on garde le repli).
         if plan and "*" not in plan.get("features", set()):
@@ -656,6 +657,51 @@ async def update_sidebar_prefs(data: SidebarPrefsUpdate, user=Depends(get_curren
         raise HTTPException(422, "Aucun champ à modifier")
     await db_raw.users.update_one({"id": user["id"]}, {"$set": updates})
     return await get_sidebar_prefs(user)
+
+
+# ---------- Sidebar counters (Lot 8 suite — points chauds du jour) ----------
+# Trois compteurs discrets affichés en badge sur Paiements, Contenants, Commandes.
+# Retourne toujours des int (0 si rien). Le frontend décide de ne rien afficher si 0.
+@api_router.get("/sidebar/counters")
+async def sidebar_counters(user=Depends(get_current_user)):
+    """Compteurs métier discrets pour la sidebar."""
+    from datetime import datetime as _dt, timedelta as _td
+    is_mgr = user["role"] in ("manager", "gerant", "owner")
+    cutoff_overdue = (datetime.now(timezone.utc) - _td(days=30)).isoformat()
+
+    # 1) Impayés dépassés (30j) — orders non payées créées il y a >30j
+    q_over = {
+        "created_at": {"$lt": cutoff_overdue},
+        "payment_status": {"$nin": ["paid", "refunded"]},
+    }
+    if not is_mgr:
+        q_over["agent_id"] = user["id"]
+    n_overdue = await db.orders.count_documents(q_over)
+
+    # 2) Contenants en retour attendu (sortis, chez client, non retournés)
+    q_cont = {"status": {"$in": ["chez_client", "sorti"]}}
+    if not is_mgr:
+        q_cont["owner_id"] = user["id"]
+    n_containers = await db.containers.count_documents(q_cont)
+
+    # 3) Commandes en attente de signature (confirme, sans signature)
+    q_sig = {
+        "status": "confirme",
+        "$or": [
+            {"signature": {"$exists": False}},
+            {"signature": ""},
+            {"signature": None},
+        ],
+    }
+    if not is_mgr:
+        q_sig["agent_id"] = user["id"]
+    n_sig = await db.orders.count_documents(q_sig)
+
+    return {
+        "payments_overdue": int(n_overdue),
+        "containers_out": int(n_containers),
+        "orders_pending_signature": int(n_sig),
+    }
 
 
 # ---------- Réglages entreprise (manager only) ----------
