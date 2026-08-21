@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -12,7 +12,8 @@ import {
   LayoutDashboard, Users, Wine, ShoppingCart, Route as RouteIcon, BarChart3, UserCog,
   LogOut, ClipboardCheck, Calendar, Trophy, Columns, Target, Plug, Settings as SettingsIcon,
   Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText, Landmark, Compass,
-  Radio, AlertOctagon, Shield, Database, Search, ChevronDown, Truck, Pin, User as UserIcon,
+  Radio, AlertOctagon, Shield, Database, Search, ChevronDown, Truck, Pin, PinOff,
+  User as UserIcon, RotateCcw, GripVertical,
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -20,25 +21,32 @@ import PuceEtat from "@/components/system/PuceEtat";
 import OfflineBanner from "@/components/OfflineBanner";
 import CommandPalette from "@/components/CommandPalette";
 import BillingBanner from "@/components/BillingBanner";
+import {
+  ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 
 /**
  * Navigation refondue selon le cahier des charges "sidebar intelligente" :
  *
  *   1) UNE seule entrée fixe au-dessus des sections : /tableau de bord.
- *   2) Zone épinglée non repliable "Aujourd'hui" : 3 entrées quotidiennes,
- *      toujours visibles. Compteur d'arrêts sur "Ma tournée".
+ *   2) Zone épinglée non repliable "Aujourd'hui" :
+ *        - 3 entrées FIXES (Ma tournée / Visite / Scanner) — immuables.
+ *        - Jusqu'à 3 épingles UTILISATEUR (personnalisation via clic droit).
  *   3) Six sections repliables, ordre figé (jamais de réorganisation auto) :
  *      Clients et ventes · Logistique · Argent · Pilotage · Acquisition · Admin.
- *   4) Aucune entrée présente dans deux groupes. Aucun libellé quasi-dupliqué.
- *   5) `scan` porte sa propre permission `page:scan` — plus jamais dépendant
- *      d'une clé qui appartient à un autre domaine (bug identifié PO).
- *   6) Ouverture initiale selon rôle : commercial → section_sales,
+ *   4) À l'intérieur d'une section, l'utilisateur peut REORDONNER par
+ *      glisser-déposer. Le nouvel ordre est mémorisé par utilisateur (backend).
+ *   5) Aucune entrée présente dans deux groupes. Aucun libellé quasi-dupliqué.
+ *   6) `scan` porte sa propre permission `page:scan`.
+ *   7) Ouverture initiale selon rôle : commercial → section_sales,
  *      manager → section_pilotage. Ensuite, choix utilisateur mémorisé.
- *   7) Sections sans entrée accessible : masquées entièrement.
+ *   8) Sections sans entrée accessible : masquées entièrement.
+ *   9) Réinitialisation par section : entrée "Réinitialiser cette section"
+ *      dans le menu contextuel.
  */
 
-// Zone épinglée — toujours visible, non repliable. Trois entrées maximum.
-const PINNED = [
+// Zone épinglée FIXE — trois entrées quotidiennes intouchables.
+const PINNED_FIXED = [
   { to: "/tournee", key: "tournee", feature: "page:tours", icon: RouteIcon, badgeKey: "stops_today" },
   { to: "/visit",   key: "new_visit", feature: "page:visits", icon: ClipboardCheck },
   { to: "/scan",    key: "scan",  feature: "page:scan", icon: QrCode },
@@ -48,8 +56,6 @@ const PINNED = [
 const HOME_ENTRY = { to: "/", key: "dashboard", feature: "page:dashboard", icon: LayoutDashboard };
 
 const SECTIONS = [
-  // Ordre = fréquence quotidienne décroissante : ouvrir un client, prendre commande,
-  // chercher un produit ; le pilotage commercial (pipeline, deals) vient après.
   { key: "section_sales", entries: [
     { to: "/clients",  key: "clients",  feature: "page:clients", icon: Users },
     { to: "/orders",   key: "orders",   feature: "page:orders",  icon: ShoppingCart },
@@ -76,7 +82,6 @@ const SECTIONS = [
     { to: "/smart-goals",    key: "smart",   feature: "page:dashboard",  icon: Sparkles },
     { to: "/agents",         key: "agents",  feature: "page:users",      icon: UserCog },
   ]},
-  // Regroupement défensif : Radar + Bouclier ensemble ; Veille et Sources en support.
   { key: "section_growth", entries: [
     { to: "/prospection",     key: "prospecting", feature: "page:prospection",     icon: Compass },
     { to: "/radar",           key: "radar",       feature: "page:radar",           icon: Radio },
@@ -95,6 +100,17 @@ const SECTIONS = [
   ]},
 ];
 
+// Catalogue plat clé → entrée. Sert à retrouver une entrée depuis une clé user.
+// N'inclut PAS les 3 fixes de la zone Aujourd'hui : elles ne sont pas épingables
+// par l'utilisateur (déjà présentes en permanence).
+const FLAT_ENTRIES = {};
+for (const s of SECTIONS) for (const e of s.entries) FLAT_ENTRIES[e.key] = { ...e, sectionKey: s.key };
+// Home est référençable pour épinglage aussi
+FLAT_ENTRIES[HOME_ENTRY.key] = { ...HOME_ENTRY, sectionKey: null };
+
+// Clés fixes de la zone Aujourd'hui — jamais épingables (déjà là).
+const FIXED_PIN_KEYS = new Set(PINNED_FIXED.map(p => p.key));
+
 // Barre de tabs mobile — INDÉPENDANTE de la sidebar desktop, 5 entrées littérales.
 const MOBILE_NAV = [
   { to: "/tournee", key: "tournee", label: "Ma tournée", icon: RouteIcon },
@@ -104,12 +120,12 @@ const MOBILE_NAV = [
   { to: "/", key: "dashboard", label: "Tableau", icon: LayoutDashboard },
 ];
 
-const OPEN_KEY = "bevid_nav_open_sections_v2";  // v2 → nouvelles clés section_*
+const OPEN_KEY = "bevid_nav_open_sections_v2";
+const PREFS_CACHE_KEY = "bevid_sidebar_prefs_v1";  // cache local des prefs backend
 
 function defaultOpenByRole(role) {
-  // Ouverture initiale ciblée par métier — mémorisée après premier choix utilisateur.
   if (role === "manager" || role === "gerant" || role === "owner") return ["section_pilotage"];
-  return ["section_sales"];  // commercial + par défaut
+  return ["section_sales"];
 }
 
 function loadOpenSections(role) {
@@ -121,6 +137,35 @@ function loadOpenSections(role) {
   } catch { return defaultOpenByRole(role); }
 }
 
+function loadCachedPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS_CACHE_KEY);
+    if (!raw) return { pinned_user: [], section_order: {} };
+    const p = JSON.parse(raw);
+    return {
+      pinned_user: Array.isArray(p.pinned_user) ? p.pinned_user : [],
+      section_order: (p.section_order && typeof p.section_order === "object") ? p.section_order : {},
+    };
+  } catch { return { pinned_user: [], section_order: {} }; }
+}
+
+// Applique l'ordre utilisateur à une section : les clés listées d'abord dans leur
+// ordre, puis les nouvelles entrées non listées en queue (nouvelles routes ajoutées
+// après que l'utilisateur a personnalisé — on ne les perd jamais).
+function applySectionOrder(entries, userOrder) {
+  if (!Array.isArray(userOrder) || userOrder.length === 0) return entries;
+  const byKey = new Map(entries.map(e => [e.key, e]));
+  const orderedKeys = [];
+  const seen = new Set();
+  for (const k of userOrder) {
+    if (byKey.has(k) && !seen.has(k)) { orderedKeys.push(k); seen.add(k); }
+  }
+  for (const e of entries) {
+    if (!seen.has(e.key)) { orderedKeys.push(e.key); seen.add(e.key); }
+  }
+  return orderedKeys.map(k => byKey.get(k));
+}
+
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
@@ -128,15 +173,19 @@ export default function Layout({ children }) {
   const loc = useLocation();
   const nav_ = useNavigate();
   const role = user?.role || "commercial";
+
   const [openSections, setOpenSections] = useState(() => loadOpenSections(role));
   const [stopsToday, setStopsToday] = useState(null);
+  const [prefs, setPrefs] = useState(loadCachedPrefs);  // {pinned_user, section_order}
+  const [dragCtx, setDragCtx] = useState(null);  // {sectionKey, fromKey}
+  const [dragOver, setDragOver] = useState(null); // {sectionKey, overKey}
+  const saveTimer = useRef(null);
 
   useEffect(() => {
     try { localStorage.setItem(OPEN_KEY, JSON.stringify(openSections)); } catch {}
   }, [openSections]);
 
-  // Compteur d'arrêts du jour — approximation initiale = taille du portefeuille commercial.
-  // Sera affiné quand la notion de "visites planifiées aujourd'hui" sera formalisée.
+  // Compteur d'arrêts du jour — approximation initiale = taille du portefeuille.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -148,38 +197,74 @@ export default function Layout({ children }) {
     return () => { cancelled = true; };
   }, []);
 
+  // Charge les prefs backend au boot (silencieux si erreur → on garde le cache).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/me/sidebar-prefs");
+        if (cancelled) return;
+        const next = {
+          pinned_user: Array.isArray(data?.pinned_user) ? data.pinned_user : [],
+          section_order: (data?.section_order && typeof data.section_order === "object") ? data.section_order : {},
+        };
+        setPrefs(next);
+        try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch {}
+      } catch { /* offline ou 401 : on garde le cache */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Sauvegarde débouncée (400ms) — backend + cache local.
+  const savePrefs = useCallback((next) => {
+    try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch {}
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      api.put("/me/sidebar-prefs", next).catch(() => { /* offline : cache déjà à jour */ });
+    }, 400);
+  }, []);
+
   const toggleSection = (key) => {
     setOpenSections((prev) => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
   };
 
-  // Filtre les entrées auxquelles l'utilisateur n'a pas droit.
   // Règle métier PO : un manager/gérant/owner voit toujours l'ensemble du menu.
-  //   - Il est l'acheteur et le décideur des activations/forfait.
-  //   - Il ne doit pas être encombré par des perms nouvellement ajoutées mais
-  //     pas encore propagées à son user MongoDB (cas de `page:scan` récente).
-  //   - Les entrées auxquelles il n'aurait pas droit (forfait insuffisant)
-  //     seront grisées avec pastille dans une itération ultérieure.
-  // Pour un commercial : deny-by-default strict via has(feature).
   const isEntryVisible = (entry) => {
+    if (!entry || entry.feature === undefined) return false;
     if (entry.feature === null) return true;
     const isPrivileged = role === "manager" || role === "gerant" || role === "owner";
     if (entry.feature === "manager_only") return isPrivileged;
-    if (isPrivileged) return true;   // fallback rôle décideur — voit tout
-    if (permsLoading) return false;  // commercial pendant chargement → deny strict
+    if (isPrivileged) return true;
+    if (permsLoading) return false;
     return has(entry.feature);
   };
 
-  const visiblePinned = useMemo(() => PINNED.filter(isEntryVisible), [has, permsLoading, role]);
+  // Zone Aujourd'hui = 3 fixes + jusqu'à 3 épingles user, dans l'ordre où elles ont été épinglées.
+  const visiblePinned = useMemo(() => {
+    const list = [];
+    for (const p of PINNED_FIXED) if (isEntryVisible(p)) list.push({ ...p, _fixed: true });
+    for (const k of (prefs.pinned_user || [])) {
+      if (FIXED_PIN_KEYS.has(k)) continue; // sécurité : jamais dupliquer une fixe
+      const e = FLAT_ENTRIES[k];
+      if (e && isEntryVisible(e)) list.push({ ...e, _fixed: false });
+      if (list.length - PINNED_FIXED.length >= 3) break;
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs.pinned_user, has, permsLoading, role]);
 
   const visibleSections = useMemo(() => {
-    return SECTIONS.map(s => ({ ...s, entries: s.entries.filter(isEntryVisible) }))
-                   .filter(s => s.entries.length > 0);
+    return SECTIONS.map(s => {
+      const userOrder = prefs.section_order?.[s.key];
+      const ordered = applySectionOrder(s.entries, userOrder);
+      return { ...s, entries: ordered.filter(isEntryVisible) };
+    }).filter(s => s.entries.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [has, permsLoading, role]);
+  }, [prefs.section_order, has, permsLoading, role]);
 
   const homeVisible = isEntryVisible(HOME_ENTRY);
 
-  // Ouvre automatiquement la section contenant la route active (une seule fois).
+  // Ouvre auto la section contenant la route active.
   useEffect(() => {
     for (const section of visibleSections) {
       if (section.entries.some(e => loc.pathname === e.to || (e.to !== "/" && loc.pathname.startsWith(e.to)))) {
@@ -190,7 +275,6 @@ export default function Layout({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.pathname]);
 
-  // Palette de commandes — inclut TOUT (pinned + home + sections).
   const paletteItems = useMemo(() => {
     const items = [];
     if (homeVisible) items.push({ to: HOME_ENTRY.to, key: HOME_ENTRY.key, label: t(HOME_ENTRY.key), section: t("dashboard") });
@@ -203,18 +287,105 @@ export default function Layout({ children }) {
 
   const isActive = (to) => loc.pathname === to || (to !== "/" && loc.pathname.startsWith(to));
 
-  // Composant Link réutilisé — respect a11y (aria-current, min-h target).
-  const NavEntry = ({ to, k, Icon, badge }) => {
+  // ---------- Actions de personnalisation ----------
+  const isPinned = (k) => (prefs.pinned_user || []).includes(k);
+  const userPinCount = (prefs.pinned_user || []).length;
+
+  const pinToToday = (k) => {
+    if (FIXED_PIN_KEYS.has(k)) return;   // les 3 fixes sont déjà là
+    if (isPinned(k)) return;
+    if (userPinCount >= 3) return;       // toast informatif géré par le menu (item disabled)
+    const next = { ...prefs, pinned_user: [...(prefs.pinned_user || []), k] };
+    setPrefs(next); savePrefs(next);
+  };
+
+  const unpinFromToday = (k) => {
+    const next = { ...prefs, pinned_user: (prefs.pinned_user || []).filter(x => x !== k) };
+    setPrefs(next); savePrefs(next);
+  };
+
+  const resetSection = (sectionKey) => {
+    const nextOrder = { ...(prefs.section_order || {}) };
+    delete nextOrder[sectionKey];
+    const next = { ...prefs, section_order: nextOrder };
+    setPrefs(next); savePrefs(next);
+  };
+
+  // Drop d'une entrée déplacée vers `overKey` (ou en fin si overKey === null).
+  const applyDrop = (sectionKey, fromKey, overKey) => {
+    const section = SECTIONS.find(s => s.key === sectionKey);
+    if (!section) return;
+    // On récupère l'ordre actuel visible pour cette section (RBAC-filtré),
+    // mais on persiste l'ordre COMPLET (y compris entrées non visibles) pour
+    // garder la position stable si les perms changent plus tard.
+    const currentUser = prefs.section_order?.[sectionKey];
+    const baseKeys = applySectionOrder(section.entries, currentUser).map(e => e.key);
+    if (!baseKeys.includes(fromKey)) return;
+    const withoutFrom = baseKeys.filter(k => k !== fromKey);
+    let insertAt = withoutFrom.length;
+    if (overKey && withoutFrom.includes(overKey)) {
+      insertAt = withoutFrom.indexOf(overKey);
+    }
+    withoutFrom.splice(insertAt, 0, fromKey);
+    const next = {
+      ...prefs,
+      section_order: { ...(prefs.section_order || {}), [sectionKey]: withoutFrom },
+    };
+    setPrefs(next); savePrefs(next);
+  };
+
+  // ---------- NavEntry (avec ContextMenu et Drag&Drop dans les sections) ----------
+  const NavEntry = ({ to, k, Icon, badge, sectionKey = null, inTodayFixed = false, inTodayUser = false }) => {
     const active = isActive(to);
-    return (
+    const pinned = isPinned(k);
+    const draggable = !!sectionKey;   // uniquement dans les sections repliables
+    const dragging = dragCtx?.fromKey === k && dragCtx?.sectionKey === sectionKey;
+    const isDragOver = dragOver?.sectionKey === sectionKey && dragOver?.overKey === k;
+
+    const link = (
       <Link
         to={to}
         data-testid={`nav-${k}`}
         aria-current={active ? "page" : undefined}
-        className={`flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-lg text-sm transition-colors duration-200 ${active ? "bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900" : "text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800"}`}
+        draggable={draggable}
+        onDragStart={draggable ? (e) => {
+          setDragCtx({ sectionKey, fromKey: k });
+          try { e.dataTransfer.setData("text/plain", `${sectionKey}::${k}`); } catch {}
+          e.dataTransfer.effectAllowed = "move";
+        } : undefined}
+        onDragEnd={draggable ? () => { setDragCtx(null); setDragOver(null); } : undefined}
+        onDragOver={draggable ? (e) => {
+          if (!dragCtx || dragCtx.sectionKey !== sectionKey) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (dragOver?.overKey !== k) setDragOver({ sectionKey, overKey: k });
+        } : undefined}
+        onDrop={draggable ? (e) => {
+          if (!dragCtx || dragCtx.sectionKey !== sectionKey) return;
+          e.preventDefault();
+          applyDrop(sectionKey, dragCtx.fromKey, k);
+          setDragCtx(null); setDragOver(null);
+        } : undefined}
+        className={[
+          "group flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-sm transition-colors duration-200",
+          active ? "bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900"
+                 : "text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800",
+          dragging ? "opacity-50" : "",
+          isDragOver ? "ring-2 ring-[#B076B4] ring-inset" : "",
+        ].join(" ")}
       >
+        {draggable && (
+          <GripVertical
+            size={12}
+            aria-hidden="true"
+            className={`shrink-0 opacity-0 group-hover:opacity-40 transition-opacity cursor-grab ${active ? "text-white/70" : "text-stone-400"}`}
+          />
+        )}
         <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
-        <span className="flex-1">{t(k)}</span>
+        <span className="flex-1 truncate">{t(k)}</span>
+        {inTodayUser && !active && (
+          <Pin size={11} aria-hidden="true" className="text-stone-400 shrink-0" />
+        )}
         {badge != null && badge > 0 && (
           <span
             className={`text-[11px] tabular-nums px-1.5 py-0.5 rounded-full ${active ? "bg-white/20 text-white" : "bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200"}`}
@@ -225,6 +396,49 @@ export default function Layout({ children }) {
           </span>
         )}
       </Link>
+    );
+
+    // Les 3 fixes de "Aujourd'hui" (Ma tournée / Visite / Scanner) n'ont pas de
+    // menu contextuel : elles sont immuables.
+    if (inTodayFixed) return link;
+
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{link}</ContextMenuTrigger>
+        <ContextMenuContent className="min-w-[220px]" data-testid={`nav-ctxmenu-${k}`}>
+          {inTodayUser ? (
+            <ContextMenuItem
+              onSelect={() => unpinFromToday(k)}
+              data-testid={`nav-ctx-unpin-${k}`}
+            >
+              <PinOff size={14} className="mr-2" /> {t("unpin_from_today")}
+            </ContextMenuItem>
+          ) : (
+            <ContextMenuItem
+              disabled={pinned || userPinCount >= 3}
+              onSelect={() => pinToToday(k)}
+              data-testid={`nav-ctx-pin-${k}`}
+            >
+              <Pin size={14} className="mr-2" />
+              {t("pin_to_today")}
+              {userPinCount >= 3 && !pinned && (
+                <span className="ml-auto text-[10px] text-stone-400">{t("max_pins_reached")}</span>
+              )}
+            </ContextMenuItem>
+          )}
+          {sectionKey && prefs.section_order?.[sectionKey]?.length > 0 && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={() => resetSection(sectionKey)}
+                data-testid={`nav-ctx-reset-${sectionKey}`}
+              >
+                <RotateCcw size={14} className="mr-2" /> {t("reset_section")}
+              </ContextMenuItem>
+            </>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
     );
   };
 
@@ -247,7 +461,7 @@ export default function Layout({ children }) {
           <SyncIndicator />
         </div>
 
-        {/* Palette Cmd+K — chemin principal pour tout ce qui n'est pas quotidien */}
+        {/* Palette Cmd+K */}
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("bevid:open-palette"))}
@@ -261,35 +475,42 @@ export default function Layout({ children }) {
         </button>
 
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto mt-2" aria-label={t("navigation") || "Navigation"}>
-          {/* Entrée fixe : Tableau de bord — hors pli, jamais caché */}
+          {/* Entrée fixe : Tableau de bord */}
           {homeVisible && (
             <div className="pb-2 mb-2 border-b border-stone-200/60 dark:border-stone-700/50" data-testid="nav-home-fixed">
               <NavEntry to={HOME_ENTRY.to} k={HOME_ENTRY.key} Icon={HOME_ENTRY.icon} />
             </div>
           )}
 
-          {/* Zone épinglée non repliable — 3 entrées quotidiennes toujours visibles */}
+          {/* Zone épinglée — 3 fixes + jusqu'à 3 user */}
           {visiblePinned.length > 0 && (
             <div data-testid="nav-pinned" className="pb-2 mb-2 border-b border-stone-200/60 dark:border-stone-700/50">
               <div className="flex items-center gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400">
                 <Pin size={10} aria-hidden="true" />
                 <span>{t("section_today")}</span>
+                {userPinCount > 0 && (
+                  <span className="ml-auto tabular-nums normal-case text-[10px] text-stone-400" aria-label="épingles utilisateur">
+                    {userPinCount}/3
+                  </span>
+                )}
               </div>
               <div className="space-y-0.5">
-                {visiblePinned.map(({ to, key, icon, badgeKey }) => (
+                {visiblePinned.map((e) => (
                   <NavEntry
-                    key={to}
-                    to={to}
-                    k={key}
-                    Icon={icon}
-                    badge={badgeKey === "stops_today" ? stopsToday : undefined}
+                    key={e.to}
+                    to={e.to}
+                    k={e.key}
+                    Icon={e.icon}
+                    badge={e.badgeKey === "stops_today" ? stopsToday : undefined}
+                    inTodayFixed={e._fixed}
+                    inTodayUser={!e._fixed}
                   />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Sections repliables — ordre figé, jamais réorganisées automatiquement */}
+          {/* Sections repliables */}
           {visibleSections.map(section => {
             const isOpen = openSections.includes(section.key);
             return (
@@ -306,18 +527,43 @@ export default function Layout({ children }) {
                   <ChevronDown size={12} aria-hidden="true" style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }} />
                 </button>
                 {isOpen && (
-                  <div id={`section-body-${section.key}`} className="mt-1 space-y-0.5">
+                  <div
+                    id={`section-body-${section.key}`}
+                    className="mt-1 space-y-0.5"
+                    // Permet de dropper à la fin d'une section vide de cible.
+                    onDragOver={(e) => {
+                      if (dragCtx?.sectionKey === section.key) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                      }
+                    }}
+                    onDrop={(e) => {
+                      if (dragCtx?.sectionKey === section.key) {
+                        e.preventDefault();
+                        // drop hors d'une entrée précise → en queue
+                        applyDrop(section.key, dragCtx.fromKey, null);
+                        setDragCtx(null); setDragOver(null);
+                      }
+                    }}
+                  >
                     {section.entries.map(({ to, key, icon }) => (
-                      <NavEntry key={to} to={to} k={key} Icon={icon} />
+                      <NavEntry key={to} to={to} k={key} Icon={icon} sectionKey={section.key} />
                     ))}
                   </div>
                 )}
               </div>
             );
           })}
+
+          {/* Astuce discrète — visible seulement si l'utilisateur n'a rien personnalisé */}
+          {userPinCount === 0 && Object.keys(prefs.section_order || {}).length === 0 && (
+            <div className="mt-3 px-2 text-[10px] text-stone-400 dark:text-stone-500 leading-snug" data-testid="nav-customize-hint">
+              {t("customize_hint")}
+            </div>
+          )}
         </nav>
 
-        {/* Zone d'identité en bas — avatar, org, plan, profil, thème, langue, déconnexion */}
+        {/* Zone d'identité en bas */}
         <div className="p-3 border-t border-stone-200 dark:border-stone-700 space-y-2">
           <Link
             to="/profile"
@@ -358,7 +604,7 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* Mobile top bar — inchangée */}
+      {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-stone-200 dark:border-stone-700 flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-3 text-[#4A154B] dark:text-[#B076B4]">
           <BevidLogo size={22} />
@@ -399,7 +645,7 @@ export default function Layout({ children }) {
         </div>
       </main>
 
-      {/* Mobile bottom tab bar — INDÉPENDANTE, littérale, jamais dérivée */}
+      {/* Mobile bottom tab bar */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-700 flex justify-around py-2 pb-safe"
         data-testid="mobile-bottom-nav"

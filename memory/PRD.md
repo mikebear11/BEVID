@@ -592,3 +592,22 @@ Ordre revu par fréquence d'usage réel + logique de groupe métier :
 - Autres sections (Logistique, Argent, Pilotage, Admin) déjà correctement ordonnées.
 - Ordre des sections inchangé (Ventes → Logistique → Argent → Pilotage → Acquisition → Admin) : flux naturel commercial ; le manager voit Pilotage ouvert par défaut via `defaultOpenByRole`.
 
+
+
+## Lot 8 — Personnalisation utilisateur de la sidebar (21/02/2026, option b)
+### Backend
+- `GET /api/me/sidebar-prefs` — retourne toujours `{pinned_user: [], section_order: {}}` (jamais 404).
+- `PUT /api/me/sidebar-prefs` — merge partiel :
+  - `pinned_user`: liste de max 3 clés d'entrées, déduplication, cap serveur, regex `[a-zA-Z0-9_-]+`.
+  - `section_order`: `{section_key: [entry_keys]}` — la clé de section doit préfixer `section_`.
+  - Stocké dans `users.sidebar_prefs` (multi-tenant safe : scoped par `user.id`).
+- Tests : `/app/backend/tests/test_iter26_sidebar_prefs.py` — 9/9 verts.
+
+### Frontend (`Layout.jsx`)
+- **Épinglage manuel** : clic droit sur toute entrée → ContextMenu shadcn avec "Épingler à Aujourd'hui" (disabled si 3 épingles atteintes) ou "Détacher d'Aujourd'hui".
+- **Drag & drop natif HTML5** dans les sections repliables : icône `GripVertical` visible au hover, feedback visuel `ring-2 ring-[#B076B4]` sur la cible de drop.
+- **Réinitialisation par section** : entrée "Réinitialiser cette section" dans le menu contextuel, visible uniquement si un ordre custom existe pour cette section.
+- **Persistance** : cache localStorage (`bevid_sidebar_prefs_v1`) + sync backend débouncé 400ms → fonctionne offline-first.
+- **Résilience** : nouvelles entrées ajoutées ultérieurement au catalogue apparaissent automatiquement en queue de section (jamais perdues). Clés inconnues côté frontend sont ignorées silencieusement.
+- **RBAC prioritaire** : la personnalisation est appliquée AVANT le filtre RBAC — un commercial ne verra jamais une entrée qu'il a épinglée mais qui a perdu sa permission.
+- **Astuce discrète** : "Clic droit pour épingler · Glisser pour réordonner" affichée sous les sections tant que l'utilisateur n'a rien personnalisé.

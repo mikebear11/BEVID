@@ -7,7 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os, logging, uuid, jwt, bcrypt, io, csv, base64
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict
 from datetime import datetime, timezone, timedelta
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import httpx, stripe, re, ipaddress
@@ -584,6 +584,78 @@ async def update_my_profile(data: ProfileUpdate, user=Depends(get_current_user))
         raise HTTPException(422, "Aucun champ à modifier")
     await db_raw.users.update_one({"id": user["id"]}, {"$set": updates})
     return await get_my_profile(user)
+
+
+# ---------- Personnalisation sidebar (par utilisateur, Lot 8 suite) ----------
+# Chaque user peut :
+#   - Épingler jusqu'à 3 entrées supplémentaires dans la zone "Aujourd'hui"
+#     (en plus des 3 entrées fixes : Ma tournée / Visite / Scanner)
+#   - Réordonner les entrées à l'intérieur d'une section (drag & drop)
+# Contraintes :
+#   - Les clés stockées sont opaques côté backend (validation lâche : string clean).
+#     Le frontend est la source de vérité de ce qu'est un "key" valide (catalog FLAT_ENTRIES).
+#   - RBAC prioritaire : le rendu filtre après application des prefs.
+
+class SidebarPrefsUpdate(BaseModel):
+    pinned_user: Optional[List[str]] = None      # max 3 clés user, en plus des 3 fixes
+    section_order: Optional[Dict[str, List[str]]] = None  # {section_key: [entry_keys]}
+
+
+def _clean_key(k, maxlen: int = 40) -> Optional[str]:
+    if not isinstance(k, str):
+        return None
+    s = k.strip()[:maxlen]
+    # Autorise a-z, A-Z, 0-9, _, - uniquement
+    if not s or not re.match(r"^[a-zA-Z0-9_\-]+$", s):
+        return None
+    return s
+
+
+@api_router.get("/me/sidebar-prefs")
+async def get_sidebar_prefs(user=Depends(get_current_user)):
+    """Retourne toujours un objet, jamais 404 : les prefs sont "présentes par défaut"."""
+    doc = await db_raw.users.find_one({"id": user["id"]}, {"_id": 0, "sidebar_prefs": 1})
+    prefs = (doc or {}).get("sidebar_prefs") or {}
+    return {
+        "pinned_user": prefs.get("pinned_user") or [],
+        "section_order": prefs.get("section_order") or {},
+    }
+
+
+@api_router.put("/me/sidebar-prefs")
+async def update_sidebar_prefs(data: SidebarPrefsUpdate, user=Depends(get_current_user)):
+    """Merge partiel : un PUT avec seulement `pinned_user` ne touche pas `section_order`."""
+    updates = {}
+    if data.pinned_user is not None:
+        cleaned: List[str] = []
+        for raw in data.pinned_user:
+            k = _clean_key(raw)
+            if k and k not in cleaned:
+                cleaned.append(k)
+            if len(cleaned) >= 3:
+                break
+        updates["sidebar_prefs.pinned_user"] = cleaned
+    if data.section_order is not None:
+        cleaned_sections: Dict[str, List[str]] = {}
+        for section_key, entries in data.section_order.items():
+            sk = _clean_key(section_key)
+            if not sk or not sk.startswith("section_"):
+                continue
+            if not isinstance(entries, list):
+                continue
+            dedup: List[str] = []
+            for e in entries:
+                k = _clean_key(e)
+                if k and k not in dedup:
+                    dedup.append(k)
+                if len(dedup) >= 20:
+                    break
+            cleaned_sections[sk] = dedup
+        updates["sidebar_prefs.section_order"] = cleaned_sections
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    await db_raw.users.update_one({"id": user["id"]}, {"$set": updates})
+    return await get_sidebar_prefs(user)
 
 
 # ---------- Réglages entreprise (manager only) ----------
