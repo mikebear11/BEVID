@@ -728,6 +728,57 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 8 — Interlocuteurs multiples par établissement (21/02/2026)
+
+### Contexte
+Une fiche établissement n'avait qu'un champ `phone` unique. Les commerciaux terrain
+avaient besoin de garder les coordonnées des différents acteurs qui interviennent
+dans la relation : gérant, comptable, acheteur, chef de cuisine, sommelier, etc.
+
+### Backend
+- Nouveau modèle embarqué `EstablishmentContact` — id (uuid), role, name, phone,
+  email, notes, is_primary, created_at, updated_at.
+- **10 rôles fermés** (`gerant`, `proprietaire`, `comptable`, `acheteur`,
+  `chef_cuisine`, `chef_cave`, `sommelier`, `responsable_achats`, `reception`,
+  `autre`) — pas de champ libre, pour permettre du filtrage/analyse ultérieur.
+- Champ `contacts: List[EstablishmentContact] = []` ajouté au modèle
+  `Establishment` (stocké embarqué, jamais 2 requêtes pour lire la fiche).
+- **4 endpoints CRUD** :
+  - `GET /api/establishments/{eid}/contacts` — liste
+  - `POST /api/establishments/{eid}/contacts` — création (name obligatoire, role
+    validé)
+  - `PATCH /api/establishments/{eid}/contacts/{cid}` — édition partielle
+  - `DELETE /api/establishments/{eid}/contacts/{cid}` — suppression, 404 si
+    inconnu
+- **Un seul contact principal à la fois** : si un nouveau contact ou une
+  promotion arrive avec `is_primary=true`, le serveur démote automatiquement
+  les autres. Simplifie la logique frontend.
+- **`PUT /establishments/{eid}` protégé** : le champ `contacts` est retiré du
+  payload avant l'update pour empêcher un update global d'écraser la
+  sous-collection.
+
+### Frontend
+- `ContactsPanel.jsx` (nouveau) : bloc « Interlocuteurs » sur la fiche
+  Établissement 360°, sous « Ce qu'il faut savoir ».
+- Liste triée : principal d'abord, puis rôle métier, puis nom.
+- Icône étoile ambrée pour le contact principal.
+- Téléphone → `tel:` cliquable, email → `mailto:` cliquable.
+- Ajout/édition via mini-modal (jamais d'inline sur mobile — mises à jour
+  partielles perdues sinon).
+- Confirmation native avant suppression.
+
+### Tests
+- `/app/backend/tests/test_iter33_contacts.py` : **7/7 verts**.
+  - Liste vide par défaut, création requiert `name` non-vide, rejette rôle
+    inconnu, cycle CRUD complet avec démotion automatique du principal,
+    PATCH 404 sur contact inconnu, GET 404 sur établissement inconnu, PUT
+    global ne wipe pas `contacts`.
+
+### Validation runtime
+- 3 contacts créés sur ADT 64 (Ratisbonne) via curl → rendu vérifié en
+  screenshot preview (Jean Ratisbonne gérant principal, Marie Compta comptable,
+  Paul Acheteur acheteur).
+
 ## Lot 7 — Mesure utilité + fusion clients/etabs sur RGPD (21/02/2026)
 
 ### Backend

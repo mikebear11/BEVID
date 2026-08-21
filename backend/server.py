@@ -4221,6 +4221,46 @@ async def anniversaries(days: int = 30, user=Depends(get_current_user)):
     return {"count": len(items), "items": items}
 
 # ---------- BRASSERIE LOT 1 : ESTABLISHMENTS / PRICE LISTS / DEROGATIONS ----------
+# Lot 8 · Contacts multiples — rôles courants dans la distribution boissons.
+# `autre` est le passe-partout pour les cas non prévus (livreur, associé, chef…).
+CONTACT_ROLES = {
+    "gerant", "proprietaire", "comptable", "acheteur",
+    "chef_cuisine", "chef_cave", "sommelier",
+    "responsable_achats", "reception", "autre",
+}
+
+
+class EstablishmentContact(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    role: str = "autre"
+    name: str
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    notes: Optional[str] = ""
+    is_primary: bool = False
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class ContactCreate(BaseModel):
+    role: str = "autre"
+    name: str
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    notes: Optional[str] = ""
+    is_primary: bool = False
+
+
+class ContactPatch(BaseModel):
+    role: Optional[str] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    notes: Optional[str] = None
+    is_primary: Optional[bool] = None
+
+
 class Establishment(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -4243,6 +4283,7 @@ class Establishment(BaseModel):
     credit_status_updated_at: Optional[str] = None
     tags: List[str] = []
     notes: Optional[str] = ""
+    contacts: List[EstablishmentContact] = []
     assigned_to: Optional[str] = None
     active: bool = True
     owner_id: str
@@ -4341,11 +4382,114 @@ async def get_establishment(eid: str, user=Depends(get_current_user)):
 @api_router.put("/establishments/{eid}")
 async def update_est(eid: str, data: dict, user=Depends(get_current_user)):
     data.pop("id", None); data.pop("_id", None); data.pop("owner_id", None)
+    # `contacts` a son propre CRUD dédié, on ne le laisse pas être écrasé par un PUT global
+    data.pop("contacts", None)
     data["updated_at"] = now_iso()
     res = await db.establishments.update_one({"id": eid}, {"$set": data})
     if res.matched_count == 0:
         raise HTTPException(404, "Établissement introuvable")
     return await db.establishments.find_one({"id": eid}, {"_id": 0})
+
+
+# ---------- Contacts multiples par établissement (Lot 8) ----------
+def _validate_contact_role(role: str) -> str:
+    if role not in CONTACT_ROLES:
+        raise HTTPException(422, f"Rôle invalide. Valeurs acceptées : {sorted(CONTACT_ROLES)}")
+    return role
+
+
+async def _load_est_or_404(eid: str) -> dict:
+    e = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not e:
+        raise HTTPException(404, "Établissement introuvable")
+    return e
+
+
+@api_router.get("/establishments/{eid}/contacts")
+async def list_contacts(eid: str, user=Depends(get_current_user)):
+    e = await _load_est_or_404(eid)
+    return e.get("contacts") or []
+
+
+@api_router.post("/establishments/{eid}/contacts")
+async def create_contact(eid: str, data: ContactCreate, user=Depends(get_current_user)):
+    e = await _load_est_or_404(eid)
+    _validate_contact_role(data.role)
+    name_clean = (data.name or "").strip()[:200]
+    if not name_clean:
+        raise HTTPException(422, "Nom requis")
+    contact = EstablishmentContact(
+        role=data.role,
+        name=name_clean,
+        phone=(data.phone or "").strip()[:60],
+        email=(data.email or "").strip()[:200],
+        notes=(data.notes or "").strip()[:500],
+        is_primary=bool(data.is_primary),
+    )
+    contacts = list(e.get("contacts") or [])
+    # Un seul contact principal à la fois : on démote les autres si celui-ci est marqué principal.
+    if contact.is_primary:
+        for c in contacts:
+            c["is_primary"] = False
+    contacts.append(contact.model_dump())
+    await db.establishments.update_one(
+        {"id": eid},
+        {"$set": {"contacts": contacts, "updated_at": now_iso()}},
+    )
+    return contact.model_dump()
+
+
+@api_router.patch("/establishments/{eid}/contacts/{cid}")
+async def update_contact(eid: str, cid: str, data: ContactPatch, user=Depends(get_current_user)):
+    e = await _load_est_or_404(eid)
+    contacts = list(e.get("contacts") or [])
+    idx = next((i for i, c in enumerate(contacts) if c.get("id") == cid), -1)
+    if idx < 0:
+        raise HTTPException(404, "Contact introuvable")
+    updates: dict = {}
+    if data.role is not None:
+        updates["role"] = _validate_contact_role(data.role)
+    if data.name is not None:
+        name_clean = data.name.strip()[:200]
+        if not name_clean:
+            raise HTTPException(422, "Nom requis")
+        updates["name"] = name_clean
+    if data.phone is not None:
+        updates["phone"] = data.phone.strip()[:60]
+    if data.email is not None:
+        updates["email"] = data.email.strip()[:200]
+    if data.notes is not None:
+        updates["notes"] = data.notes.strip()[:500]
+    if data.is_primary is not None:
+        updates["is_primary"] = bool(data.is_primary)
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    updates["updated_at"] = now_iso()
+    contacts[idx] = {**contacts[idx], **updates}
+    # Un seul contact principal : démotion des autres si on vient d'en promouvoir un.
+    if updates.get("is_primary"):
+        for i, c in enumerate(contacts):
+            if i != idx:
+                c["is_primary"] = False
+    await db.establishments.update_one(
+        {"id": eid},
+        {"$set": {"contacts": contacts, "updated_at": now_iso()}},
+    )
+    return contacts[idx]
+
+
+@api_router.delete("/establishments/{eid}/contacts/{cid}")
+async def delete_contact(eid: str, cid: str, user=Depends(get_current_user)):
+    e = await _load_est_or_404(eid)
+    contacts = list(e.get("contacts") or [])
+    new_contacts = [c for c in contacts if c.get("id") != cid]
+    if len(new_contacts) == len(contacts):
+        raise HTTPException(404, "Contact introuvable")
+    await db.establishments.update_one(
+        {"id": eid},
+        {"$set": {"contacts": new_contacts, "updated_at": now_iso()}},
+    )
+    return {"ok": True, "id": cid}
 
 @api_router.get("/price-lists")
 async def list_price_lists(user=Depends(get_current_user)):

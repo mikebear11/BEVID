@@ -9,6 +9,7 @@ import ObjectionsList from "@/components/ObjectionsList";
 import ClientMemory from "@/components/ClientMemory";
 import BriefButton from "@/components/BriefButton";
 import CommentsThread from "@/components/CommentsThread";
+import ContactsPanel from "@/components/ContactsPanel";
 
 const CREDIT_COLOR = { vert: "#2D5A4C", orange: "#C78B3A", rouge: "#8C2A2A" };
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", rouge: "COMPTE BLOQUÉ" };
@@ -84,6 +85,11 @@ export default function Etablissement360() {
       {/* Lot 7 étape 2 — Mémoire client "Ce qu'il faut savoir" */}
       <div className="card-crm p-4 mt-3" data-testid="etab-memory">
         <ClientMemory establishmentId={id} refreshTrigger={memoryVer} />
+      </div>
+
+      {/* Lot 8 — Interlocuteurs (gérant, comptable, acheteur…) */}
+      <div className="card-crm p-4 mt-3" data-testid="etab-contacts">
+        <ContactsPanel establishmentId={id} />
       </div>
 
       {e.top_products?.length > 0 && (
