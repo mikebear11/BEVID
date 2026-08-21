@@ -3005,6 +3005,64 @@ async def effective_responses(category: str, user=Depends(get_current_user)):
     return {"category": category, "responses": responses[:10]}
 
 
+# ---------- Lot 7 mesure — Feedback utilité (pouce haut/bas) ----------
+FEEDBACK_KINDS = {"brief", "response_suggestion", "objection_extract", "engagement_extract"}
+
+
+class FeedbackVote(BaseModel):
+    kind: str            # brief | response_suggestion | objection_extract | engagement_extract
+    target_id: str       # establishment_id (brief) ou response verbatim (suggestion) ou visit_id (extract)
+    useful: bool
+    context: Optional[str] = None  # ex : catégorie d'objection pour response_suggestion
+
+
+@api_router.post("/copilot/feedback")
+async def submit_feedback(data: FeedbackVote, user=Depends(get_current_user)):
+    if data.kind not in FEEDBACK_KINDS:
+        raise HTTPException(422, "Kind invalide")
+    tgt = (data.target_id or "").strip()[:200]
+    if not tgt:
+        raise HTTPException(422, "target_id requis")
+    # Idempotence : un user vote une fois par (kind, target_id). PUT-style upsert.
+    await db.copilot_feedback.update_one(
+        {"kind": data.kind, "target_id": tgt, "user_id": user["id"]},
+        {"$set": {
+            "kind": data.kind, "target_id": tgt, "useful": bool(data.useful),
+            "context": (data.context or "")[:200],
+            "user_id": user["id"], "owner_id": user["id"],
+            "updated_at": now_iso(),
+        }, "$setOnInsert": {"created_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.get("/copilot/feedback/stats")
+async def feedback_stats(user=Depends(get_current_user)):
+    """Deux chiffres exigés par la spec : part de suggestions utiles + couverture mémoire."""
+    total = await db.copilot_feedback.count_documents({})
+    useful = await db.copilot_feedback.count_documents({"useful": True})
+    by_kind = {}
+    for k in FEEDBACK_KINDS:
+        t = await db.copilot_feedback.count_documents({"kind": k})
+        u = await db.copilot_feedback.count_documents({"kind": k, "useful": True})
+        by_kind[k] = {"total": t, "useful": u, "rate": (u / t) if t else 0.0}
+    # Couverture mémoire : établissements avec au moins 1 section dans client_memory
+    all_est = await db.establishments.count_documents({})
+    mem_filled = await db.client_memory.count_documents({"sections.0": {"$exists": True}})
+    return {
+        "total": total,
+        "useful": useful,
+        "useful_rate": (useful / total) if total else 0.0,
+        "by_kind": by_kind,
+        "memory_coverage": {
+            "total_establishments": all_est,
+            "with_memory": mem_filled,
+            "rate": (mem_filled / all_est) if all_est else 0.0,
+        },
+    }
+
+
 # ---------- CALENDAR EVENTS ----------
 class CalendarEvent(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -5142,8 +5200,11 @@ async def list_audit(limit: int = 200, user=Depends(get_current_user)):
 async def rgpd_export(cid: str, user=Depends(get_current_user)):
     if user["role"] != "manager":
         raise HTTPException(403, "Manager only")
+    # Fix Lot 7 — accepte l'id d'un client OU d'un établissement.
     client_doc = await db.clients.find_one({"id": cid}, {"_id": 0})
     est_doc = await db.establishments.find_one({"id": cid}, {"_id": 0})
+    if not client_doc and not est_doc:
+        raise HTTPException(404, "Client introuvable")
     orders = await db.orders.find({"client_id": cid}, {"_id": 0}).to_list(10000)
     visits = await db.visits.find({"client_id": cid}, {"_id": 0}).to_list(1000)
     activities = await db.activities.find({"client_id": cid}, {"_id": 0}).to_list(1000)
@@ -5161,14 +5222,17 @@ async def rgpd_export(cid: str, user=Depends(get_current_user)):
 async def rgpd_delete(cid: str, user=Depends(get_current_user)):
     if user["role"] != "manager":
         raise HTTPException(403, "Manager only")
+    # Fix Lot 7 — accepte l'id d'un client OU d'un établissement (les deux collections coexistent).
+    exists_client = await db.clients.count_documents({"id": cid}) > 0
+    exists_est = await db.establishments.count_documents({"id": cid}) > 0
+    if not exists_client and not exists_est:
+        raise HTTPException(404, "Client introuvable")
     n_orders = await db.orders.count_documents({"client_id": cid})
     n_visits = await db.visits.count_documents({"client_id": cid})
     n_objections = await db.objections.count_documents({"establishment_id": cid})
     n_engagements = await db.engagements.count_documents({"establishment_id": cid})
     n_comments = await db.establishment_comments.count_documents({"establishment_id": cid})
-    res = await db.clients.delete_one({"id": cid})
-    if res.deleted_count == 0:
-        raise HTTPException(404, "Client introuvable")
+    await db.clients.delete_one({"id": cid})
     await db.establishments.delete_one({"id": cid})
     await db.orders.delete_many({"client_id": cid})
     await db.visits.delete_many({"client_id": cid})

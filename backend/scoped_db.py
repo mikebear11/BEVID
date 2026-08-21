@@ -53,6 +53,7 @@ SCOPED_COLLECTIONS = {
     "engagements", # Lot 7 étape 4 — promesses issues des visites
     "client_memory",  # Lot 7 étape 2 — mémoire client cache (recalcul événementiel)
     "establishment_comments",  # Lot 7 étape 5 — fil de commentaires libres
+    "copilot_feedback",  # Lot 7 mesure — pouce haut/bas sur brief + suggestion réponse
 }
 
 

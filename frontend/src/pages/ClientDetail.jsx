@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, Navigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { ArrowLeft, Sparkles, Plus, Loader2, Trash2, Repeat, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
@@ -17,9 +17,24 @@ export default function ClientDetail() {
   const [insight, setInsight] = useState("");
   const [loadingAI, setLoadingAI] = useState(false);
   const [note, setNote] = useState("");
+  const [redirectToEtab, setRedirectToEtab] = useState(false);   // Fix iter21 — fallback establishment_id
 
   const [health, setHealth] = useState(null);
   const load = async () => {
+    // Fix walkthrough iter21 — si l'id est un establishment_id, redirige vers /etab/{id}
+    // (fiche copilote complète). Sinon suit la logique legacy.
+    try {
+      await api.get(`/clients/${id}`);
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        try {
+          await api.get(`/establishments/${id}`);
+          setRedirectToEtab(true);
+          return;
+        } catch { /* laisse propager */ }
+      }
+      throw err;
+    }
     const [{ data: client }, { data: ords }, { data: acts }, { data: st }, { data: h }] = await Promise.all([
       api.get(`/clients/${id}`),
       api.get(`/orders`),
@@ -33,7 +48,9 @@ export default function ClientDetail() {
     setStats(st);
     setHealth(h);
   };
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load().catch(() => {}); }, [id]);
+
+  if (redirectToEtab) return <Navigate to={`/etab/${id}`} replace />;
 
   const genInsight = async () => {
     setLoadingAI(true); setInsight("");

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { AlertOctagon, Check, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { OBJECTION_CATEGORIES } from "@/components/ObjectionExtractPanel";
+import FeedbackThumbs from "@/components/FeedbackThumbs";
 
 const catLabel = (k) => OBJECTION_CATEGORIES.find(c => c.key === k)?.label || k;
 
@@ -128,16 +129,18 @@ export default function ObjectionsList({ establishmentId }) {
                   Ce qui a déjà fonctionné dans l'entreprise
                 </p>
                 {effective.slice(0, 3).map((r, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setResponseText(r.response)}
-                    className="w-full text-left text-xs text-stone-700 dark:text-stone-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded px-1.5 py-1"
-                    data-testid={`objection-effective-pick-${o.id}-${i}`}
-                    title="Cliquer pour réutiliser cette réponse"
-                  >
-                    « {r.response} » <span className="text-[10px] text-emerald-700 dark:text-emerald-300 tabular-nums">levée {r.successes}/{r.uses} · {Math.round(r.rate * 100)}%</span>
-                  </button>
+                  <div key={i} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setResponseText(r.response)}
+                      className="flex-1 text-left text-xs text-stone-700 dark:text-stone-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 rounded px-1.5 py-1"
+                      data-testid={`objection-effective-pick-${o.id}-${i}`}
+                      title="Cliquer pour réutiliser cette réponse"
+                    >
+                      « {r.response} » <span className="text-[10px] text-emerald-700 dark:text-emerald-300 tabular-nums">levée {r.successes}/{r.uses} · {Math.round(r.rate * 100)}%</span>
+                    </button>
+                    <FeedbackThumbs kind="response_suggestion" targetId={r.response} context={o.category} testIdPrefix={`resp-fb-${o.id}-${i}`} />
+                  </div>
                 ))}
               </div>
             )}

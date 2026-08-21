@@ -6,8 +6,9 @@ import { Sparkles, RefreshCw, Loader2, ExternalLink } from "lucide-react";
  * Bloc « Ce qu'il faut savoir » — Lot 7 étape 2.
  * Lecture pure de /api/establishments/{eid}/memory (recalculé sur événement).
  * Chaque item porte sa source, cliquable.
+ * `refreshTrigger` — incrémenter cette prop force un refetch (usage : après pin commentaire).
  */
-export default function ClientMemory({ establishmentId }) {
+export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
   const [memory, setMemory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recomputing, setRecomputing] = useState(false);
@@ -21,7 +22,7 @@ export default function ClientMemory({ establishmentId }) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (establishmentId) load(); }, [establishmentId]);
+  useEffect(() => { if (establishmentId) load(); }, [establishmentId, refreshTrigger]);
 
   const recompute = async () => {
     setRecomputing(true);

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { api } from "@/lib/api";
 import { getOfflineBrief } from "@/lib/db";
 import { FileText, X, Loader2, CloudOff } from "lucide-react";
+import FeedbackThumbs from "@/components/FeedbackThumbs";
 
 /**
  * Bouton "Préparer" + popover 5 lignes — Lot 7 étape 3.
@@ -71,18 +72,24 @@ export default function BriefButton({ establishmentId, testId = "brief-btn" }) {
                 <Loader2 size={14} className="animate-spin" /> Chargement…
               </div>
             ) : (
-              <ol className="space-y-2 list-decimal list-inside" data-testid="brief-lines">
-                {(brief?.lines || []).map((l, i) => (
-                  <li key={i} className="text-sm text-stone-700 dark:text-stone-200">
-                    {l.text}
-                    {l.source && (
-                      <span className="text-[10px] text-stone-400 ml-2">
-                        {l.source.date && `· ${l.source.date}`}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ol>
+              <>
+                <ol className="space-y-2 list-decimal list-inside" data-testid="brief-lines">
+                  {(brief?.lines || []).map((l, i) => (
+                    <li key={i} className="text-sm text-stone-700 dark:text-stone-200">
+                      {l.text}
+                      {l.source && (
+                        <span className="text-[10px] text-stone-400 ml-2">
+                          {l.source.date && `· ${l.source.date}`}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-stone-700 mt-3">
+                  <span className="text-[10px] text-stone-400">Ce brief vous a-t-il été utile ?</span>
+                  <FeedbackThumbs kind="brief" targetId={establishmentId} testIdPrefix="brief-fb" />
+                </div>
+              </>
             )}
           </div>
         </div>

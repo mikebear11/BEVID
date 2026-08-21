@@ -727,6 +727,28 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Commentaire épinglé remonte dans la mémoire client (test coverage).
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
+
+## Lot 7 — Mesure utilité + fusion clients/etabs sur RGPD (21/02/2026)
+
+### Backend
+- **Collection `copilot_feedback`** scoped, upsert idempotent par (kind, target_id, user_id).
+- **`POST /api/copilot/feedback`** : {kind ∈ brief|response_suggestion|objection_extract|engagement_extract, target_id, useful, context}. Rejette kind invalide (422) et target_id vide (422).
+- **`GET /api/copilot/feedback/stats`** : deux chiffres exigés par la spec :
+  - `useful_rate` : part de suggestions jugées utiles (tout kind confondu + détail by_kind).
+  - `memory_coverage.rate` : part d'établissements ayant une mémoire remplie (`sections.0` existe).
+- **Fix fusion clients/etabs sur RGPD** : `/rgpd/clients/{cid}/export` et DELETE acceptent désormais un id d'établissement (avant : 404 systématique si cid présent uniquement dans db.establishments). Purge conjointe des deux collections.
+
+### Frontend
+- **`FeedbackThumbs.jsx`** (nouveau) : composant réutilisable pouce haut/bas. Idempotent, disabled après tap, couleurs actives distinctes (vert / rouge).
+- **`BriefButton.jsx`** : pouce sous le brief avec `data-testid="brief-fb-thumbs"`.
+- **`ObjectionsList.jsx`** : chaque suggestion « Ce qui a déjà fonctionné » a son propre pouce `data-testid="resp-fb-{oid}-{i}-thumbs"`.
+
+### Tests
+- **`test_iter31_feedback_fusion.py`** : 5/5 verts (upsert idempotent + stats structure + kind invalide 422 + target vide 422 + auth requise + RGPD accepte establishment_id).
+
+### Régression complète Lot 7
+28 tests backend précédents (iter28+29+30) + 5 nouveaux (iter31) = **33/33 verts**.
+
 - Aucun appel LLM ajouté par ces 3 features — agrégations pures.
 
 ### Tests
@@ -736,4 +758,25 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 ### Prochaines étapes du Lot 7
 - **Mesure d'utilité** (pouce haut/bas sur brief + suggestions de réponse) : reste à faire.
 - Vérification à froid par le testing agent : test complet du parcours commercial avec les 6 features branchées.
+
+
+## Fixes intégration walkthrough copilote (iter21, 21/02/2026)
+
+Suite au walkthrough copilote (iteration_21.json — 5 bugs P0-P1 identifiés) :
+
+- **P0 VisitReport dropdown** (`visit-client`) : fusionne désormais `/api/clients` + `/api/establishments` en un seul dropdown dédupliqué. Le commercial peut enfin sélectionner ADT 64 / BEKAST / etc. pour dicter un CR.
+- **P0 Navigation post-copilote** : après confirmation d'engagements, navigation vers `/etab/{id}` (fiche copilote complète) au lieu de `/clients/{id}` (legacy sans blocs Lot 7). Effectif aussi en mode offline.
+- **P0 ClientDetail fallback** : si `/api/clients/{id}` renvoie 404 mais `/api/establishments/{id}` existe, redirection automatique via `<Navigate to="/etab/{id}" replace />`. Les URLs `/clients/{establishment_id}` ne plantent plus.
+- **P1 CommentsThread → ClientMemory recompute événementiel** : `Etablissement360` maintient un `memoryVer` state incrémenté à chaque `onMemoryChange` (pin/unpin/edit/delete). `ClientMemory` reçoit `refreshTrigger` et refetch. Le commentaire épinglé apparaît immédiatement dans la mémoire, sans clic manuel de recompute.
+- **P3 FeedbackThumbs UX** : vote unique côté UI (`disabled={busy || vote !== null}`) pour éviter les re-clics muets. L'API upsert reste idempotente.
+
+Reste ouvert (P2-P3 non bloquants) :
+- Sources cliquables dans ClientMemory (badge date/type sans onClick).
+- Skeleton pendant l'extraction LLM (5-8s).
+- Bouton « Nouveau CR » depuis /tournee vers /visit avec pré-remplissage client_id.
+
+**Régression** : 33/33 tests backend Lot 7 verts (iter28-31).
+
+### Cause racine documentée
+Deux collections MongoDB coexistent : `db.clients` (legacy) et `db.establishments` (Lot 5+). Les fixes ci-dessus créent des ponts fonctionnels sans migration destructive. Une consolidation propre reste au backlog (P1 refactor).
 

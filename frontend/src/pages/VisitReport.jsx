@@ -45,7 +45,20 @@ export default function VisitReport() {
   const [createdVisitId, setCreatedVisitId] = useState(null);
   const { supported, listening, transcript, start, stop, reset, setTranscript } = useVoice("fr-FR");
 
-  useEffect(() => { api.get("/clients").then(r => setClients(r.data)); }, []);
+  useEffect(() => {
+    // Fix walkthrough iter21 — fusionne db.clients + db.establishments dans le dropdown
+    // pour qu'un commercial en tournée puisse sélectionner un vrai établissement
+    // (ADT 64, BEKAST…) et pas seulement d'anciens clients hérités.
+    Promise.all([
+      api.get("/clients").catch(() => ({ data: [] })),
+      api.get("/establishments").catch(() => ({ data: [] })),
+    ]).then(([rc, re]) => {
+      const merged = new Map();
+      for (const c of (rc.data || [])) merged.set(c.id, { id: c.id, name: c.name, city: c.city });
+      for (const e of (re.data || [])) if (!merged.has(e.id)) merged.set(e.id, { id: e.id, name: e.name, city: e.city });
+      setClients(Array.from(merged.values()));
+    });
+  }, []);
 
   const aiFill = async () => {
     const text = (transcript || form.summary).trim();
@@ -77,7 +90,7 @@ export default function VisitReport() {
       const res = await postOffline("/visits", payload);
       if (res.offline) {
         toast.success(t("toast.enregistre_hors_ligne_sera_synchron"), { icon: "📶" });
-        nav(`/clients/${form.client_id}`);
+        nav(`/etab/${form.client_id}`);
       } else {
         toast.success(t("toast.compte_rendu_enregistre"));
         // Extraction d'objections (Lot 7 étape 1) si transcription vocale présente.
@@ -89,7 +102,7 @@ export default function VisitReport() {
           setObjectionsOpen(true);
           return;  // pas de nav ici — voir onClose du panel
         }
-        nav(`/clients/${form.client_id}`);
+        nav(`/etab/${form.client_id}`);
       }
     } catch { toast.error(t("toast.erreur")); }
     finally { setSubmitting(false); }
@@ -221,7 +234,9 @@ export default function VisitReport() {
         visitId={createdVisitId}
         onClose={() => {
           setEngagementsOpen(false);
-          if (form.client_id) nav(`/clients/${form.client_id}`);
+          // Fix walkthrough iter21 — nav vers /etab/{id} (fiche copilote complète)
+          // plutôt que /clients/{id} (legacy sans blocs Lot 7).
+          if (form.client_id) nav(`/etab/${form.client_id}`);
         }}
         onConfirmed={() => { /* toast déjà géré dans le panel */ }}
       />

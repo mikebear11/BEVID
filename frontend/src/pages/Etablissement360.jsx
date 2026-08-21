@@ -20,6 +20,7 @@ export default function Etablissement360() {
   const [showDerog, setShowDerog] = useState(false);
   const [derogReason, setDerogReason] = useState("");
   const [amt, setAmt] = useState("");
+  const [memoryVer, setMemoryVer] = useState(0);  // Fix iter21 — recompute événementiel après pin comment
 
   const load = async () => {
     try { const { data } = await api.get(`/establishments/${id}`); setE(data); }
@@ -82,7 +83,7 @@ export default function Etablissement360() {
 
       {/* Lot 7 étape 2 — Mémoire client "Ce qu'il faut savoir" */}
       <div className="card-crm p-4 mt-3" data-testid="etab-memory">
-        <ClientMemory establishmentId={id} />
+        <ClientMemory establishmentId={id} refreshTrigger={memoryVer} />
       </div>
 
       {e.top_products?.length > 0 && (
@@ -104,7 +105,7 @@ export default function Etablissement360() {
       </div>
 
       <div className="card-crm p-4 mt-3" data-testid="etab-comments">
-        <CommentsThread establishmentId={id} />
+        <CommentsThread establishmentId={id} onMemoryChange={() => setMemoryVer(v => v + 1)} />
       </div>
 
       {e.last_visit && (
