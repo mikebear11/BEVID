@@ -48,12 +48,14 @@ const PINNED = [
 const HOME_ENTRY = { to: "/", key: "dashboard", feature: "page:dashboard", icon: LayoutDashboard };
 
 const SECTIONS = [
+  // Ordre = fréquence quotidienne décroissante : ouvrir un client, prendre commande,
+  // chercher un produit ; le pilotage commercial (pipeline, deals) vient après.
   { key: "section_sales", entries: [
     { to: "/clients",  key: "clients",  feature: "page:clients", icon: Users },
-    { to: "/pipeline", key: "pipeline", feature: "page:clients", icon: Columns },
-    { to: "/deals",    key: "deals",    feature: "page:clients", icon: Target },
     { to: "/orders",   key: "orders",   feature: "page:orders",  icon: ShoppingCart },
     { to: "/products", key: "products", feature: "page:products", icon: Wine },
+    { to: "/pipeline", key: "pipeline", feature: "page:clients", icon: Columns },
+    { to: "/deals",    key: "deals",    feature: "page:clients", icon: Target },
   ]},
   { key: "section_logistics", entries: [
     { to: "/tours",              key: "tours",      feature: "page:tours", icon: RouteIcon },
@@ -74,11 +76,12 @@ const SECTIONS = [
     { to: "/smart-goals",    key: "smart",   feature: "page:dashboard",  icon: Sparkles },
     { to: "/agents",         key: "agents",  feature: "page:users",      icon: UserCog },
   ]},
+  // Regroupement défensif : Radar + Bouclier ensemble ; Veille et Sources en support.
   { key: "section_growth", entries: [
     { to: "/prospection",     key: "prospecting", feature: "page:prospection",     icon: Compass },
     { to: "/radar",           key: "radar",       feature: "page:radar",           icon: Radio },
-    { to: "/veille",          key: "veille",      feature: "page:veille",          icon: AlertOctagon },
     { to: "/bouclier",        key: "bouclier",    feature: "page:bouclier",        icon: Shield },
+    { to: "/veille",          key: "veille",      feature: "page:veille",          icon: AlertOctagon },
     { to: "/sources-donnees", key: "sources",     feature: "page:sources-donnees", icon: Database },
   ]},
   { key: "section_admin", entries: [

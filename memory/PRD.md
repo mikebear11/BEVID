@@ -582,3 +582,13 @@ brassicoles/distribution.
   la meilleure séparation métier (Terrain/Ventes/Stock/Pilotage/Growth/Admin).
 - **es/de retirés du sélecteur** : plutôt que promettre une langue non-traduite,
   on n'affiche que fr+en. Infrastructure prête pour rajout ultérieur.
+
+## Lot 8 — Reclassement logique de la sidebar (21/02/2026)
+Ordre revu par fréquence d'usage réel + logique de groupe métier :
+- **section_sales** : Clients → Commandes → Produits → Pipeline → Deals
+  (quotidien : ouvrir client, prendre commande, chercher produit ; pilotage commercial après)
+- **section_growth** : Prospection → Radar → Bouclier → Veille → Sources
+  (Radar + Bouclier regroupés défensif ; Veille + Sources en support)
+- Autres sections (Logistique, Argent, Pilotage, Admin) déjà correctement ordonnées.
+- Ordre des sections inchangé (Ventes → Logistique → Argent → Pilotage → Acquisition → Admin) : flux naturel commercial ; le manager voit Pilotage ouvert par défaut via `defaultOpenByRole`.
+
