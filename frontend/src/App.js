@@ -54,6 +54,7 @@ const Connectors = lazy(() => import("@/pages/Connectors"));
 const SettingsPage = lazy(() => import("@/pages/Settings"));
 const SmartGoals = lazy(() => import("@/pages/SmartGoals"));
 const Tournee = lazy(() => import("@/pages/Tournee"));
+const Livreur = lazy(() => import("@/pages/Livreur"));
 const Etablissement360 = lazy(() => import("@/pages/Etablissement360"));
 const AdminUsers = lazy(() => import("@/pages/AdminUsers"));
 const Paiements = lazy(() => import("@/pages/Paiements"));
@@ -140,6 +141,7 @@ function App() {
                         <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
                         <Route path="/smart-goals" element={<Protected><SmartGoals /></Protected>} />
                         <Route path="/tournee" element={<Protected><Tournee /></Protected>} />
+                        <Route path="/livreur" element={<Protected><Livreur /></Protected>} />
                         <Route path="/etab/:id" element={<Protected><Etablissement360 /></Protected>} />
                         <Route path="/etab/new" element={<Protected><EstablishmentNew /></Protected>} />
                         <Route path="/etab/:id/enrichissement" element={<Protected><Enrichissement /></Protected>} />

@@ -75,7 +75,78 @@ brassicoles/distribution.
 - `/app/frontend/public/{robots.txt,sitemap.xml}` : nouveaux (le CDN externe peut cependant intercepter robots.txt en amont — vérifié sur preview).
 - `/app/backend/tests/test_iter24_lot5_public_hardening.py` : 5 tests dédiés, tous verts.
 
-### Lot 6.2 — Rupture prévue chez le client (livré 20 février 2026)
+### Lot 8 — Barre latérale gauche refondue (livré 21 février 2026)
+
+**Reclassement (7 défauts corrigés)** :
+- `/tournee` (Terrain) et `/tours` (Ventes) ne cohabitent plus. Un seul emplacement pour chacun : `/tournee` en zone épinglée quotidienne, `/tours` dans Logistique.
+- Tableau de bord (`/`) sorti de section repliable → **entrée fixe hors pli**, sous le logo, jamais cachée.
+- Paiements/Rapprochement/Coûts extraits de Pilotage → nouvelle section **« Argent »** (encaissement ≠ pilotage).
+- Prospection sortie de Terrain → rejoint **« Acquisition »** (mêmes finalités).
+- `scan` a désormais **sa propre permission `page:scan`** (nouvelle entrée dans `permissions.py`). Plus jamais dépendante de `page:stock` qui appartient à un autre domaine.
+- `/profile` désormais dans la **zone d'identité en bas** (avatar cliquable + nom + org + pastille rôle), plus perdue dans l'admin.
+- Sections vides masquées entièrement.
+
+**Zone épinglée « Aujourd'hui »** — non repliable, toujours visible :
+- Ma tournée (avec **compteur d'arrêts** — approximation portefeuille commercial pour le MVP, à affiner quand la notion de planning quotidien sera formalisée)
+- Nouvelle visite (`/visit`)
+- Scanner (`/scan`)
+
+**Structure figée** — 6 sections repliables, ordre définitif du quotidien vers l'exceptionnel :
+`Clients et ventes` → `Logistique` → `Argent` → `Pilotage` → `Acquisition` → `Administration`. Aucune réorganisation automatique.
+
+**Ouverture initiale selon rôle** — commercial → `section_sales` ; manager/gérant/owner → `section_pilotage`. Ensuite : choix utilisateur mémorisé dans `bevid_nav_open_sections_v2`, jamais contredit.
+
+**Accessibilité renforcée** — `<nav aria-label>`, `<button aria-expanded aria-controls>` sur les headers de section, `aria-current="page"` sur l'entrée active, `aria-hidden` sur les icônes décoratives, targets ≥ 40px.
+
+**Compteur pertinent** — badge chiffré sur Ma tournée uniquement (« un chiffre utile, jamais une pastille rouge »).
+
+**Zone d'identité repensée** — avatar rond, nom, org, pastille rôle, cloche notifications sur la même ligne cliquable qui mène au profil. Thème, langue et déconnexion en dessous.
+
+**Barre mobile inchangée** — `MOBILE_NAV` reste littéral, 5 entrées fixes, jamais dérivé de la sidebar desktop.
+
+**Renommages i18n cohérents** (fr/en) :
+- `Ventes` → `Clients et ventes` / `Customers & sales`
+- Nouvelles : `section_today`, `section_logistics`, `section_finance`
+- `Connecteurs` → `Intégrations` / `Integrations`
+- `Réglages` → `Paramètres` / `Settings`
+- `Utilisateurs` → `Membres` / `Members`
+- `Paiements` → `Paiements et relances` / `Payments & follow-ups`
+- `Coûts de revient` → `Coûts et marges` / `Costs & margins`
+- `Rapprochement` → `Rapprochement bancaire` / `Bank reconciliation`
+
+**Suite reportée dans l'ordre demandé** :
+1. Épinglage manuel (clic droit / appui long)
+2. Compteurs impayés / fûts en retour / signatures en attente (max 3 simultanés)
+3. Mode rail réduit (icônes seules)
+
+**Seed démo enrichi — `POST /api/admin/demo/enrich-history`**
+- Injecte 6 mois d'historique de commandes régulières pour montrer le Lot 6.2 en action sans attendre les vraies données.
+- Rythmes tournants : 14, 21, 28, 35 jours selon le client — variété volontaire pour couvrir les différents cas de figure.
+- Commande d'événement (qty × 5) glissée au milieu de chaque historique client → vérifie que le filtrage IQR fait bien son travail sur données réalistes.
+- **Idempotence dure** : plafond de 10 clients enrichis au total. Un rejeu ne gonfle jamais ce nombre (nouvelle logique après premier bug d'idempotence identifié).
+- Réservé aux managers/gérants/owners.
+- Résultat sur données de démo : **8 clients enrichis, 132 commandes créées → 16 prédictions émises, aucune hallucination.** Exemples :
+  - *« IPA Fût 30L — probablement à sec vers le 05/09. Commande tous les 21 jours en moyenne, dernière il y a 6 jours. »*
+  - *« Blonde 30L — probablement à sec vers le 14/09. Commande tous les 28 jours en moyenne, dernière il y a 4 jours. »*
+- Ratio prédictions / silence : 8/99 clients avec prédiction — silence total sur les 91 restants (majorité `too_few_orders`). L'outil se tait exactement là où il ne sait pas.
+
+**Interface livreur — `/livreur`**
+- Page dédiée, accessible aux utilisateurs authentifiés (rôle non discriminant pour le MVP — un dépôt peut avoir un livreur qui n'est ni commercial ni manager).
+- **Contraste maximal** : fond noir absolu (`bg-black`), texte blanc, badge d'action vert émeraude fluo. Adapté à la lumière crue du camion.
+- **Cibles ≥ 64px de haut** (bouton LIVRÉE `min-h-[64px]`, appel client dédié) — adapté aux gants.
+- **Un seul geste par arrêt** : tap sur « LIVRÉE » → `POST /api/orders/{id}/mark-delivered` → l'item disparaît de la liste, compteur mis à jour. Aucun formulaire, aucune signature obligatoire (celle-ci reste disponible via le flux commercial standard si l'entreprise l'exige).
+- Fallback téléphone : bouton d'appel direct si `phone` renseigné (col-span-1) — un livreur perdu doit pouvoir joindre le client sans quitter l'écran.
+- Compteur restant en gros dans le header. Écran vide de fin de tournée : icône verte + « Aucune livraison ».
+- Titre `Livraison du jour · BEVID` via `usePageMeta`. Aucun menu de navigation dans la page (règle « pas de nouvelle entrée de menu »).
+
+**Endpoints backend supports**
+- `GET /api/deliveries/today` : liste des commandes `status ∈ {signee, confirme, validee}` non livrées, avec `delivery_date = today OR null`, enrichi bulk depuis `db.clients` pour l'adresse/téléphone.
+- `POST /api/orders/{id}/mark-delivered` : `status=livre`, `delivery_status=livree`, `delivered_at`, `delivered_by` (id + nom) — traçabilité complète en un tap. Idempotent (404 si commande inexistante).
+
+**Fichiers**
+- `/app/backend/server.py` : 3 endpoints nouveaux (seed démo, deliveries/today, mark-delivered).
+- `/app/frontend/src/pages/Livreur.jsx` : composant nouveau.
+- `/app/frontend/src/App.js` + `craco.config.js` : route `/livreur` enregistrée (+ dans KNOWN_ROUTES du middleware 404 SPA).
 
 **Backend — `/app/backend/analytics/runout.py` (module pur, testable sans DB)**
 - Regroupement par produit → intervalles entre commandes → moyenne pondérée.

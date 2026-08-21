@@ -3735,6 +3735,179 @@ async def cron_deviation(request: Request, authorization: Optional[str] = Header
     return {"status": "queued"}
 
 # ---------- CARNET COMMANDES SIGNÉES NON LIVRÉES + PRÉVISION ----------
+@api_router.get("/deliveries/today")
+async def deliveries_today(user=Depends(get_current_user)):
+    """Livraisons du jour pour l'écran livreur — ultra-minimal, <10s par arrêt.
+
+    - Retourne les commandes `status ∈ {confirme, signee, validee}` non livrées
+      dont `delivery_date == aujourd'hui`, plus celles sans date de livraison
+      (fallback : à livrer au plus vite).
+    - Chaque item porte les infos strictement nécessaires : id, client_name,
+      client_id (pour adresse), total, nb lignes, delivery_date, agent_id.
+    - Aucun filtre par agent : dans un dépôt, un même livreur peut couvrir
+      plusieurs portefeuilles. Le tri est chronologique.
+    """
+    today = datetime.now(timezone.utc).date().isoformat()
+    q = {
+        "status": {"$in": ["signee", "confirme", "validee"]},
+        "delivery_status": {"$ne": "livree"},
+        "$or": [
+            {"delivery_date": today},
+            {"delivery_date": None},
+            {"delivery_date": {"$exists": False}},
+        ],
+    }
+    orders = await db.orders.find(q, {"_id": 0}).sort("delivery_date", 1).to_list(200)
+    # Enrichissement adresse depuis clients (une seule requête bulk)
+    cids = list({o.get("client_id") for o in orders if o.get("client_id")})
+    clients_by_id = {}
+    if cids:
+        async for c in db.clients.find({"id": {"$in": cids}}, {"_id": 0, "id": 1, "address": 1, "city": 1, "postal_code": 1, "phone": 1}):
+            clients_by_id[c["id"]] = c
+    out = []
+    for o in orders:
+        cli = clients_by_id.get(o.get("client_id"), {}) or {}
+        out.append({
+            "id": o.get("id"),
+            "client_id": o.get("client_id"),
+            "client_name": o.get("client_name"),
+            "address": cli.get("address") or "",
+            "city": cli.get("city") or "",
+            "postal_code": cli.get("postal_code") or "",
+            "phone": cli.get("phone") or "",
+            "delivery_date": o.get("delivery_date"),
+            "total": o.get("total", 0),
+            "lines_count": len(o.get("lines") or []),
+            "delivery_status": o.get("delivery_status") or "pending",
+        })
+    return {"deliveries": out, "today": today}
+
+
+@api_router.post("/orders/{oid}/mark-delivered")
+async def mark_delivered(oid: str, user=Depends(get_current_user)):
+    """Livreur — Un tap = commande livrée. Aucun formulaire, aucune signature.
+
+    Écran conçu pour <10s par arrêt : le geste unique suffit. La traçabilité
+    (qui a livré, quand) est enregistrée en base. La signature client reste
+    disponible via le flux commercial standard si l'entreprise l'exige.
+    """
+    o = await db.orders.find_one({"id": oid}, {"_id": 0, "id": 1})
+    if not o:
+        raise HTTPException(404, "Commande introuvable")
+    await db.orders.update_one(
+        {"id": oid},
+        {"$set": {
+            "status": "livre",
+            "delivery_status": "livree",
+            "delivered_at": now_iso(),
+            "delivered_by": user["id"],
+            "delivered_by_name": user.get("name") or user.get("email"),
+        }},
+    )
+    return {"ok": True}
+
+
+# ---------- DEMO — Enrichissement historique commandes (Lot 6.2 en action) ----------
+@api_router.post("/admin/demo/enrich-history")
+async def enrich_demo_history(user=Depends(get_current_user)):
+    """Injecte 6 mois d'historique de commandes régulières sur 8 clients de démo.
+
+    Idempotent : marque chaque client `demo_enriched=True` et refuse de rejouer.
+    Réservé aux managers/gérants de l'organisation démo.
+
+    Rythmes injectés : 14, 21, 28 et 35 jours selon le client, sur 2-3 produits.
+    Une commande d'événement (qty×5) est glissée au milieu pour vérifier que le
+    filtrage IQR fait bien son travail sur données réalistes.
+    """
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Réservé aux managers")
+
+    # Idempotence stricte : plafond dur à 10 clients enrichis au total.
+    # Un rejeu ne doit jamais gonfler ce nombre — le seed est conçu comme
+    # une démonstration, pas comme un générateur de données.
+    already_enriched = await db.clients.count_documents({"demo_enriched": True})
+    MAX_ENRICHED = 10
+    slots_left = MAX_ENRICHED - already_enriched
+    if slots_left <= 0:
+        return {
+            "enriched_clients": 0,
+            "orders_created": 0,
+            "already_enriched_total": already_enriched,
+            "reason": f"max_reached ({already_enriched}/{MAX_ENRICHED})",
+        }
+
+    products = await db.products.find({}, {"_id": 0}).to_list(500)
+    if len(products) < 3:
+        raise HTTPException(400, "Catalogue insuffisant (min 3 produits)")
+
+    # Cible : clients sans historique et pas déjà enrichis. On en prend au plus
+    # `slots_left` (jamais plus, même si demandé plusieurs fois).
+    candidates = await db.clients.find(
+        {"demo_enriched": {"$ne": True}},
+        {"_id": 0, "id": 1, "name": 1},
+    ).limit(slots_left).to_list(slots_left)
+
+    if not candidates:
+        return {"enriched_clients": 0, "orders_created": 0, "reason": "no_candidates_left"}
+
+    # Rythmes tournants pour varier — cf. contrat Lot 6.2 (couverture démonstration).
+    rhythms = [14, 21, 28, 35, 21, 14, 28, 21]
+    from datetime import timedelta as _td
+    today = datetime.now(timezone.utc)
+    orders_created = 0
+    enriched_ids = []
+
+    for idx, client in enumerate(candidates):
+        rhythm = rhythms[idx % len(rhythms)]
+        # 2 produits par client, différents selon l'indice pour montrer diversité
+        assigned = [products[idx % len(products)], products[(idx + 3) % len(products)]]
+        # Nombre de commandes sur ~6 mois : 180 / rythme
+        n = max(6, min(14, int(180 / rhythm)))
+        # Dernière commande : il y a 2 à 8 jours pour éviter l'exclusion too_recent
+        last_offset = 2 + (idx % 7)
+
+        for i in range(n):
+            days_ago = last_offset + (n - 1 - i) * rhythm
+            created_at = (today - _td(days=days_ago)).isoformat()
+            # Injecte une commande d'événement au milieu (qty × 5) pour valider IQR
+            is_event = (i == n // 2)
+            for p in assigned:
+                base_qty = 3 if p.get("unit") == "fût" else 6
+                qty = base_qty * 5 if is_event else base_qty
+                doc = {
+                    "id": str(uuid.uuid4()),
+                    "client_id": client["id"],
+                    "client_name": client["name"],
+                    "agent_id": user["id"],
+                    "agent_name": user.get("name") or user.get("email"),
+                    "org_id": user.get("org_id"),
+                    "lines": [{
+                        "product_id": p["id"],
+                        "product_name": p.get("name"),
+                        "quantity": qty,
+                        "unit_price": p.get("price", 0),
+                    }],
+                    "total": qty * (p.get("price", 0) or 0),
+                    "status": "livre" if days_ago > 5 else "confirme",
+                    "delivery_status": "livree" if days_ago > 5 else "pending",
+                    "created_at": created_at,
+                    "delivery_date": (today - _td(days=days_ago - 3)).date().isoformat(),
+                    "demo_seeded": True,
+                }
+                await db.orders.insert_one(doc)
+                orders_created += 1
+        await db.clients.update_one({"id": client["id"]}, {"$set": {"demo_enriched": True}})
+        enriched_ids.append(client["id"])
+
+    return {
+        "enriched_clients": len(enriched_ids),
+        "orders_created": orders_created,
+        "client_ids": enriched_ids,
+        "total_enriched_after": already_enriched + len(enriched_ids),
+    }
+
+
+# ---------- CARNET COMMANDES SIGNÉES NON LIVRÉES + PRÉVISION ----------
 @api_router.get("/orderbook")
 async def orderbook(user=Depends(get_current_user)):
     from datetime import datetime as _dt, timedelta as _td

@@ -11,6 +11,7 @@ FEATURES = [
     {"key": "page:orders", "label": "Commandes", "category": "Pages", "default": {"manager": True, "commercial": True}},
     {"key": "page:tours", "label": "Tournées", "category": "Pages", "default": {"manager": True, "commercial": True}},
     {"key": "page:visits", "label": "Visites", "category": "Pages", "default": {"manager": True, "commercial": True}},
+    {"key": "page:scan", "label": "Scanner contenants", "category": "Pages", "default": {"manager": True, "commercial": True}},
     {"key": "page:paiements", "label": "Paiements & impayés", "category": "Pages", "default": {"manager": True, "commercial": False}},
     {"key": "page:rapprochement", "label": "Rapprochement bancaire", "category": "Pages", "default": {"manager": True, "commercial": False}},
     {"key": "page:reports", "label": "Rapports & analytics", "category": "Pages", "default": {"manager": True, "commercial": False}},

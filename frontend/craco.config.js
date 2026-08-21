@@ -224,6 +224,7 @@ function wrapWith404AndHeaders(devServerConfig) {
     /^\/settings$/,
     /^\/smart-goals$/,
     /^\/tournee$/,
+    /^\/livreur$/,
     /^\/etab\/new$/,
     /^\/etab\/[^/]+$/,
     /^\/etab\/[^/]+\/enrichissement$/,
