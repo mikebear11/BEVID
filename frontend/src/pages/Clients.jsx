@@ -5,6 +5,7 @@ import { Plus, Search, Mic, Upload, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useVoice } from "@/hooks/useVoice";
 import PuceEtat from "@/components/system/PuceEtat";
+import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
 
 const TYPES = ["bar", "restaurant", "caviste", "supermarche", "hotel", "autre"];
@@ -80,6 +81,7 @@ export default function Clients() {
           <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-ghost flex items-center gap-2" data-testid="csv-import-btn">
             <Upload size={16} /> {importing ? "Import…" : "Importer CSV"}
           </button>
+          <XlsxIO kind="establishments" label="Excel" onImportDone={load} />
           <Link to="/etab/new" className="btn-ghost flex items-center gap-2" data-testid="new-establishment-btn">
             <Building2 size={16} /> Nouvel établissement
           </Link>

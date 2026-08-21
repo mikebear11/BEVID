@@ -4,6 +4,7 @@ import { Plus, X, Trash2, FileDown, PenLine, Repeat, Link2, CreditCard } from "l
 import { toast } from "sonner";
 import SignaturePad from "@/components/SignaturePad";
 import PaymentModal from "@/components/PaymentModal";
+import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
 
 export default function Orders() {
@@ -83,7 +84,10 @@ export default function Orders() {
     <div className="space-y-6" data-testid="orders-page">
       <div className="flex justify-between items-center">
         <div><p className="overline">Ventes</p><h1 className="font-display text-4xl">Commandes</h1></div>
-        <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2" data-testid="new-order-btn"><Plus size={16} /> Nouvelle commande</button>
+        <div className="flex gap-2">
+          <XlsxIO kind="orders" label="Excel" />
+          <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2" data-testid="new-order-btn"><Plus size={16} /> Nouvelle commande</button>
+        </div>
       </div>
 
       <div className="card-crm overflow-hidden">

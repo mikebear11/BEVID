@@ -728,6 +728,60 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 8 — Import / Export XLSX (21/02/2026)
+
+### Contexte
+Les commerciaux et le back-office fournissent régulièrement de la donnée en tableur
+(catalogues fournisseurs, listing de bars repris, grilles tarifaires négociées).
+Sans import xlsx, la seule alternative est la saisie manuelle ou l'API brute.
+
+### Backend
+- Nouvelle dépendance : `openpyxl==3.1.5`.
+- **Formats fermés** : chaque fichier respecte des colonnes documentées (avec
+  suffixe `*` sur les obligatoires + fond rouge). Jamais de mapping devinable.
+- **6 endpoints GET** (renvoient `application/vnd.openxmlformats-...`) :
+  - `/xlsx/template/establishments` (2 feuilles : Etablissements + Contacts)
+  - `/xlsx/template/products`
+  - `/xlsx/template/pricelists` (2 feuilles : Tarifs + Lignes)
+  - `/xlsx/export/establishments` (avec contacts)
+  - `/xlsx/export/products`
+  - `/xlsx/export/pricelists`
+  - `/xlsx/export/orders` (aplati une ligne par produit — 351 lignes sur base démo)
+- **3 endpoints POST d'import** avec cap 5 Mo (413 sinon), extension `.xlsx`
+  vérifiée (422 sinon), rapport d'erreurs ligne par ligne (jamais d'arrêt sur
+  première erreur) :
+  - `/xlsx/import/establishments` — upsert par `name`, contacts dédoublonnés
+    par `(role, name)`.
+  - `/xlsx/import/products` — upsert par SKU sinon par nom.
+  - `/xlsx/import/pricelists` — upsert par nom de grille, résolution produit
+    par SKU puis nom.
+- **Erreurs métier remontées** : type/catégorie/rôle inconnu → remis à `autre`
+  avec message d'avertissement, jamais silencieux.
+- **Commandes en export seul** : l'import de commandes passe par la prise de
+  commande dictée (LLM + validation ligne à ligne), pas par tableur.
+
+### Frontend
+- Nouveau composant `XlsxIO.jsx` — bouton dropdown compact avec 3 actions
+  (Télécharger un modèle, Exporter, Importer) et modal de rapport
+  (créés / mis à jour / erreurs détaillées).
+- Le mode "export seul" masque les actions modèle/import (utilisé pour
+  Commandes).
+- Ajouté sur les pages `/clients` (établissements), `/products` (produits),
+  `/orders` (commandes, export seul).
+
+### Tests
+- `/app/backend/tests/test_iter34_xlsx.py` : **10/10 verts**.
+  - 3 templates lisibles avec bonnes feuilles.
+  - Round-trip template → import sans erreur.
+  - Extension .csv rejetée (422).
+  - Fichier > 5 Mo rejeté (413).
+  - Rôle/catégorie inconnu signalé mais ligne créée avec fallback.
+
+### Validation runtime
+- Template établissements : 6 260 octets, 2 feuilles avec exemple pré-rempli.
+- Export commandes : 25 805 octets, 351 lignes (une par ligne de commande).
+- 3 imports round-trip verts : 1 créé, 0 erreur pour chaque type.
+
 ## Lot 8 — Interlocuteurs multiples par établissement (21/02/2026)
 
 ### Contexte

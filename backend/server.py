@@ -4491,6 +4491,636 @@ async def delete_contact(eid: str, cid: str, user=Depends(get_current_user)):
     )
     return {"ok": True, "id": cid}
 
+
+# ---------- Import / Export XLSX (Lot 8) ----------
+# Formats fermés, colonnes documentées dans les templates.
+# Import : create-if-absent (par nom pour établissements, par SKU pour produits).
+#          Update-if-present (mise à jour douce des champs modifiables).
+# Erreurs remontées ligne à ligne (jamais d'arrêt sur première erreur).
+
+ESTABLISHMENT_XLSX_COLUMNS = [
+    ("name", "Nom", True),
+    ("type", "Type (bar/restaurant/caviste/hotel/epicerie/autre)", False),
+    ("siret", "SIRET", False),
+    ("address", "Adresse", False),
+    ("postal_code", "Code postal", False),
+    ("city", "Ville", False),
+    ("region", "Région", False),
+    ("phone", "Téléphone (info)", False),
+    ("email", "Email (info)", False),
+    ("credit_limit", "Encours autorisé (€)", False),
+    ("payment_terms_days", "Délai de paiement (j)", False),
+    ("tags", "Tags (séparés par ;)", False),
+    ("notes", "Notes", False),
+]
+
+# Contacts sur une feuille séparée — clé de liaison = nom d'établissement (colonne 1).
+CONTACT_XLSX_COLUMNS = [
+    ("establishment_name", "Établissement (nom exact)", True),
+    ("role", "Rôle", True),
+    ("name", "Nom du contact", True),
+    ("phone", "Téléphone", False),
+    ("email", "Email", False),
+    ("notes", "Notes", False),
+    ("is_primary", "Principal (oui/non)", False),
+]
+
+PRODUCT_XLSX_COLUMNS = [
+    ("name", "Nom", True),
+    ("category", "Catégorie (vin/biere/spiritueux/soft/eau/autre)", False),
+    ("sku", "SKU", False),
+    ("price", "Prix HT (€)", False),
+    ("stock", "Stock", False),
+    ("unit", "Unité (bouteille/fut/carton...)", False),
+    ("volume_liters", "Volume (L)", False),
+    ("abv_pct", "Degré alcool (%)", False),
+    ("alcohol_type", "Type alcool (biere/vin/spiritueux)", False),
+]
+
+# Tarifs (grille tarifaire par client / segment) — 2 feuilles :
+# entête (métadonnées de la grille) + lignes (produit / prix / min_qty).
+PRICELIST_XLSX_COLUMNS = [
+    ("name", "Nom de la grille", True),
+    ("currency", "Devise", False),
+    ("max_discount_pct", "Remise max autorisée (%)", False),
+    ("is_default", "Grille par défaut (oui/non)", False),
+]
+
+PRICELIST_ITEMS_XLSX_COLUMNS = [
+    ("pricelist_name", "Grille (nom exact)", True),
+    ("product_sku", "SKU produit", False),
+    ("product_name", "Nom produit", True),
+    ("unit_price", "Prix HT (€)", True),
+    ("min_qty", "Quantité minimum", False),
+    ("max_discount_pct", "Remise max ligne (%)", False),
+]
+
+# Commandes (export seul — l'import de commandes se fait via la prise de commande dictée).
+ORDER_XLSX_COLUMNS = [
+    ("order_id", "N° commande", False),
+    ("created_at", "Date", False),
+    ("client_name", "Client", False),
+    ("status", "Statut", False),
+    ("delivery_date", "Livraison prévue", False),
+    ("agent_name", "Commercial", False),
+    ("product_name", "Produit", False),
+    ("quantity", "Quantité", False),
+    ("unit_price", "PU HT (€)", False),
+    ("line_total", "Sous-total (€)", False),
+    ("order_total", "Total commande (€)", False),
+    ("notes", "Notes", False),
+]
+
+_ESTAB_TYPES = {"bar", "restaurant", "caviste", "hotel", "epicerie", "autre"}
+_PRODUCT_CATS = {"vin", "biere", "spiritueux", "soft", "eau", "autre"}
+_YES_VALUES = {"oui", "yes", "true", "1", "vrai", "y"}
+
+
+def _xlsx_workbook(columns_by_sheet: List[tuple]):
+    """columns_by_sheet = [(sheet_name, [(key, header, required)], rows_iter), ...]."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from io import BytesIO
+    wb = Workbook()
+    wb.remove(wb.active)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="4A154B")
+    req_fill = PatternFill("solid", fgColor="8C2A2A")
+    for sheet_name, cols, rows in columns_by_sheet:
+        ws = wb.create_sheet(title=sheet_name[:31])
+        for i, (key, header, required) in enumerate(cols, start=1):
+            cell = ws.cell(row=1, column=i, value=header + (" *" if required else ""))
+            cell.font = header_font
+            cell.fill = req_fill if required else header_fill
+            ws.column_dimensions[cell.column_letter].width = max(len(header) + 4, 14)
+        for r_idx, row in enumerate(rows, start=2):
+            for c_idx, (key, _h, _req) in enumerate(cols, start=1):
+                v = row.get(key)
+                if isinstance(v, list):
+                    v = ";".join(str(x) for x in v)
+                elif isinstance(v, bool):
+                    v = "oui" if v else "non"
+                ws.cell(row=r_idx, column=c_idx, value=v)
+        ws.freeze_panes = "A2"
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def _xlsx_response(buf, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _clean_str(v) -> str:
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
+def _to_float(v, default=0.0):
+    if v is None or v == "":
+        return default
+    try:
+        return float(str(v).replace(",", "."))
+    except (ValueError, TypeError):
+        return default
+
+
+def _to_int(v, default=0):
+    try:
+        return int(float(str(v).replace(",", ".")))
+    except (ValueError, TypeError):
+        return default
+
+
+def _parse_xlsx_rows(file_bytes: bytes, sheet_name: Optional[str] = None) -> List[dict]:
+    """Retourne des dicts { colonne_normalisée: valeur } indexés sur la 1re ligne."""
+    from openpyxl import load_workbook
+    from io import BytesIO
+    wb = load_workbook(BytesIO(file_bytes), data_only=True, read_only=True)
+    if sheet_name and sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+    else:
+        ws = wb.active
+    rows_iter = ws.iter_rows(values_only=True)
+    try:
+        headers = next(rows_iter)
+    except StopIteration:
+        return []
+    # normalisation : on garde le header brut, le code appelant décide du mapping
+    result = []
+    for row in rows_iter:
+        if all(c is None or _clean_str(c) == "" for c in row):
+            continue
+        d = {}
+        for i, h in enumerate(headers):
+            if h is None:
+                continue
+            d[str(h).strip()] = row[i] if i < len(row) else None
+        result.append(d)
+    return result
+
+
+@api_router.get("/xlsx/template/establishments")
+async def xlsx_template_establishments(user=Depends(get_current_user)):
+    """Modèle vide avec 1 ligne d'exemple explicite."""
+    example_est = [{
+        "name": "Bar de la Poste",
+        "type": "bar",
+        "siret": "12345678900011",
+        "address": "12 place du Marché",
+        "postal_code": "64200",
+        "city": "Biarritz",
+        "region": "Nouvelle-Aquitaine",
+        "phone": "05 59 12 34 56",
+        "email": "contact@bardelaposte.fr",
+        "credit_limit": 2000,
+        "payment_terms_days": 30,
+        "tags": "terrasse;habitué",
+        "notes": "Commande le mardi",
+    }]
+    example_contact = [{
+        "establishment_name": "Bar de la Poste",
+        "role": "gerant",
+        "name": "Jean Dupont",
+        "phone": "06 12 34 56 78",
+        "email": "jean@bardelaposte.fr",
+        "notes": "Contacter avant 11h",
+        "is_primary": True,
+    }]
+    buf = _xlsx_workbook([
+        ("Etablissements", ESTABLISHMENT_XLSX_COLUMNS, example_est),
+        ("Contacts", CONTACT_XLSX_COLUMNS, example_contact),
+    ])
+    return _xlsx_response(buf, "template-etablissements.xlsx")
+
+
+@api_router.get("/xlsx/template/products")
+async def xlsx_template_products(user=Depends(get_current_user)):
+    example = [{
+        "name": "IPA Houblonée",
+        "category": "biere",
+        "sku": "IPA-30L",
+        "price": 95.0,
+        "stock": 12,
+        "unit": "fut",
+        "volume_liters": 30,
+        "abv_pct": 6.2,
+        "alcohol_type": "biere",
+    }]
+    buf = _xlsx_workbook([("Produits", PRODUCT_XLSX_COLUMNS, example)])
+    return _xlsx_response(buf, "template-produits.xlsx")
+
+
+@api_router.get("/xlsx/export/establishments")
+async def xlsx_export_establishments(user=Depends(get_current_user)):
+    is_mgr = user["role"] in ("manager", "gerant")
+    q = {} if is_mgr else {"assigned_to": user["id"]}
+    items = await db.establishments.find(q, {"_id": 0}).sort("name", 1).to_list(5000)
+    contacts_rows = []
+    for e in items:
+        for c in (e.get("contacts") or []):
+            contacts_rows.append({
+                "establishment_name": e.get("name", ""),
+                "role": c.get("role", ""),
+                "name": c.get("name", ""),
+                "phone": c.get("phone", ""),
+                "email": c.get("email", ""),
+                "notes": c.get("notes", ""),
+                "is_primary": bool(c.get("is_primary")),
+            })
+    buf = _xlsx_workbook([
+        ("Etablissements", ESTABLISHMENT_XLSX_COLUMNS, items),
+        ("Contacts", CONTACT_XLSX_COLUMNS, contacts_rows),
+    ])
+    filename = f"etablissements-{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
+    return _xlsx_response(buf, filename)
+
+
+@api_router.get("/xlsx/export/products")
+async def xlsx_export_products(user=Depends(get_current_user)):
+    items = await db.products.find({}, {"_id": 0}).sort("name", 1).to_list(5000)
+    # `hecto_tiers` est un tableau structuré non représentable en 1 colonne — on
+    # l'omet volontairement pour ne pas générer un fichier qui semble éditable
+    # mais casserait au réimport.
+    for p in items:
+        p.pop("hecto_tiers", None)
+    buf = _xlsx_workbook([("Produits", PRODUCT_XLSX_COLUMNS, items)])
+    filename = f"produits-{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
+    return _xlsx_response(buf, filename)
+
+
+def _row_lookup(row: dict, header_matches: List[str]):
+    """Trouve une valeur dans la ligne par une liste de headers équivalents."""
+    for h in header_matches:
+        for k in row.keys():
+            if k.strip().lower().rstrip(" *") == h.strip().lower():
+                return row[k]
+    return None
+
+
+@api_router.post("/xlsx/import/establishments")
+async def xlsx_import_establishments(file: UploadFile = File(...), user=Depends(get_current_user)):
+    if not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(422, "Fichier .xlsx attendu")
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(413, "Fichier trop volumineux (max 5 Mo)")
+    # Feuille Etablissements
+    try:
+        est_rows = _parse_xlsx_rows(content, "Etablissements")
+        contact_rows = _parse_xlsx_rows(content, "Contacts")
+    except Exception as e:
+        raise HTTPException(422, f"Fichier illisible : {e}")
+
+    created, updated, errors = 0, 0, []
+    name_to_id: Dict[str, str] = {}
+
+    for i, row in enumerate(est_rows, start=2):
+        try:
+            name = _clean_str(_row_lookup(row, ["Nom"]))
+            if not name:
+                errors.append({"row": i, "sheet": "Etablissements", "message": "Nom manquant"})
+                continue
+            etype = _clean_str(_row_lookup(row, ["Type (bar/restaurant/caviste/hotel/epicerie/autre)", "Type"])).lower() or "bar"
+            if etype not in _ESTAB_TYPES:
+                errors.append({"row": i, "sheet": "Etablissements", "message": f"Type inconnu '{etype}', valeur remise à 'autre'"})
+                etype = "autre"
+            tags_raw = _clean_str(_row_lookup(row, ["Tags (séparés par ;)", "Tags"]))
+            tags = [t.strip() for t in tags_raw.split(";") if t.strip()] if tags_raw else []
+            data = {
+                "name": name,
+                "type": etype,
+                "siret": _clean_str(_row_lookup(row, ["SIRET"])),
+                "address": _clean_str(_row_lookup(row, ["Adresse"])),
+                "postal_code": _clean_str(_row_lookup(row, ["Code postal"])),
+                "city": _clean_str(_row_lookup(row, ["Ville"])),
+                "region": _clean_str(_row_lookup(row, ["Région"])),
+                "credit_limit": _to_float(_row_lookup(row, ["Encours autorisé (€)", "Encours autorisé"])),
+                "notes": _clean_str(_row_lookup(row, ["Notes"])),
+                "tags": tags,
+            }
+            terms = _row_lookup(row, ["Délai de paiement (j)", "Délai de paiement"])
+            if terms not in (None, ""):
+                data["payment_terms_days"] = _to_int(terms)
+            existing = await db.establishments.find_one({"name": name}, {"_id": 0})
+            if existing:
+                data["updated_at"] = now_iso()
+                await db.establishments.update_one({"id": existing["id"]}, {"$set": data})
+                name_to_id[name] = existing["id"]
+                updated += 1
+            else:
+                data["owner_id"] = user["id"]
+                data.setdefault("assigned_to", user["id"])
+                e_obj = Establishment(**data)
+                doc = e_obj.model_dump()
+                doc["credit_status"] = credit_color(doc)
+                await db.establishments.insert_one(doc.copy())
+                name_to_id[name] = e_obj.id
+                created += 1
+        except Exception as ex:
+            errors.append({"row": i, "sheet": "Etablissements", "message": str(ex)})
+
+    # Feuille Contacts — dédoublonnage par (establishment, role, name).
+    contacts_created = 0
+    for i, row in enumerate(contact_rows, start=2):
+        try:
+            est_name = _clean_str(_row_lookup(row, ["Établissement (nom exact)", "Etablissement (nom exact)", "Établissement", "Etablissement"]))
+            if not est_name:
+                errors.append({"row": i, "sheet": "Contacts", "message": "Nom d'établissement manquant"})
+                continue
+            eid = name_to_id.get(est_name)
+            if not eid:
+                # Cherche en base
+                est = await db.establishments.find_one({"name": est_name}, {"_id": 0, "id": 1})
+                if not est:
+                    errors.append({"row": i, "sheet": "Contacts", "message": f"Établissement '{est_name}' introuvable"})
+                    continue
+                eid = est["id"]
+            role = _clean_str(_row_lookup(row, ["Rôle"])).lower() or "autre"
+            if role not in CONTACT_ROLES:
+                errors.append({"row": i, "sheet": "Contacts", "message": f"Rôle '{role}' inconnu, remis à 'autre'"})
+                role = "autre"
+            cname = _clean_str(_row_lookup(row, ["Nom du contact"]))
+            if not cname:
+                errors.append({"row": i, "sheet": "Contacts", "message": "Nom du contact manquant"})
+                continue
+            is_primary = _clean_str(_row_lookup(row, ["Principal (oui/non)", "Principal"])).lower() in _YES_VALUES
+            new_contact = EstablishmentContact(
+                role=role, name=cname,
+                phone=_clean_str(_row_lookup(row, ["Téléphone"]))[:60],
+                email=_clean_str(_row_lookup(row, ["Email"]))[:200],
+                notes=_clean_str(_row_lookup(row, ["Notes"]))[:500],
+                is_primary=is_primary,
+            )
+            est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+            contacts_list = list(est.get("contacts") or [])
+            # dédoublonnage souple : même rôle + même nom = update, sinon append
+            dup_idx = next((k for k, c in enumerate(contacts_list) if c.get("role") == role and c.get("name", "").lower() == cname.lower()), -1)
+            if dup_idx >= 0:
+                contacts_list[dup_idx] = {**contacts_list[dup_idx], **new_contact.model_dump(), "id": contacts_list[dup_idx].get("id")}
+            else:
+                contacts_list.append(new_contact.model_dump())
+                contacts_created += 1
+            if is_primary:
+                for k, c in enumerate(contacts_list):
+                    if k != (dup_idx if dup_idx >= 0 else len(contacts_list) - 1):
+                        c["is_primary"] = False
+            await db.establishments.update_one({"id": eid}, {"$set": {"contacts": contacts_list, "updated_at": now_iso()}})
+        except Exception as ex:
+            errors.append({"row": i, "sheet": "Contacts", "message": str(ex)})
+
+    return {
+        "created": created, "updated": updated,
+        "contacts_created": contacts_created,
+        "errors": errors, "total_errors": len(errors),
+    }
+
+
+@api_router.post("/xlsx/import/products")
+async def xlsx_import_products(file: UploadFile = File(...), user=Depends(get_current_user)):
+    if not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(422, "Fichier .xlsx attendu")
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(413, "Fichier trop volumineux (max 5 Mo)")
+    try:
+        rows = _parse_xlsx_rows(content, "Produits")
+    except Exception as e:
+        raise HTTPException(422, f"Fichier illisible : {e}")
+    created, updated, errors = 0, 0, []
+    for i, row in enumerate(rows, start=2):
+        try:
+            name = _clean_str(_row_lookup(row, ["Nom"]))
+            if not name:
+                errors.append({"row": i, "sheet": "Produits", "message": "Nom manquant"})
+                continue
+            cat = _clean_str(_row_lookup(row, ["Catégorie (vin/biere/spiritueux/soft/eau/autre)", "Catégorie"])).lower() or "vin"
+            if cat not in _PRODUCT_CATS:
+                errors.append({"row": i, "sheet": "Produits", "message": f"Catégorie '{cat}' inconnue, remise à 'autre'"})
+                cat = "autre"
+            sku = _clean_str(_row_lookup(row, ["SKU"]))
+            data = {
+                "name": name, "category": cat, "sku": sku,
+                "price": _to_float(_row_lookup(row, ["Prix HT (€)", "Prix HT"])),
+                "stock": _to_int(_row_lookup(row, ["Stock"])),
+                "unit": _clean_str(_row_lookup(row, ["Unité (bouteille/fut/carton...)", "Unité"])) or "bouteille",
+            }
+            vl = _row_lookup(row, ["Volume (L)", "Volume"])
+            if vl not in (None, ""):
+                data["volume_liters"] = _to_float(vl)
+            abv = _row_lookup(row, ["Degré alcool (%)", "Degré alcool"])
+            if abv not in (None, ""):
+                data["abv_pct"] = _to_float(abv)
+            atype = _clean_str(_row_lookup(row, ["Type alcool (biere/vin/spiritueux)", "Type alcool"]))
+            if atype:
+                data["alcohol_type"] = atype
+            # Upsert par SKU si présent, sinon par nom
+            query = {"sku": sku} if sku else {"name": name}
+            existing = await db.products.find_one(query, {"_id": 0}) if sku or True else None
+            if existing:
+                await db.products.update_one({"id": existing["id"]}, {"$set": data})
+                updated += 1
+            else:
+                data["owner_id"] = user["id"]
+                p = Product(**data)
+                await db.products.insert_one(p.model_dump())
+                created += 1
+        except Exception as ex:
+            errors.append({"row": i, "sheet": "Produits", "message": str(ex)})
+    return {"created": created, "updated": updated, "errors": errors, "total_errors": len(errors)}
+
+
+# ---------- XLSX Tarifs & Commandes ----------
+@api_router.get("/xlsx/template/pricelists")
+async def xlsx_template_pricelists(user=Depends(get_current_user)):
+    example_pl = [{
+        "name": "Grille CHR standard",
+        "currency": "EUR",
+        "max_discount_pct": 15.0,
+        "is_default": True,
+    }]
+    example_items = [{
+        "pricelist_name": "Grille CHR standard",
+        "product_sku": "IPA-30L",
+        "product_name": "IPA Houblonée",
+        "unit_price": 89.0,
+        "min_qty": 1,
+        "max_discount_pct": 10,
+    }]
+    buf = _xlsx_workbook([
+        ("Tarifs", PRICELIST_XLSX_COLUMNS, example_pl),
+        ("Lignes", PRICELIST_ITEMS_XLSX_COLUMNS, example_items),
+    ])
+    return _xlsx_response(buf, "template-tarifs.xlsx")
+
+
+@api_router.get("/xlsx/export/pricelists")
+async def xlsx_export_pricelists(user=Depends(get_current_user)):
+    pls = await db.price_lists.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
+    products = await db.products.find({}, {"_id": 0}).to_list(5000)
+    prod_by_id = {p["id"]: p for p in products}
+    items_rows = []
+    for pl in pls:
+        items = await db.price_list_items.find({"price_list_id": pl["id"]}, {"_id": 0}).to_list(5000)
+        for it in items:
+            p = prod_by_id.get(it.get("product_id")) or {}
+            items_rows.append({
+                "pricelist_name": pl.get("name", ""),
+                "product_sku": p.get("sku") or "",
+                "product_name": p.get("name") or "",
+                "unit_price": it.get("unit_price", 0),
+                "min_qty": it.get("min_qty", 1),
+                "max_discount_pct": it.get("max_discount_pct") or "",
+            })
+    buf = _xlsx_workbook([
+        ("Tarifs", PRICELIST_XLSX_COLUMNS, pls),
+        ("Lignes", PRICELIST_ITEMS_XLSX_COLUMNS, items_rows),
+    ])
+    filename = f"tarifs-{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
+    return _xlsx_response(buf, filename)
+
+
+@api_router.post("/xlsx/import/pricelists")
+async def xlsx_import_pricelists(file: UploadFile = File(...), user=Depends(get_current_user)):
+    if not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(422, "Fichier .xlsx attendu")
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(413, "Fichier trop volumineux (max 5 Mo)")
+    try:
+        pl_rows = _parse_xlsx_rows(content, "Tarifs")
+        item_rows = _parse_xlsx_rows(content, "Lignes")
+    except Exception as e:
+        raise HTTPException(422, f"Fichier illisible : {e}")
+
+    created, updated, errors = 0, 0, []
+    lines_created = 0
+    name_to_id: Dict[str, str] = {}
+
+    for i, row in enumerate(pl_rows, start=2):
+        try:
+            name = _clean_str(_row_lookup(row, ["Nom de la grille", "Nom"]))
+            if not name:
+                errors.append({"row": i, "sheet": "Tarifs", "message": "Nom manquant"})
+                continue
+            data = {
+                "name": name,
+                "currency": _clean_str(_row_lookup(row, ["Devise"])) or "EUR",
+                "max_discount_pct": _to_float(_row_lookup(row, ["Remise max autorisée (%)", "Remise max autorisée"]), 15.0),
+                "is_default": _clean_str(_row_lookup(row, ["Grille par défaut (oui/non)", "Grille par défaut"])).lower() in _YES_VALUES,
+            }
+            existing = await db.price_lists.find_one({"name": name}, {"_id": 0})
+            if existing:
+                await db.price_lists.update_one({"id": existing["id"]}, {"$set": data})
+                name_to_id[name] = existing["id"]
+                updated += 1
+            else:
+                data["owner_id"] = user["id"]
+                pl = PriceList(**data)
+                await db.price_lists.insert_one(pl.model_dump())
+                name_to_id[name] = pl.id
+                created += 1
+        except Exception as ex:
+            errors.append({"row": i, "sheet": "Tarifs", "message": str(ex)})
+
+    # Pré-charge produits pour matching SKU/nom
+    products = await db.products.find({}, {"_id": 0}).to_list(5000)
+    sku_to_pid = {p["sku"]: p["id"] for p in products if p.get("sku")}
+    name_to_pid = {p["name"].strip().lower(): p["id"] for p in products}
+
+    for i, row in enumerate(item_rows, start=2):
+        try:
+            pl_name = _clean_str(_row_lookup(row, ["Grille (nom exact)", "Grille"]))
+            if not pl_name:
+                errors.append({"row": i, "sheet": "Lignes", "message": "Grille manquante"})
+                continue
+            pl_id = name_to_id.get(pl_name)
+            if not pl_id:
+                existing = await db.price_lists.find_one({"name": pl_name}, {"_id": 0, "id": 1})
+                if not existing:
+                    errors.append({"row": i, "sheet": "Lignes", "message": f"Grille '{pl_name}' introuvable"})
+                    continue
+                pl_id = existing["id"]
+            sku = _clean_str(_row_lookup(row, ["SKU produit", "SKU"]))
+            pname = _clean_str(_row_lookup(row, ["Nom produit", "Nom"]))
+            pid = sku_to_pid.get(sku) if sku else None
+            if not pid and pname:
+                pid = name_to_pid.get(pname.lower())
+            if not pid:
+                errors.append({"row": i, "sheet": "Lignes", "message": f"Produit introuvable (SKU='{sku}', nom='{pname}')"})
+                continue
+            unit_price = _to_float(_row_lookup(row, ["Prix HT (€)", "Prix HT"]))
+            if unit_price <= 0:
+                errors.append({"row": i, "sheet": "Lignes", "message": "Prix HT manquant ou nul"})
+                continue
+            min_qty = _to_int(_row_lookup(row, ["Quantité minimum", "Qté min"]), 1) or 1
+            max_disc_raw = _row_lookup(row, ["Remise max ligne (%)", "Remise max ligne"])
+            update_doc = {"unit_price": unit_price, "min_qty": min_qty}
+            if max_disc_raw not in (None, ""):
+                update_doc["max_discount_pct"] = _to_float(max_disc_raw)
+            q = {"price_list_id": pl_id, "product_id": pid}
+            existing_item = await db.price_list_items.find_one(q)
+            if existing_item:
+                await db.price_list_items.update_one(q, {"$set": update_doc})
+            else:
+                item = PriceListItem(price_list_id=pl_id, product_id=pid, **update_doc)
+                await db.price_list_items.insert_one(item.model_dump())
+                lines_created += 1
+        except Exception as ex:
+            errors.append({"row": i, "sheet": "Lignes", "message": str(ex)})
+
+    return {
+        "created": created, "updated": updated,
+        "lines_created": lines_created,
+        "errors": errors, "total_errors": len(errors),
+    }
+
+
+@api_router.get("/xlsx/export/orders")
+async def xlsx_export_orders(user=Depends(get_current_user)):
+    is_mgr = user["role"] in ("manager", "gerant")
+    q = {} if is_mgr else {"$or": [{"agent_id": user["id"]}, {"owner_id": user["id"]}]}
+    orders = await db.orders.find(q, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    # Pré-charge les commerciaux pour afficher leur nom
+    agents = await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
+    agent_by_id = {a["id"]: a.get("name") or "" for a in agents}
+    rows = []
+    for o in orders:
+        lines = o.get("lines") or []
+        base = {
+            "order_id": o.get("id", "")[:8],
+            "created_at": (o.get("created_at") or "")[:10],
+            "client_name": o.get("client_name", ""),
+            "status": o.get("status", ""),
+            "delivery_date": o.get("delivery_date") or "",
+            "agent_name": agent_by_id.get(o.get("agent_id"), ""),
+            "notes": o.get("notes", ""),
+            "order_total": round(o.get("total") or 0, 2),
+        }
+        if not lines:
+            rows.append(base)
+            continue
+        for line in lines:
+            qty = line.get("quantity") or 0
+            up = line.get("unit_price") or 0
+            rows.append({
+                **base,
+                "product_name": line.get("product_name", ""),
+                "quantity": qty,
+                "unit_price": up,
+                "line_total": round(qty * up, 2),
+            })
+    buf = _xlsx_workbook([("Commandes", ORDER_XLSX_COLUMNS, rows)])
+    filename = f"commandes-{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
+    return _xlsx_response(buf, filename)
+
+
 @api_router.get("/price-lists")
 async def list_price_lists(user=Depends(get_current_user)):
     return await db.price_lists.find({}, {"_id": 0}).to_list(200)

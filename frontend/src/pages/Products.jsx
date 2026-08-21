@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { Plus, Trash2, Wine, Beer, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
+import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
 
 const CATS = ["vin", "biere", "spiritueux", "soft", "eau", "autre"];
@@ -46,7 +47,10 @@ export default function Products() {
           <p className="overline">Catalogue</p>
           <h1 className="font-display text-4xl">Produits</h1>
         </div>
-        <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2 min-h-[44px]" data-testid="add-product-btn"><Plus size={16} /> Ajouter</button>
+        <div className="flex gap-2 flex-wrap">
+          <XlsxIO kind="products" label="Excel" onImportDone={load} />
+          <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2 min-h-[44px]" data-testid="add-product-btn"><Plus size={16} /> Ajouter</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
