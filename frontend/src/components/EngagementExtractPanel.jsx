@@ -91,8 +91,20 @@ export default function EngagementExtractPanel({ open, visitId, onClose, onConfi
         <p className="text-xs text-stone-500">Les promesses de la visite, à valider avant enregistrement.</p>
 
         {loading && (
-          <div className="flex items-center gap-2 text-sm py-6 justify-center">
-            <Loader2 size={16} className="animate-spin" /> Analyse en cours…
+          <div className="space-y-2 py-2" data-testid="engagements-skeleton">
+            <div className="text-xs text-stone-500 flex items-center gap-2 justify-center">
+              <Loader2 size={14} className="animate-spin" />
+              Analyse en cours (5-8s)…
+            </div>
+            {[0, 1].map(i => (
+              <div key={i} className="border border-stone-200 dark:border-stone-700 rounded-lg p-3 space-y-2 animate-pulse">
+                <div className="h-3 rounded bg-stone-200 dark:bg-stone-700 w-3/4" />
+                <div className="flex gap-2">
+                  <div className="h-4 w-24 rounded bg-stone-200 dark:bg-stone-700" />
+                  <div className="h-4 w-20 rounded bg-stone-100 dark:bg-stone-800" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
         {!loading && proposals && proposals.length === 0 && (

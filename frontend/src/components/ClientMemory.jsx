@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Sparkles, RefreshCw, Loader2, ExternalLink } from "lucide-react";
 
@@ -9,6 +10,7 @@ import { Sparkles, RefreshCw, Loader2, ExternalLink } from "lucide-react";
  * `refreshTrigger` — incrémenter cette prop force un refetch (usage : après pin commentaire).
  */
 export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
+  const nav = useNavigate();
   const [memory, setMemory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recomputing, setRecomputing] = useState(false);
@@ -47,9 +49,37 @@ export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
     if (!source) return null;
     const label = source.label || source.type || "source";
     const date = source.date ? ` · ${source.date}` : "";
+    // Fix iter21 — badges cliquables : ouvre la visite d'origine si source.type === "visit"
+    // et source.id présent ; sinon reste informatif.
+    const clickable = source.type === "visit" && source.id;
+    const goToSource = (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      // Navigation vers la fiche client (contient l'historique des visites).
+      // À terme : router direct sur /visits/{id} quand la page existera.
+      nav(`/etab/${establishmentId}`);
+    };
+    const testId = `memory-source-${source.type || "unknown"}-${source.id || "none"}`;
+    if (clickable) {
+      return (
+        <button
+          type="button"
+          onClick={goToSource}
+          data-testid={testId}
+          className="text-[10px] text-stone-400 dark:text-stone-500 ml-1 whitespace-nowrap hover:text-[#4A154B] dark:hover:text-[#B076B4] hover:underline cursor-pointer inline-flex items-center"
+          aria-label={`Ouvrir source ${label}${date}`}
+        >
+          <ExternalLink size={9} className="mr-0.5" />
+          {label}{date}
+        </button>
+      );
+    }
     return (
-      <span className="text-[10px] text-stone-400 dark:text-stone-500 ml-1 whitespace-nowrap" aria-label={`source ${label}${date}`}>
-        <ExternalLink size={9} className="inline mr-0.5 -mt-0.5" />
+      <span
+        data-testid={testId}
+        className="text-[10px] text-stone-400 dark:text-stone-500 ml-1 whitespace-nowrap inline-flex items-center"
+        aria-label={`source ${label}${date}`}
+      >
+        <ExternalLink size={9} className="mr-0.5" />
         {label}{date}
       </span>
     );

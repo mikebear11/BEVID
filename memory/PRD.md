@@ -780,3 +780,21 @@ Reste ouvert (P2-P3 non bloquants) :
 ### Cause racine documentée
 Deux collections MongoDB coexistent : `db.clients` (legacy) et `db.establishments` (Lot 5+). Les fixes ci-dessus créent des ponts fonctionnels sans migration destructive. Une consolidation propre reste au backlog (P1 refactor).
 
+
+## Iter32 — Fusion collections + sources cliquables + skeleton LLM (21/02/2026)
+
+### Backend — Migration idempotente clients → establishments
+- **`_merge_clients_into_establishments()`** exécutée au startup (`@app.on_event("startup")`).
+- Pour chaque doc de `db.clients`, upsert dans `db.establishments` s'il n'y existe pas déjà (dédup par `id`).
+- Valeurs par défaut ajoutées pour les champs Establishment (`current_credit=0`, `credit_status="vert"`, `overdue_days=0`, `volumes_12m=[]`…).
+- `db.clients` **n'est pas supprimée** (rollback possible + compatibilité endpoints legacy).
+- **Résultat au premier boot** : 15 fiches unifiées. Deuxième boot : 0 (idempotent).
+- Tests `test_iter32_client_merge.py` : 2/2 verts (chaque client atteignable via /establishments/{id} + idempotence).
+
+### Frontend
+- **`ClientMemory.jsx`** — sources cliquables : les badges de type `visit` avec `id` deviennent des `<button>` navigables (`hover:underline`, `cursor-pointer`, testid `memory-source-{type}-{id}`) redirigeant vers `/etab/{establishmentId}` (contient l'historique visites). Les autres sources restent des `<span>` informatifs.
+- **`ObjectionExtractPanel.jsx`** — skeleton animé (3 cards `animate-pulse`) + message « Analyse du compte rendu par l'IA (5-8s)… » pendant l'appel GPT-5.6 Sol. Testid `objections-skeleton`.
+- **`EngagementExtractPanel.jsx`** — même pattern (2 cards). Testid `engagements-skeleton`.
+
+### Régression complète Lot 7 : **35/35 verts** (iter28+29+30+31+32).
+

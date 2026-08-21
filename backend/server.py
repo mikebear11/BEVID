@@ -7770,6 +7770,45 @@ async def _startup_seed_demo():
         logger.warning(f"[seed] demo users skipped: {e}")
 
 
+async def _merge_clients_into_establishments():
+    """Migration idempotente Lot 7 — copie tous les docs de db.clients dans db.establishments
+    si absent (par id), pour supprimer la dette de deux fiches. Ne touche pas db.clients
+    (rollback possible). Exécutée au boot ; sans effet si tout est déjà fusionné.
+    """
+    n_added = 0
+    async for raw in db_raw.clients.find({}, {"_id": 0}):
+        cid = raw.get("id")
+        if not cid:
+            continue
+        exists = await db_raw.establishments.find_one({"id": cid}, {"_id": 0, "id": 1})
+        if exists:
+            continue
+        # Copie avec valeurs par défaut pour les champs Establishment attendus
+        doc = dict(raw)
+        doc.setdefault("current_credit", 0.0)
+        doc.setdefault("overdue_days", 0)
+        doc.setdefault("overdue_amount", 0.0)
+        doc.setdefault("credit_status", "vert")
+        doc.setdefault("volumes_12m", [])
+        doc.setdefault("top_products", [])
+        try:
+            await db_raw.establishments.insert_one(doc)
+            n_added += 1
+        except Exception as e:
+            logger.warning(f"[merge] insert echoué pour {cid}: {e}")
+    if n_added > 0:
+        logger.info(f"[merge clients→establishments] {n_added} fiches unifiées")
+    return n_added
+
+
+@app.on_event("startup")
+async def _startup_merge_clients():
+    try:
+        await _merge_clients_into_establishments()
+    except Exception as e:
+        logger.warning(f"[merge] skipped: {e}")
+
+
 @app.on_event("startup")
 async def _startup_tenant_migration():
     """Migration idempotente vers le multi-tenant : stampe org_id sur les docs
