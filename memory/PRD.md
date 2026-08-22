@@ -728,6 +728,57 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 8 étape 1 — Chaîne documentaire : modèle + numérotation atomique (22/02/2026)
+
+### Contexte
+Le point 1 conditionne toute la chaîne documentaire (devis → BC → BL → facture
+→ avoir + proforma + feuille de dépôt). Toute erreur ici expose l'entreprise à
+un redressement fiscal (art. 242 nonies A CGI).
+
+### Backend
+- **`DOCUMENT_TYPES`** : 7 types avec préfixe et nature juridique (`fiscal: bool`).
+  - Commerciaux (sans valeur fiscale) : `devis` (DEV), `bon_commande` (BC),
+    `bon_livraison` (BL), `proforma` (PRO), `feuille_depot` (FD).
+  - Fiscaux (immuables, conservation 10 ans) : `facture` (F), `avoir` (AV).
+- **`_allocate_document_number(org_id, doc_type)`** : compteur atomique via
+  `find_one_and_update` avec `$inc` + `upsert` + `ReturnDocument.AFTER`.
+  Cloisonnement par `(org_id, doc_type, year)`. Réinitialisation implicite au
+  1er janvier. **Zéro doublon garanti par MongoDB en concurrence**.
+- **`_peek_next_document_number`** : aperçu sans consommation (usage UI only).
+- **Séquences scopées** : nouvelles collections `document_sequences`,
+  `business_documents`, `org_legal` ajoutées à `SCOPED_COLLECTIONS`.
+- **Mentions légales par organisation** (`OrgLegalUpdate` + collection
+  `org_legal`) : 24 champs — identité, adresse, banque, règlement, accises,
+  clauses. Défauts légaux conformes (recovery 40 €, cash pro 1 000 €).
+- **Validateur `_validate_org_legal_for_invoice`** : retourne la liste des
+  champs manquants pour émettre — utilisé plus tard par l'étape 3 pour bloquer
+  l'émission d'une facture non conforme.
+
+### API
+- `GET /api/documents/types` — liste des 7 types + prefix + fiscal.
+- `GET /api/documents/preview-number/{doc_type}` — aperçu sans consommation.
+- `GET /api/org/legal` — lecture mentions légales + `_missing_for_invoice`.
+- `PUT /api/org/legal` — écriture (manager only, cleanup strings, audit log).
+- `POST /api/_internal/allocate-doc-number` — endpoint réservé aux tests
+  (manager only). NON documenté publiquement.
+
+### Tests
+- `/app/backend/tests/test_iter37_numbering.py` : **12/12 verts** dont le
+  test critique **`test_hundred_concurrent_allocations_produce_unique_consecutive_numbers`**
+  — 100 allocations en parallèle via `asyncio.gather` produisent 100 numéros
+  uniques et strictement consécutifs. Zéro doublon, zéro trou.
+- Isolation par doc_type vérifiée. Aperçu non-consommant vérifié. RBAC
+  commercial→403 vérifié sur `/_internal/allocate` et `PUT /org/legal`.
+
+### État de la chaîne documentaire — 7 étapes prévues (spec 20/08/2026)
+- ✅ **Étape 1** — Modèle + séquences atomiques + mentions légales
+- ⏳ Étape 2 — Bon de livraison modifiable et signable, avec lots + consignes
+- ⏳ Étape 3 — Facture, validateur de mentions, PDF Factur-X
+- ⏳ Étape 4 — Avoir (référence facture d'origine + motif)
+- ⏳ Étape 5 — Génération auto + envoi email au pointage « livré », idempotent
+- ⏳ Étape 6 — Transmission Pennylane (mode simulation si pas de clé env)
+- ⏳ Étape 7 — Devis, bon de commande, proforma, feuille de dépôt
+
 ## Lot 8 — Contacts enrichis : fixe + portable + fonction + email secondaire (22/02/2026)
 
 ### Contexte

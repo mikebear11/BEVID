@@ -54,6 +54,9 @@ SCOPED_COLLECTIONS = {
     "client_memory",  # Lot 7 étape 2 — mémoire client cache (recalcul événementiel)
     "establishment_comments",  # Lot 7 étape 5 — fil de commentaires libres
     "copilot_feedback",  # Lot 7 mesure — pouce haut/bas sur brief + suggestion réponse
+    "document_sequences",  # Lot 8 étape 1 — compteurs atomiques factures/BL/devis…
+    "business_documents",  # Lot 8 étape 1 — documents commerciaux et fiscaux
+    "org_legal",  # Lot 8 étape 1 — mentions légales par organisation
 }
 
 

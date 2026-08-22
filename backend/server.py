@@ -724,6 +724,286 @@ ACCENT_PALETTE = {
 }
 
 
+# ==========================================================
+# Lot 8 étape 1 — Modèle documentaire commun et numérotation atomique
+# ==========================================================
+# Types de documents. Deux natures juridiques distinctes :
+#  - Commerciaux (sans valeur fiscale, numérotation libre) : devis, bon_commande,
+#    bon_livraison, proforma, feuille_depot.
+#  - Fiscaux (numérotation contrainte par la loi, immuables, conservation 10 ans) :
+#    facture, avoir.
+#
+# Séries distinctes par type, réinitialisation au 1er janvier, attribution du
+# numéro à l'émission (jamais au brouillon), séquence atomique côté serveur.
+# Base légale : art. 242 nonies A, I-5° du CGI.
+DOCUMENT_TYPES = {
+    "devis":         {"prefix": "DEV", "fiscal": False, "label": "Devis"},
+    "bon_commande":  {"prefix": "BC",  "fiscal": False, "label": "Bon de commande"},
+    "bon_livraison": {"prefix": "BL",  "fiscal": False, "label": "Bon de livraison"},
+    "proforma":      {"prefix": "PRO", "fiscal": False, "label": "Facture proforma"},
+    "facture":       {"prefix": "F",   "fiscal": True,  "label": "Facture"},
+    "avoir":         {"prefix": "AV",  "fiscal": True,  "label": "Avoir"},
+    "feuille_depot": {"prefix": "FD",  "fiscal": False, "label": "Feuille de dépôt"},
+}
+
+# Statuts d'un document business. Un document émis ne peut plus être supprimé
+# ni modifié (règle stricte pour les factures et avoirs, forte recommandation
+# pour les autres — la traçabilité de la chaîne s'appuie dessus).
+BUSINESS_DOC_STATUSES = {
+    "brouillon", "envoye", "accepte", "refuse", "expire",
+    "signe", "livre", "facture", "emis", "annule", "solde",
+}
+
+
+async def _allocate_document_number(org_id: str, doc_type: str, at: Optional[datetime] = None) -> dict:
+    """Compteur atomique par (org_id, doc_type, year) avec `find_one_and_update`.
+
+    Retourne `{number: str, year: int, seq: int, prefix: str, doc_type: str}`.
+    Sécurité concurrence : deux appels simultanés ne peuvent JAMAIS obtenir le
+    même numéro (garantie MongoDB `$inc` + `upsert` + `returnDocument=after`).
+
+    Réinitialisation implicite chaque année : la clé de séquence inclut l'année,
+    donc la première allocation d'une nouvelle année crée un nouveau document
+    avec `seq=1`.
+
+    L'appelant est responsable de vérifier la validité du `doc_type`.
+    """
+    if doc_type not in DOCUMENT_TYPES:
+        raise ValueError(f"Type de document inconnu: {doc_type}")
+    year = (at or datetime.now(timezone.utc)).year
+    key = f"{doc_type}:{year}"
+    # `db_raw.document_sequences` — on court-circuite le scoping pour porter
+    # explicitement l'org_id dans la clé (plus lisible que l'injection).
+    res = await db_raw.document_sequences.find_one_and_update(
+        {"org_id": org_id, "doc_type": doc_type, "year": year},
+        {
+            "$inc": {"seq": 1},
+            "$setOnInsert": {
+                "id": str(uuid.uuid4()),
+                "created_at": now_iso(),
+                "key": key,
+            },
+            "$set": {"updated_at": now_iso()},
+        },
+        upsert=True,
+        return_document=motor_return_document_after(),
+    )
+    seq = res["seq"]
+    prefix = DOCUMENT_TYPES[doc_type]["prefix"]
+    number = f"{prefix}-{year}-{seq:04d}"
+    return {
+        "number": number,
+        "year": year,
+        "seq": seq,
+        "prefix": prefix,
+        "doc_type": doc_type,
+    }
+
+
+def motor_return_document_after():
+    """Wrapper pour importer pymongo sans polluer le module."""
+    from pymongo import ReturnDocument
+    return ReturnDocument.AFTER
+
+
+async def _peek_next_document_number(org_id: str, doc_type: str) -> str:
+    """Aperçu **sans consommation** — pour affichage UI uniquement.
+
+    ATTENTION : ne jamais utiliser ce nombre comme référence. Le vrai numéro
+    est attribué **au moment de l'émission** via `_allocate_document_number`,
+    pas au brouillon. Si deux utilisateurs consultent l'aperçu en même temps,
+    ils voient le même nombre mais recevront à l'émission deux nombres
+    consécutifs différents.
+    """
+    if doc_type not in DOCUMENT_TYPES:
+        raise ValueError(f"Type de document inconnu: {doc_type}")
+    year = datetime.now(timezone.utc).year
+    doc = await db_raw.document_sequences.find_one(
+        {"org_id": org_id, "doc_type": doc_type, "year": year},
+        {"_id": 0, "seq": 1},
+    )
+    next_seq = (doc.get("seq", 0) if doc else 0) + 1
+    prefix = DOCUMENT_TYPES[doc_type]["prefix"]
+    return f"{prefix}-{year}-{next_seq:04d}"
+
+
+# ---------- Mentions légales par organisation (Lot 8 étape 1) ----------
+# Champs obligatoires à renseigner AVANT toute émission de facture. Le
+# validateur d'émission (étape 3) refusera d'émettre une facture si l'un
+# des champs marqués `required_for_invoice` est vide.
+
+class OrgLegalUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    # Identité entreprise
+    legal_name: Optional[str] = None                 # Dénomination sociale (obligatoire)
+    legal_form: Optional[str] = None                 # SAS, SARL, SASU, EURL, EI…
+    capital_eur: Optional[float] = None              # Capital social en euros
+    siren: Optional[str] = None                      # 9 chiffres
+    siret: Optional[str] = None                      # 14 chiffres (siège)
+    rcs_city: Optional[str] = None                   # Ville d'immatriculation RCS
+    naf_code: Optional[str] = None                   # Code APE/NAF
+    tva_intra: Optional[str] = None                  # FR + 11 chiffres
+    accise_number: Optional[str] = None              # Format FR0… — obligatoire boissons alcooliques
+    # Adresse siège (obligatoire sur facture)
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    # Contact facturation
+    invoice_email: Optional[str] = None
+    invoice_phone: Optional[str] = None
+    # Banque
+    iban: Optional[str] = None
+    bic: Optional[str] = None
+    bank_name: Optional[str] = None
+    # Règlement
+    default_payment_terms_days: Optional[int] = None  # 30j / 45j fin de mois…
+    late_penalty_rate_pct: Optional[float] = None     # min 3× taux légal ~ 12%/an typique
+    early_discount_terms: Optional[str] = None        # « Aucun escompte » par défaut, sinon décrire
+    recovery_indemnity_eur: Optional[float] = None    # Fixé par la loi à 40 € — configurable si évolution
+    # Espèces (garde-fou paiement pro France ≤ 1000 € typique — configurable)
+    cash_payment_max_eur: Optional[float] = None
+    # Clauses standard
+    reserve_of_property: Optional[str] = None         # Clause de réserve de propriété
+    invoice_footer_extra: Optional[str] = None        # Texte libre bas de facture
+
+
+# Champs strictement obligatoires pour émettre une facture conforme au CGI +
+# spécificités brasserie. La liste sert au validateur d'étape 3.
+INVOICE_REQUIRED_LEGAL_FIELDS = (
+    "legal_name", "legal_form", "siren", "siret", "tva_intra",
+    "accise_number", "address_line1", "postal_code", "city",
+    "iban", "bic",
+    "default_payment_terms_days", "late_penalty_rate_pct",
+    "recovery_indemnity_eur",
+)
+
+
+async def _get_org_legal(org_id: str) -> dict:
+    """Retourne le doc `org_legal` de l'organisation, avec des valeurs par défaut
+    conformes à la loi française du 22/02/2026.
+
+    Défauts appliqués :
+      - `recovery_indemnity_eur` = 40 € (fixé par L441-10 du Code de commerce).
+      - `cash_payment_max_eur` = 1000 € (art. L112-6 CMF, pro France). À vérifier
+        régulièrement — évolue par arrêté.
+      - `country` = « France ».
+    """
+    doc = await db_raw.org_legal.find_one({"org_id": org_id}, {"_id": 0}) or {}
+    defaults = {
+        "recovery_indemnity_eur": 40.0,
+        "cash_payment_max_eur": 1000.0,
+        "country": "France",
+    }
+    return {**defaults, **doc}
+
+
+def _validate_org_legal_for_invoice(legal: dict) -> list[str]:
+    """Retourne la liste des champs manquants pour émettre une facture conforme.
+
+    Vide = émission autorisée. Non-vide = blocage à afficher à l'utilisateur.
+    """
+    missing = []
+    for f in INVOICE_REQUIRED_LEGAL_FIELDS:
+        v = legal.get(f)
+        if v is None or (isinstance(v, str) and not v.strip()):
+            missing.append(f)
+    return missing
+
+
+@api_router.get("/org/legal")
+async def read_org_legal(user=Depends(get_current_user)):
+    """Lecture des mentions légales de l'organisation."""
+    if not user.get("org_id"):
+        raise HTTPException(404, "Aucune organisation")
+    legal = await _get_org_legal(user["org_id"])
+    legal["_missing_for_invoice"] = _validate_org_legal_for_invoice(legal)
+    return legal
+
+
+@api_router.put("/org/legal")
+async def update_org_legal(data: OrgLegalUpdate, user=Depends(get_current_user)):
+    """Mise à jour des mentions légales (manager only).
+
+    Aucune validation stricte ici (siret, iban…) : le manager peut sauvegarder
+    en plusieurs passes. La validation se fait à l'émission d'une facture via
+    `_validate_org_legal_for_invoice`.
+    """
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    updates = {k: v for k, v in data.model_dump(exclude_none=True).items()}
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    # Nettoyage des chaînes
+    for k, v in list(updates.items()):
+        if isinstance(v, str):
+            updates[k] = v.strip()
+    updates["updated_at"] = now_iso()
+    await db_raw.org_legal.update_one(
+        {"org_id": org_id},
+        {"$set": updates, "$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "org_id": org_id,
+            "created_at": now_iso(),
+        }},
+        upsert=True,
+    )
+    await audit_log(user["id"], "org_legal_update", {"fields": list(updates.keys())})
+    return await read_org_legal(user)
+
+
+@api_router.get("/documents/preview-number/{doc_type}")
+async def preview_document_number(doc_type: str, user=Depends(get_current_user)):
+    """Aperçu du prochain numéro — NE CONSOMME PAS la séquence."""
+    if doc_type not in DOCUMENT_TYPES:
+        raise HTTPException(422, f"Type de document inconnu. Valeurs : {sorted(DOCUMENT_TYPES)}")
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    return {
+        "doc_type": doc_type,
+        "label": DOCUMENT_TYPES[doc_type]["label"],
+        "next_number": await _peek_next_document_number(org_id, doc_type),
+        "prefix": DOCUMENT_TYPES[doc_type]["prefix"],
+        "fiscal": DOCUMENT_TYPES[doc_type]["fiscal"],
+        "warning": "Numéro à titre indicatif — la valeur définitive est allouée à l'émission",
+    }
+
+
+@api_router.get("/documents/types")
+async def list_document_types(user=Depends(get_current_user)):
+    """Liste des types de documents supportés par la chaîne documentaire."""
+    return {
+        "types": [
+            {
+                "value": k,
+                "label": v["label"],
+                "prefix": v["prefix"],
+                "fiscal": v["fiscal"],
+            }
+            for k, v in DOCUMENT_TYPES.items()
+        ]
+    }
+
+
+# ---------- Endpoint interne réservé aux tests de concurrence ----------
+# Permet d'allouer un numéro sans devoir passer par toute la chaîne
+# d'émission. NON documenté dans le contrat public ; supprimer / neutraliser
+# si un jour ce fichier est exposé sur Internet en prod.
+@api_router.post("/_internal/allocate-doc-number")
+async def _internal_allocate_doc_number(data: dict, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    doc_type = data.get("doc_type", "facture")
+    if doc_type not in DOCUMENT_TYPES:
+        raise HTTPException(422, "Type inconnu")
+    return await _allocate_document_number(user["org_id"], doc_type)
+
+
 @api_router.get("/org/branding")
 async def get_org_branding(user=Depends(get_current_user)):
     org_id = user.get("org_id")
