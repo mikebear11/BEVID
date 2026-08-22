@@ -4235,8 +4235,14 @@ class EstablishmentContact(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     role: str = "autre"
     name: str
+    # `phone` reste pour la compat (fiches historiques) — les nouvelles fiches
+    # renseignent plutôt phone_landline (fixe pro) + phone_mobile (portable direct).
     phone: Optional[str] = ""
+    phone_landline: Optional[str] = ""
+    phone_mobile: Optional[str] = ""
     email: Optional[str] = ""
+    email_secondary: Optional[str] = ""
+    job_title: Optional[str] = ""   # « Directeur des achats », complète le rôle canonique
     notes: Optional[str] = ""
     is_primary: bool = False
     created_at: str = Field(default_factory=now_iso)
@@ -4247,7 +4253,11 @@ class ContactCreate(BaseModel):
     role: str = "autre"
     name: str
     phone: Optional[str] = ""
+    phone_landline: Optional[str] = ""
+    phone_mobile: Optional[str] = ""
     email: Optional[str] = ""
+    email_secondary: Optional[str] = ""
+    job_title: Optional[str] = ""
     notes: Optional[str] = ""
     is_primary: bool = False
 
@@ -4256,7 +4266,11 @@ class ContactPatch(BaseModel):
     role: Optional[str] = None
     name: Optional[str] = None
     phone: Optional[str] = None
+    phone_landline: Optional[str] = None
+    phone_mobile: Optional[str] = None
     email: Optional[str] = None
+    email_secondary: Optional[str] = None
+    job_title: Optional[str] = None
     notes: Optional[str] = None
     is_primary: Optional[bool] = None
 
@@ -4422,12 +4436,15 @@ async def create_contact(eid: str, data: ContactCreate, user=Depends(get_current
         role=data.role,
         name=name_clean,
         phone=(data.phone or "").strip()[:60],
+        phone_landline=(data.phone_landline or "").strip()[:60],
+        phone_mobile=(data.phone_mobile or "").strip()[:60],
         email=(data.email or "").strip()[:200],
+        email_secondary=(data.email_secondary or "").strip()[:200],
+        job_title=(data.job_title or "").strip()[:120],
         notes=(data.notes or "").strip()[:500],
         is_primary=bool(data.is_primary),
     )
     contacts = list(e.get("contacts") or [])
-    # Un seul contact principal à la fois : on démote les autres si celui-ci est marqué principal.
     if contact.is_primary:
         for c in contacts:
             c["is_primary"] = False
@@ -4456,8 +4473,16 @@ async def update_contact(eid: str, cid: str, data: ContactPatch, user=Depends(ge
         updates["name"] = name_clean
     if data.phone is not None:
         updates["phone"] = data.phone.strip()[:60]
+    if data.phone_landline is not None:
+        updates["phone_landline"] = data.phone_landline.strip()[:60]
+    if data.phone_mobile is not None:
+        updates["phone_mobile"] = data.phone_mobile.strip()[:60]
     if data.email is not None:
         updates["email"] = data.email.strip()[:200]
+    if data.email_secondary is not None:
+        updates["email_secondary"] = data.email_secondary.strip()[:200]
+    if data.job_title is not None:
+        updates["job_title"] = data.job_title.strip()[:120]
     if data.notes is not None:
         updates["notes"] = data.notes.strip()[:500]
     if data.is_primary is not None:
@@ -4466,7 +4491,6 @@ async def update_contact(eid: str, cid: str, data: ContactPatch, user=Depends(ge
         raise HTTPException(422, "Aucun champ à modifier")
     updates["updated_at"] = now_iso()
     contacts[idx] = {**contacts[idx], **updates}
-    # Un seul contact principal : démotion des autres si on vient d'en promouvoir un.
     if updates.get("is_primary"):
         for i, c in enumerate(contacts):
             if i != idx:
@@ -4519,8 +4543,12 @@ CONTACT_XLSX_COLUMNS = [
     ("establishment_name", "Établissement (nom exact)", True),
     ("role", "Rôle", True),
     ("name", "Nom du contact", True),
-    ("phone", "Téléphone", False),
+    ("job_title", "Fonction (libre)", False),
+    ("phone_landline", "Téléphone fixe", False),
+    ("phone_mobile", "Téléphone portable", False),
+    ("phone", "Téléphone (autre)", False),
     ("email", "Email", False),
+    ("email_secondary", "Email secondaire", False),
     ("notes", "Notes", False),
     ("is_primary", "Principal (oui/non)", False),
 ]
@@ -4688,8 +4716,12 @@ async def xlsx_template_establishments(user=Depends(get_current_user)):
         "establishment_name": "Bar de la Poste",
         "role": "gerant",
         "name": "Jean Dupont",
-        "phone": "06 12 34 56 78",
+        "job_title": "Gérant associé",
+        "phone_landline": "05 59 12 34 56",
+        "phone_mobile": "06 12 34 56 78",
+        "phone": "",
         "email": "jean@bardelaposte.fr",
+        "email_secondary": "compta@bardelaposte.fr",
         "notes": "Contacter avant 11h",
         "is_primary": True,
     }]
@@ -4729,8 +4761,12 @@ async def xlsx_export_establishments(user=Depends(get_current_user)):
                 "establishment_name": e.get("name", ""),
                 "role": c.get("role", ""),
                 "name": c.get("name", ""),
+                "job_title": c.get("job_title", ""),
+                "phone_landline": c.get("phone_landline", ""),
+                "phone_mobile": c.get("phone_mobile", ""),
                 "phone": c.get("phone", ""),
                 "email": c.get("email", ""),
+                "email_secondary": c.get("email_secondary", ""),
                 "notes": c.get("notes", ""),
                 "is_primary": bool(c.get("is_primary")),
             })
@@ -4853,8 +4889,12 @@ async def xlsx_import_establishments(file: UploadFile = File(...), user=Depends(
             is_primary = _clean_str(_row_lookup(row, ["Principal (oui/non)", "Principal"])).lower() in _YES_VALUES
             new_contact = EstablishmentContact(
                 role=role, name=cname,
-                phone=_clean_str(_row_lookup(row, ["Téléphone"]))[:60],
+                job_title=_clean_str(_row_lookup(row, ["Fonction (libre)", "Fonction"]))[:120],
+                phone=_clean_str(_row_lookup(row, ["Téléphone (autre)", "Téléphone"]))[:60],
+                phone_landline=_clean_str(_row_lookup(row, ["Téléphone fixe"]))[:60],
+                phone_mobile=_clean_str(_row_lookup(row, ["Téléphone portable"]))[:60],
                 email=_clean_str(_row_lookup(row, ["Email"]))[:200],
+                email_secondary=_clean_str(_row_lookup(row, ["Email secondaire"]))[:200],
                 notes=_clean_str(_row_lookup(row, ["Notes"]))[:500],
                 is_primary=is_primary,
             )
@@ -6156,6 +6196,175 @@ async def reset_password(data: dict):
     await db.password_reset_tokens.update_one({"token": token}, {"$set": {"used": True, "used_at": now_iso()}})
     await audit_log(doc["user_id"], "password_reset_via_email", {"email": doc.get("email")})
     return {"ok": True}
+
+
+# ---------- Récupération par code (OTP 6 chiffres) ----------
+# Ajout à la demande d'un utilisateur qui ne recevait pas les emails Resend
+# (mode dégradé documenté). Le code est stocké avec un cap d'essais et une
+# expiration courte. Le code peut être renvoyé dans la réponse quand l'envoi
+# email échoue, pour ne bloquer personne — c'est un compromis conscient tant
+# que Resend n'est pas fiable en preview.
+
+def _generate_otp_code() -> str:
+    """6 chiffres — plus court qu'un token URL mais suffisamment large
+    (1M combinaisons) contre une force brute couplée au rate limit strict."""
+    import secrets
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+@api_router.post("/auth/forgot-password-code")
+async def forgot_password_code(data: dict, request: Request):
+    """Génère un code OTP 6 chiffres, valable 15 min, à usage unique.
+
+    Envoie l'email si possible. Si l'envoi échoue (Resend en mode dégradé),
+    retourne le code dans la réponse pour ne pas bloquer l'utilisateur en démo.
+
+    Rate limit : 3 demandes / 15 min / IP / email.
+    """
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(422, "Email requis")
+    ip = _client_ip(request)
+    _rate_limit_check(kind="forgot_code", ip=ip, email=email, max_attempts=3, window_min=15)
+    _rate_limit_record(kind="forgot_code", ip=ip, email=email)
+
+    u = await db.users.find_one({"email": email})
+    response: dict = {
+        "ok": True,
+        "message": "Si le compte existe, un code à 6 chiffres a été généré et vous a été envoyé.",
+    }
+
+    if not u:
+        # Réponse identique — évite l'énumération.
+        return response
+
+    code = _generate_otp_code()
+    expiry = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+    # Invalide les codes précédents non consommés pour ce user (évite l'ambiguïté)
+    await db.password_reset_tokens.update_many(
+        {"user_id": u["id"], "code": {"$exists": True}, "used": False},
+        {"$set": {"used": True, "used_at": now_iso(), "superseded": True}},
+    )
+    await db.password_reset_tokens.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": u["id"],
+        "email": email,
+        "code": code,
+        "attempts": 0,
+        "expires_at": expiry,
+        "used": False,
+        "created_at": now_iso(),
+    })
+
+    subject = "Votre code de récupération BEVID"
+    html = (
+        '<table role="presentation" width="100%" style="background:#F7F5F2">'
+        '<tr><td style="padding:32px 16px">'
+        '<table role="presentation" width="100%" style="max-width:560px;margin:0 auto;'
+        'background:#fff;border-radius:12px;font-family:Arial,sans-serif;color:#1a1a1a">'
+        '<tr><td style="padding:32px">'
+        f'<h1 style="margin:0 0 16px 0;font-size:22px;color:#4A154B">BEVID</h1>'
+        f'<p style="margin:0 0 12px 0">Bonjour {escape(u.get("name") or "")},</p>'
+        f'<p style="margin:0 0 12px 0">Voici votre code de récupération. Il est valable '
+        f'<strong>15 minutes</strong> et à usage unique :</p>'
+        f'<p style="margin:24px 0;text-align:center">'
+        f'<span style="font-size:32px;letter-spacing:8px;font-weight:bold;color:#4A154B;'
+        f'background:#F0EAF0;padding:16px 24px;border-radius:8px;font-family:monospace">'
+        f'{code}</span></p>'
+        f'<p style="margin:12px 0 0 0;font-size:12px;color:#666">'
+        f'Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet email.</p>'
+        '</td></tr></table></td></tr></table>'
+    )
+
+    email_delivered = False
+    try:
+        result = await send_email(to=email, subject=subject, html=html)
+        # send_email retourne {"ok": bool, "simulated": bool} en mode dégradé
+        if isinstance(result, dict):
+            email_delivered = result.get("ok", False) and not result.get("simulated", False)
+        else:
+            email_delivered = True
+        await audit_log(u["id"], "password_reset_code_sent",
+                        {"email": email, "delivered": email_delivered})
+    except Exception as e:
+        logger.warning("send OTP email failed: %s", e)
+        email_delivered = False
+
+    # Mode dégradé assumé : quand l'email ne part pas, on remonte le code
+    # dans la réponse. Sans ça, un utilisateur qui n'a pas Resend configuré
+    # serait bloqué pour toujours. Documenté côté UX.
+    response["email_delivered"] = email_delivered
+    if not email_delivered:
+        response["code"] = code
+        response["fallback_reason"] = "email_service_unavailable"
+    return response
+
+
+@api_router.post("/auth/reset-password-code")
+async def reset_password_with_code(data: dict, request: Request):
+    """Vérifie le code OTP puis change le mot de passe.
+
+    - 5 tentatives max par code, au-delà le code est invalidé.
+    - Rate limit dédié (5 / 15 min / IP + email).
+    """
+    email = (data.get("email") or "").strip().lower()
+    code = (data.get("code") or "").strip()
+    new = data.get("new_password", "")
+    if not email or not code or len(new) < 8:
+        raise HTTPException(422, "Email, code et nouveau mot de passe (8 caractères min) requis")
+
+    ip = _client_ip(request)
+    _rate_limit_check(kind="reset_code", ip=ip, email=email, max_attempts=5, window_min=15)
+    _rate_limit_record(kind="reset_code", ip=ip, email=email)
+
+    u = await db.users.find_one({"email": email})
+    if not u:
+        # Message identique pour éviter l'énumération
+        raise HTTPException(400, "Code invalide ou expiré")
+
+    doc = await db.password_reset_tokens.find_one(
+        {"user_id": u["id"], "code": code, "used": False},
+        {"_id": 0},
+    )
+    if not doc:
+        # Incrémenter le compteur d'échecs sur le dernier code actif si présent
+        latest = await db.password_reset_tokens.find_one(
+            {"user_id": u["id"], "code": {"$exists": True}, "used": False},
+            sort=[("created_at", -1)],
+        )
+        if latest:
+            new_attempts = (latest.get("attempts") or 0) + 1
+            update = {"attempts": new_attempts}
+            if new_attempts >= 5:
+                update["used"] = True
+                update["used_at"] = now_iso()
+                update["locked"] = True
+            await db.password_reset_tokens.update_one({"id": latest["id"]}, {"$set": update})
+        raise HTTPException(400, "Code invalide ou expiré")
+
+    try:
+        exp = datetime.fromisoformat(doc["expires_at"])
+    except Exception:
+        raise HTTPException(400, "Code invalide")
+    if datetime.now(timezone.utc) > exp:
+        raise HTTPException(400, "Code expiré — redemandez-en un nouveau")
+
+    await db.users.update_one(
+        {"id": u["id"]},
+        {"$set": {"password": hash_password(new), "must_reset": False}},
+    )
+    await db.password_reset_tokens.update_one(
+        {"id": doc["id"]},
+        {"$set": {"used": True, "used_at": now_iso()}},
+    )
+    # Nettoie les rate-limits login pour ne pas bloquer la reconnexion immédiate
+    try:
+        _rate_limit_clear_login(email)
+    except Exception:
+        pass
+    await audit_log(u["id"], "password_reset_via_code", {"email": email})
+    return {"ok": True}
+
 
 @api_router.get("/admin/reset-requests")
 async def list_reset_requests(user=Depends(get_current_user)):

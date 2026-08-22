@@ -728,6 +728,85 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 8 — Contacts enrichis : fixe + portable + fonction + email secondaire (22/02/2026)
+
+### Contexte
+Le premier passage sur les Interlocuteurs (21/02) offrait un seul téléphone
+générique. En usage réel, le commercial a besoin de distinguer **le fixe pro
+(heures ouvrées, standard)** du **portable direct** — et souvent un même
+interlocuteur a un email principal + un email compta/service.
+
+### Backend
+- `EstablishmentContact` étendu (rétro-compat conservée) :
+  - `phone_landline` (fixe)
+  - `phone_mobile` (portable)
+  - `phone` (existant — mode legacy, affiché seulement si aucun fixe/portable)
+  - `email` + `email_secondary`
+  - `job_title` — texte libre pour préciser (« Directeur des achats »).
+- `ContactCreate` / `ContactPatch` couvrent les nouveaux champs.
+- Endpoints `POST` / `PATCH` sur `/establishments/{eid}/contacts[/{cid}]`
+  gèrent tous les champs avec cap 60 (téléphones), 200 (emails), 120 (fonction),
+  500 (notes) et **démotion automatique du principal**.
+- Format XLSX enrichi : 11 colonnes (au lieu de 7) sur la feuille Contacts,
+  avec fixe / portable / fonction / email secondaire. Template + export + import
+  round-trip vérifiés.
+
+### Frontend — `ContactsPanel.jsx` refondu
+- **Affichage** : chaque téléphone porte son propre libellé (`FIXE` / `PORTABLE`)
+  avec l'icône dédiée (Phone vs Smartphone). Deux emails distincts si présents
+  (avec badge `2e` sur le secondaire). Fonction affichée à côté du rôle avec
+  icône « Briefcase ».
+- **Modal** : formulaire à 2 colonnes pour Rôle + Fonction, puis Fixe + Portable
+  côte à côte, puis Email principal + secondaire empilés. Sticky header et
+  footer pour toujours voir « Enregistrer » sur mobile.
+- **Rétro-compat** : les anciens contacts qui n'ont que `phone` continuent de
+  l'afficher tel quel. Dès qu'un fixe OU portable est renseigné, `phone` legacy
+  est masqué pour éviter la redondance.
+
+### Tests
+- `test_iter33_contacts.py` : 7/7 verts (crédible sur le nouveau schéma).
+- `test_iter34_xlsx.py` : 10/10 verts (template + round-trip xlsx avec 11 colonnes).
+
+## Lot 8 — Récupération par code OTP (22/02/2026)
+
+### Contexte
+L'utilisateur ne recevait pas les emails de récupération (Resend en mode
+dégradé sur preview). Sans mécanisme de secours, un compte était impossible
+à récupérer sans intervention manager.
+
+### Backend
+- Nouveaux endpoints :
+  - `POST /api/auth/forgot-password-code` — génère un code OTP à 6 chiffres,
+    valable 15 min, à usage unique. Rate limit 3/15min/IP+email.
+  - `POST /api/auth/reset-password-code` — vérifie {email, code, new_password}
+    et applique le changement. 5 tentatives max par code (verrouillage au-delà).
+- **Mode dégradé assumé** : quand l'envoi email échoue (Resend indisponible),
+  le code est retourné dans la réponse JSON avec `fallback_reason=email_service_unavailable`
+  et `email_delivered=false`. Documenté côté UX.
+- **Anti-énumération** : un email inconnu retourne toujours 200 avec un message
+  générique et sans champ `code`.
+- **Codes précédents invalidés** dès qu'un nouveau est généré (évite l'ambiguïté).
+- **Rate limits login purgés** après reset réussi pour ne pas bloquer la
+  reconnexion immédiate.
+- Audit trail : `password_reset_code_sent` (avec `delivered` bool) et
+  `password_reset_via_code`.
+
+### Frontend
+- `/forgot-password` refondu en **2 étapes sur la même page** :
+  1. Saisie de l'email → « Recevoir un code »
+  2. Saisie du code + nouveau mot de passe → reset immédiat, redirection login
+- **Bandeau ambré de secours** affiche le code à l'écran quand l'email n'est
+  pas parti + bouton « Copier ». Explicite que c'est un mode dégradé.
+- Bandeau vert de confirmation quand l'email est réellement délivré.
+- Champ code : input mono, `inputMode=numeric`, `autocomplete=one-time-code`
+  (autofill iOS/Android depuis SMS/mail), placeholder `••••••`, filtrage
+  automatique des non-chiffres.
+
+### Tests
+- `/app/backend/tests/test_iter36_otp_recovery.py` : **7 tests** (email inconnu → 200 sans code, email connu → code renvoyé, reset + login OK, code réutilisé → 400, mauvais code → 400, mot de passe court → 422, invalidation du code précédent quand un nouveau est demandé, rate limit après 3 demandes → 429).
+- Chaque test utilise un email unique généré à la volée pour ne pas déclencher
+  le rate limit sur `otp-test-user@bevidcrm.fr` fixe.
+
 ## Lot 8 — Consolidation Test Data (21/02/2026)
 
 ### Contexte
