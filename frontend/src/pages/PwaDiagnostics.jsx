@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { pwaDiagnostics, requestPersistentStorage, purgeIfQuotaHigh } from "@/lib/pwa";
 import { subscribePush, sendTestPush, pushSupported } from "@/lib/push";
+import { api } from "@/lib/api";
 
 /**
  * Écran de diagnostic PWA — 6 lignes utiles pour dépanner un commercial à distance.
@@ -39,6 +40,9 @@ export default function PwaDiagnostics() {
   const [diag, setDiag] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [team, setTeam] = useState([]);
+  const [colleague, setColleague] = useState("");
+  const [meId, setMeId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -46,6 +50,33 @@ export default function PwaDiagnostics() {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); const iv = setInterval(load, 30000); return () => clearInterval(iv); }, []);
+
+  // Chargement de l'équipe pour le test à un collègue (manager only)
+  useEffect(() => {
+    (async () => {
+      try {
+        const [me, teamRes] = await Promise.all([
+          api.get("/auth/me"),
+          api.get("/org/team").catch(() => ({ data: { members: [] } })),
+        ]);
+        setMeId(me.data?.id || null);
+        setTeam((teamRes.data?.members || []).filter(m => m.id !== me.data?.id));
+      } catch { /* silencieux */ }
+    })();
+  }, []);
+
+  const testPushToColleague = async () => {
+    if (!colleague) { toast.error("Choisissez un collègue"); return; }
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/notifications/test-push-to/${colleague}`);
+      if (data.ok && !data.simulated) toast.success(`Test envoyé à ${data.to?.name || "collègue"}`);
+      else if (data.simulated) toast.info("Test simulé côté serveur (VAPID absent ou push_disabled)");
+      else toast.error(data.reason || "Envoi impossible");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Envoi impossible");
+    } finally { setBusy(false); }
+  };
 
   const requestPersist = async () => {
     setBusy(true);
@@ -187,6 +218,31 @@ export default function PwaDiagnostics() {
           💡 La file d'envoi de messages et de visites n'est <b>jamais</b> supprimée par le nettoyage — c'est du travail non enregistré.
         </p>
       </section>
+
+      {team.length > 0 && (
+        <section className="card-crm p-4 space-y-3" data-testid="test-to-colleague">
+          <h2 className="font-display text-lg">Tester le téléphone d'un collègue</h2>
+          <p className="text-xs text-stone-500">
+            Manager only — envoyez une notification test à un collègue pour valider son appareil en un clic.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <select value={colleague} onChange={e => setColleague(e.target.value)}
+              className="input-crm text-sm min-h-[40px] flex-1 min-w-[200px]" data-testid="colleague-select">
+              <option value="">— Sélectionner —</option>
+              {team.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.display_name || m.name || m.email} · {m.role}
+                </option>
+              ))}
+            </select>
+            <button onClick={testPushToColleague} disabled={busy || !colleague}
+              className="btn-primary min-h-[40px] px-4 flex items-center gap-2" data-testid="test-colleague-btn">
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
+              Envoyer test
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

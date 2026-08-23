@@ -17,6 +17,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
+import PushHistoryBell from "@/components/PushHistoryBell";
 import InboxDropdown from "@/components/InboxDropdown";
 import ThemeToggle from "@/components/ThemeToggle";
 import PuceEtat from "@/components/system/PuceEtat";
@@ -718,6 +719,7 @@ export default function Layout({ children }) {
                   </div>
                 </div>
                 <InboxDropdown />
+                <PushHistoryBell />
                 <NotificationBell />
               </Link>
             ) : (
@@ -795,6 +797,7 @@ export default function Layout({ children }) {
             </button>
             <ThemeToggle variant="icon" />
             <InboxDropdown />
+            <PushHistoryBell />
             <NotificationBell />
             <select
               value={lang}

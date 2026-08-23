@@ -12270,6 +12270,59 @@ async def send_test_push(user=Depends(get_current_user)):
             "reason": r.get("reason")}
 
 
+@api_router.post("/notifications/test-push-to/{target_user_id}")
+async def send_test_push_to(target_user_id: str, user=Depends(get_current_user)):
+    """Envoie une notif test à un collègue (même org). Manager only.
+    Utile pour valider en 1 clic le téléphone d'un nouveau commercial."""
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Manager/gérant only")
+    target = await db_raw.users.find_one(
+        {"id": target_user_id, "org_id": user["org_id"], "active": True},
+        {"_id": 0, "id": 1, "name": 1},
+    )
+    if not target:
+        raise HTTPException(404, "Utilisateur cible introuvable")
+    r = await _try_send_push(target_user_id, "test_from_manager",
+                              {"title": "BEVID · Test manager",
+                               "body": f"Test envoyé par {user.get('name') or 'un manager'}. Notifications OK.",
+                               "url": "/pwa-status"})
+    return {"ok": r.get("ok", False), "simulated": r.get("simulated", False),
+            "reason": r.get("reason"), "to": target}
+
+
+@api_router.get("/notifications/history")
+async def get_notification_history(limit: int = 30, user=Depends(get_current_user)):
+    """Historique des notifications reçues par le user courant, incluant celles
+    qui n'ont pas pu être poussées (silence, push_disabled, etc.). Trié desc."""
+    docs = await db_raw.notification_queue.find(
+        {"user_id": user["id"], "org_id": user["org_id"]},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(min(limit, 100))
+    # Marquer les non-lus (jamais confirmés côté client)
+    unread = sum(1 for d in docs if not d.get("read_at"))
+    return {"items": docs, "unread_count": unread}
+
+
+@api_router.post("/notifications/{nid}/mark-read")
+async def mark_notification_read(nid: str, user=Depends(get_current_user)):
+    res = await db_raw.notification_queue.update_one(
+        {"id": nid, "user_id": user["id"], "org_id": user["org_id"]},
+        {"$set": {"read_at": now_iso()}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Notification introuvable")
+    return {"ok": True}
+
+
+@api_router.post("/notifications/mark-all-read")
+async def mark_all_notifications_read(user=Depends(get_current_user)):
+    res = await db_raw.notification_queue.update_many(
+        {"user_id": user["id"], "org_id": user["org_id"], "read_at": None},
+        {"$set": {"read_at": now_iso()}},
+    )
+    return {"marked": res.modified_count}
+
+
 # === Fin Lot Fiabilité PWA ===
 
 

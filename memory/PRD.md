@@ -1675,3 +1675,22 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 - Fournit un mode d'emploi de dépannage à distance via `/pwa-status` (6 lignes de diagnostic).
 
 **Statut** : reste à valider par l'utilisateur sur un vrai iPhone (le scénario complet ne peut pas être scripté depuis le serveur).
+
+
+## Lot Fiabilité PWA — Notification Bell + Push Test Direct (23/02/2026 · nuit)
+
+### Backend — 4 nouveaux endpoints
+- `GET /api/notifications/history?limit=30` : historique des notifs poussées au user courant (statut, kind, payload, push_result, read_at). Scoped par org + user.
+- `POST /api/notifications/{nid}/mark-read` : marque une notif comme lue.
+- `POST /api/notifications/mark-all-read` : marque toutes les notifs non-lues comme lues.
+- `POST /api/notifications/test-push-to/{target_user_id}` : envoie une notif test à un collègue (manager only, cible même org). Réponse `{ok, simulated, reason, to}`.
+
+### Frontend
+- **`PushHistoryBell.jsx`** (nouvelle cloche icône `History` en top bar, à côté de la cloche existante) : badge non-lus, panneau déroulant listant les 30 dernières notifs avec statut visuel (Différée · plage silence / Envoi échoué / Simulée), timestamps relatifs (« il y a 3 min »), lien vers la cible (payload.url), « Tout marquer lu ». Montée à la fois desktop et mobile top bar.
+- **PwaDiagnostics** étendu avec section « Tester le téléphone d'un collègue » (manager only) : dropdown équipe → bouton envoi test → toast contextualisé (envoyé / simulé / échec).
+
+### Preuves runtime (23 août 2026)
+- `GET /notifications/history` : `{unread_count: 15, items: [15 digest_afternoon]}` — les résumés cron d'aujourd'hui sont bien remontés
+- `POST /notifications/test-push-to/{com_id}` (manager) : `{ok:false, reason:"push_disabled", to:{name:"Thomas Commercial"}}` — comportement attendu (commercial n'a pas encore souscrit)
+- `POST /notifications/test-push-to/{com_id}` (commercial) : HTTP 403 « Manager/gérant only » ✅
+- `POST /notifications/mark-all-read` : `{marked: 15}` ✅
