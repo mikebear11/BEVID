@@ -1694,3 +1694,27 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 - `POST /notifications/test-push-to/{com_id}` (manager) : `{ok:false, reason:"push_disabled", to:{name:"Thomas Commercial"}}` — comportement attendu (commercial n'a pas encore souscrit)
 - `POST /notifications/test-push-to/{com_id}` (commercial) : HTTP 403 « Manager/gérant only » ✅
 - `POST /notifications/mark-all-read` : `{marked: 15}` ✅
+
+
+## Lot Fiabilité PWA — Filtres + DND Override (23/02/2026 · nuit)
+
+### Backend — 3 endpoints ajoutés / étendus
+- `GET /notifications/history?kind=mention,approval_reminder,...` : filtrage par catégories (CSV). Le compteur unread reste global (indépendant du filtre) pour ne pas fausser le badge.
+- `POST /notifications/dnd` : active « Ne pas déranger » via `hours` (relatif, max 48) OU `until` (ISO 8601 UTC absolu, cap +48h). Stocke dans `users.notif_level_prefs.dnd_until`.
+- `DELETE /notifications/dnd` : lève le DND immédiatement.
+- **`_is_in_silence` étendu** : lit `dnd_until` en priorité. Si `now < dnd_until` → silence actif. La plage silence standard 20h→8h + dimanche reste appliquée.
+- `GET /notifications/preferences` : expose `dnd_until` en lecture pour l'UI (pas d'écriture via PUT).
+
+### Frontend — `PushHistoryBell.jsx` refondu
+- **5 filter chips** en haut du panneau : Tous · Mentions · Rappels · Résumés · Tests. Sélection persiste durant la session, met à jour la liste sans refetch complet du unread.
+- **Bouton DND « Ne pas déranger jusqu'à demain 8h »** en tête du panneau. Envoie `until = demain 8h locale`.
+- Si DND actif → bandeau indigo « Ne pas déranger actif jusqu'au JJ/MM HH:MM » avec bouton `X` pour désactiver.
+- **Icône lune** ajoutée en surimpression de la cloche quand DND actif (remplace le badge unread pour signaler que le silence est volontaire).
+- Vide contextualisé : « Aucune notification dans cette catégorie » quand le filtre ne matche rien.
+
+### Preuves curl (23 août 2026)
+- `POST /notifications/dnd {"until":"demain 6h UTC"}` → `{ok:true, dnd_until:"..."}`
+- `GET /notifications/preferences` → contient `dnd_until` ✅
+- `GET /notifications/history?kind=digest_morning,digest_afternoon` → items filtrés (2 kinds), unread total inchangé ✅
+- `POST /notifications/dnd {"until":"+10 jours"}` → HTTP 422 « DND cap à 48h » ✅
+- `DELETE /notifications/dnd` → `{ok:true}` ✅

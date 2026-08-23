@@ -11508,6 +11508,21 @@ def _paris_now():
 def _is_in_silence(prefs: dict, now_paris=None) -> bool:
     if now_paris is None:
         now_paris = _paris_now()
+    # DND override : si l'utilisateur a activé "Ne pas déranger jusqu'à X",
+    # on est en silence tant que X n'est pas passé.
+    dnd_until = prefs.get("dnd_until")
+    if dnd_until:
+        try:
+            from datetime import datetime as _dt
+            dnd_dt = _dt.fromisoformat(dnd_until.replace("Z", "+00:00"))
+            # Compare en UTC pour éviter les ambiguïtés de fuseau
+            now_utc = datetime.now(timezone.utc)
+            if dnd_dt.tzinfo is None:
+                dnd_dt = dnd_dt.replace(tzinfo=timezone.utc)
+            if now_utc < dnd_dt:
+                return True
+        except Exception:
+            pass
     if prefs.get("silence_sundays", True) and now_paris.weekday() == 6:
         return True
     start_str = prefs.get("silence_start") or "20:00"
@@ -11531,7 +11546,10 @@ def _is_in_silence(prefs: dict, now_paris=None) -> bool:
 async def get_notif_preferences(user=Depends(get_current_user)):
     doc = await db_raw.users.find_one({"id": user["id"]}, {"_id": 0, "notif_level_prefs": 1})
     prefs = (doc or {}).get("notif_level_prefs") or {}
-    return {**DEFAULT_NOTIF_LEVEL_PREFS, **{k: v for k, v in prefs.items() if k in DEFAULT_NOTIF_LEVEL_PREFS}}
+    merged = {**DEFAULT_NOTIF_LEVEL_PREFS, **{k: v for k, v in prefs.items() if k in DEFAULT_NOTIF_LEVEL_PREFS}}
+    # Expose dnd_until (lecture uniquement — modification via /notifications/dnd)
+    merged["dnd_until"] = prefs.get("dnd_until")
+    return merged
 
 
 class NotifLevelPrefsUpdate(BaseModel):
@@ -12291,15 +12309,21 @@ async def send_test_push_to(target_user_id: str, user=Depends(get_current_user))
 
 
 @api_router.get("/notifications/history")
-async def get_notification_history(limit: int = 30, user=Depends(get_current_user)):
-    """Historique des notifications reçues par le user courant, incluant celles
-    qui n'ont pas pu être poussées (silence, push_disabled, etc.). Trié desc."""
-    docs = await db_raw.notification_queue.find(
-        {"user_id": user["id"], "org_id": user["org_id"]},
-        {"_id": 0},
-    ).sort("created_at", -1).to_list(min(limit, 100))
-    # Marquer les non-lus (jamais confirmés côté client)
-    unread = sum(1 for d in docs if not d.get("read_at"))
+async def get_notification_history(limit: int = 30, kind: Optional[str] = None,
+                                    user=Depends(get_current_user)):
+    """Historique des notifications reçues par le user courant. `kind` accepte
+    une liste séparée par virgules (ex : `mention,approval_reminder`)."""
+    q = {"user_id": user["id"], "org_id": user["org_id"]}
+    if kind:
+        kinds = [k.strip() for k in kind.split(",") if k.strip()]
+        if kinds:
+            q["kind"] = {"$in": kinds}
+    docs = await db_raw.notification_queue.find(q, {"_id": 0}).sort("created_at", -1).to_list(min(limit, 100))
+    # Compte unread total (indépendant du filtre kind, pour le badge)
+    unread = await db_raw.notification_queue.count_documents(
+        {"user_id": user["id"], "org_id": user["org_id"],
+         "$or": [{"read_at": None}, {"read_at": {"$exists": False}}]},
+    )
     return {"items": docs, "unread_count": unread}
 
 
@@ -12321,6 +12345,52 @@ async def mark_all_notifications_read(user=Depends(get_current_user)):
         {"$set": {"read_at": now_iso()}},
     )
     return {"marked": res.modified_count}
+
+
+class DndRequest(BaseModel):
+    hours: Optional[int] = None   # Durée relative en heures (max 48)
+    until: Optional[str] = None   # ISO 8601 UTC absolu (alternative)
+
+
+@api_router.post("/notifications/dnd")
+async def set_dnd(data: DndRequest, user=Depends(get_current_user)):
+    """Active « Ne pas déranger » jusqu'à un moment donné. Étend la plage silence
+    standard pour aujourd'hui/demain sans la modifier de façon permanente.
+    Le default suggéré côté client est « jusqu'à demain 8h Paris »."""
+    from datetime import timedelta as _td
+    if data.until:
+        try:
+            dnd_iso = data.until
+            # Normalise ISO (accepte "...Z" et sans TZ)
+            dt = datetime.fromisoformat(data.until.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            # Cap à +48h
+            max_dt = datetime.now(timezone.utc) + _td(hours=48)
+            if dt > max_dt:
+                raise HTTPException(422, "DND cap à 48h")
+            dnd_iso = dt.isoformat()
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(422, "until doit être ISO 8601")
+    else:
+        hours = data.hours if data.hours is not None else 12
+        if hours <= 0 or hours > 48:
+            raise HTTPException(422, "hours entre 1 et 48")
+        dnd_iso = (datetime.now(timezone.utc) + _td(hours=hours)).isoformat()
+    await db_raw.users.update_one(
+        {"id": user["id"]}, {"$set": {"notif_level_prefs.dnd_until": dnd_iso}},
+    )
+    return {"ok": True, "dnd_until": dnd_iso}
+
+
+@api_router.delete("/notifications/dnd")
+async def clear_dnd(user=Depends(get_current_user)):
+    await db_raw.users.update_one(
+        {"id": user["id"]}, {"$unset": {"notif_level_prefs.dnd_until": ""}},
+    )
+    return {"ok": True}
 
 
 # === Fin Lot Fiabilité PWA ===
