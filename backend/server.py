@@ -11381,6 +11381,84 @@ async def mark_read(mid: str, user=Depends(get_current_user)):
 
 # === Fin Lot Travail en équipe — Item 1 ===
 
+# === Lot Import — Fichier de rejets + Mémoire de mapping ===
+@api_router.get("/import/{batch_id}/rejects")
+async def import_rejects(batch_id: str, user=Depends(get_current_user)):
+    """Génère un XLSX contenant les lignes ignorées/rejetées d'un lot, avec colonne « motif »
+    ajoutée. Le format est celui de l'export standard pour que le commercial puisse corriger
+    dans son propre outil et réimporter."""
+    batch = await db.import_batches.find_one({"id": batch_id, "org_id": user["org_id"]}, {"_id": 0})
+    if not batch:
+        raise HTTPException(404, "Lot introuvable")
+    rejects = batch.get("rejects") or []
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Rejets"
+    headers = ["nom", "siret", "siren", "telephone", "email", "adresse", "code_postal", "ville", "contact", "type", "notes", "motif"]
+    ws.append(headers)
+    for r in rejects:
+        ws.append([r.get(h, "") if h != "motif" else r.get("motif", "") for h in headers])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="rejets-{batch_id[:8]}.xlsx"'},
+    )
+
+
+@api_router.get("/import/mapping/{fingerprint}")
+async def import_get_mapping(fingerprint: str, user=Depends(get_current_user)):
+    """Récupère un mapping mémorisé pour l'utilisateur × empreinte de colonnes."""
+    m = await db.import_mappings.find_one(
+        {"user_id": user["id"], "fingerprint": fingerprint},
+        {"_id": 0, "mapping": 1, "created_at": 1},
+    )
+    return m or {"mapping": None}
+
+
+@api_router.post("/import/mapping/{fingerprint}")
+async def import_save_mapping(fingerprint: str, payload: dict, user=Depends(get_current_user)):
+    """Persiste le mapping utilisateur pour ce fingerprint."""
+    mapping = payload.get("mapping") or {}
+    if not isinstance(mapping, dict):
+        raise HTTPException(422, "mapping doit être un dict header→field")
+    await db.import_mappings.update_one(
+        {"user_id": user["id"], "fingerprint": fingerprint},
+        {"$set": {"mapping": mapping, "org_id": user["org_id"], "updated_at": now_iso()},
+         "$setOnInsert": {"created_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+# === Lot Travail en équipe — Item 3 : engagements de tournée ===
+@api_router.get("/tour/engagements")
+async def tour_engagements(user=Depends(get_current_user)):
+    """Renvoie les `message_actions` pending du user courant avec échéance ≤ 7 jours.
+    Utilisé par la page Tournée pour afficher les engagements datés issus de mentions."""
+    from datetime import timedelta as _td
+    horizon = (datetime.now(timezone.utc) + _td(days=7)).isoformat()
+    actions = await db.message_actions.find(
+        {"org_id": user["org_id"], "user_id": user["id"], "status": "pending"},
+        {"_id": 0},
+    ).sort("due_date", 1).to_list(50)
+    # Enrichir avec objet et message preview
+    for a in actions:
+        m = await db.messages.find_one({"id": a["message_id"]}, {"_id": 0, "text": 1, "author_name": 1})
+        a["preview"] = (m or {}).get("text") or ""
+        a["author_name"] = (m or {}).get("author_name")
+        if a["object_type"] == "establishment" and a["object_id"]:
+            e = await db.establishments.find_one({"id": a["object_id"]}, {"_id": 0, "name": 1, "city": 1})
+            a["object_name"] = (e or {}).get("name")
+            a["object_city"] = (e or {}).get("city")
+    return actions
+
+
+# === Fin Lot Import + Travail équipe étendus ===
+
 # === Lot 5 P4 — Phase 1 du découpage de server.py ===
 # Le routeur de télémétrie (/api/errors, /api/csp-report) vit maintenant dans
 # routes/telemetry.py et est monté ici via injection de dépendances (db + helpers

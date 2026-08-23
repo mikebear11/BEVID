@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, API } from "@/lib/api";
 import { toast } from "sonner";
-import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check } from "lucide-react";
+import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check, Mic, Square } from "lucide-react";
 
 /**
  * Fil de discussion rattaché à un objet.
@@ -24,7 +24,56 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
   const [editText, setEditText] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [showMentions, setShowMentions] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recorderBusy, setRecorderBusy] = useState(false);
+  const recorderRef = useRef(null);
+  const recordChunksRef = useRef([]);
+  const recordStartedRef = useRef(0);
   const inputRef = useRef(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      recordChunksRef.current = [];
+      mr.ondataavailable = (ev) => { if (ev.data.size > 0) recordChunksRef.current.push(ev.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(recordChunksRef.current, { type: "audio/webm" });
+        if ((Date.now() - recordStartedRef.current) > 30000) {
+          toast.error("Message vocal limité à 30 s");
+          setRecording(false);
+          return;
+        }
+        setRecorderBusy(true);
+        try {
+          const fd = new FormData();
+          fd.append("audio", blob, "voice.webm");
+          fd.append("lang", "fr-FR");
+          const res = await fetch(`${API}/voice/transcribe`, { method: "POST", credentials: "include", body: fd });
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          setText((prev) => (prev ? prev + " " : "") + (data.transcript || "(vocal non transcrit)"));
+          toast.success("Vocal transcrit — éditez avant d'envoyer");
+        } catch (e) {
+          toast.error("Transcription impossible : " + String(e).slice(0, 80));
+        } finally { setRecorderBusy(false); }
+      };
+      mr.start();
+      recorderRef.current = mr;
+      recordStartedRef.current = Date.now();
+      setRecording(true);
+      // Auto-stop à 30 s max
+      setTimeout(() => { if (mr.state === "recording") mr.stop(); }, 30000);
+    } catch { toast.error("Micro indisponible ou refusé"); }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current && recorderRef.current.state === "recording") {
+      recorderRef.current.stop();
+    }
+    setRecording(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -139,10 +188,21 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
               className="input-crm min-h-[32px] text-xs py-1" data-testid="msg-due-date" aria-label="Échéance de la mention" />
           </label>
-          <button onClick={send} disabled={busy || !text.trim()} className="btn-primary flex items-center gap-1 min-h-[36px] text-sm px-4" data-testid="msg-send">
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} aria-hidden="true" />}
-            Envoyer
-          </button>
+          <div className="flex items-center gap-2">
+            {!recording ? (
+              <button onClick={startRecording} disabled={recorderBusy} className="text-stone-600 hover:text-[#4A154B] min-h-[36px] min-w-[36px] flex items-center justify-center" aria-label="Enregistrer un vocal" data-testid="msg-voice-start">
+                {recorderBusy ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} aria-hidden="true" />}
+              </button>
+            ) : (
+              <button onClick={stopRecording} className="text-red-600 animate-pulse min-h-[36px] min-w-[36px] flex items-center justify-center" aria-label="Arrêter l'enregistrement" data-testid="msg-voice-stop">
+                <Square size={16} aria-hidden="true" />
+              </button>
+            )}
+            <button onClick={send} disabled={busy || !text.trim()} className="btn-primary flex items-center gap-1 min-h-[36px] text-sm px-4" data-testid="msg-send">
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} aria-hidden="true" />}
+              Envoyer
+            </button>
+          </div>
         </div>
       </div>
     </section>

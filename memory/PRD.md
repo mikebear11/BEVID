@@ -1475,3 +1475,35 @@ Ajout complet des pages légales exigées pour la conformité française (RGPD, 
 - Item 5 (Notifications 3 niveaux + plage silence)
 - Item 6 (Message vocal via `MediaRecorder` + `/api/voice/transcribe`)
 - Items 7-15 (Demandes/validations, portefeuilles, relais, planning équipe, revue hebdo, savoir partagé, recherche ⌘K, messages directs en dernier)
+
+## Lot Travail équipe Items 2-3-6 + Import rejets + mémoire mapping (23/02/2026)
+
+### Item 2 — Boîte de réception dans la barre du haut
+- **Composant `InboxDropdown.jsx`** : bouton `Inbox` à côté de la cloche + badge `unread`. Panneau déroulant listant les mentions pending avec preview, échéance, lien vers l'objet source. Refresh 60 s. Click sur item → `POST /messages/{id}/mark-read` + navigation.
+- Ajouté dans Layout.jsx desktop (près profil user) + mobile (barre haut).
+
+### Item 3 — Mentions → engagements datés dans la tournée
+- **Endpoint `GET /api/tour/engagements`** : mentions pending du user courant avec `due_date` ≤ 7 jours, enrichies avec nom d'établissement + ville + auteur.
+- **Composant `EngagementsWidget.jsx`** intégré en haut de `/tournee` (rendu conditionnel : rien si 0 engagement). Chaque item : mention @auteur, échéance amber, preview 1 ligne, lien vers fiche, bouton « traité » (CheckCircle) qui `mark-read` et rafraîchit.
+
+### Item 6 — Message vocal
+- **Composant `MessageThread`** enrichi : bouton micro à côté de « Envoyer ». Click → `MediaRecorder` (getUserMedia audio), animation pulse rouge en cours d'enregistrement. Stop click ou auto 30 s → upload à `/api/voice/transcribe` (endpoint existant) → texte transcrit inséré dans la zone de saisie pour édition avant envoi (comme demandé par la spec : « modifiable avant envoi »). Perte d'accès au micro gérée avec toast d'erreur.
+
+### Import — Fichier de rejets
+- **Endpoint `GET /api/import/{batch_id}/rejects`** : génère un XLSX au format standard (12 colonnes : nom, siret, siren, telephone, email, adresse, code_postal, ville, contact, type, notes + `motif`) via openpyxl streaming. `Content-Disposition: attachment`.
+- **UI** : bouton « Rejets » (icône Download) sur chaque ligne de l'historique. Le commercial corrige dans son propre outil et réimporte.
+
+### Import — Mémoire de mapping
+- **Collection `import_mappings`** : `{user_id, fingerprint, mapping, org_id, created_at, updated_at}`, unique par (user_id, fingerprint).
+- **Endpoints** `GET /api/import/mapping/{fingerprint}` (retourne mapping ou `{mapping: null}`) et `POST /api/import/mapping/{fingerprint}` (upsert).
+- **UI** : après `analyze`, appel automatique de `GET` — si mapping trouvé, il pré-remplit les colonnes avec source `user` + certainty 1.0 et affiche un toast « Mappage précédent restauré ». Après `preview` succès, appel `POST` pour persister le mapping courant.
+
+### Vérifications LIVE
+- `GET /tour/engagements` : `[]` (pas de mention pending pour manager)
+- `POST /import/mapping/abc123` : `{"ok":true}`
+- `GET /import/mapping/abc123` : `{"mapping":{"NOM":"nom","TEL":"telephone"},...}`
+
+### Reste à faire pour Travail en équipe
+- Item 4 : Hors-ligne + file d'envoi via Dexie
+- Item 5 : Notifications 3 niveaux + plage silence 20h-8h
+- Items 7-15 : Demandes/validations, portefeuilles, relais, planning équipe, revue hebdo composée, savoir partagé, recherche ⌘K, messages directs (dernier)

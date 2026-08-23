@@ -16,6 +16,7 @@ import {
   User as UserIcon, RotateCcw, GripVertical, PanelLeftClose, PanelLeftOpen, Lock,
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
+import InboxDropdown from "@/components/InboxDropdown";
 import ThemeToggle from "@/components/ThemeToggle";
 import PuceEtat from "@/components/system/PuceEtat";
 import OfflineBanner from "@/components/OfflineBanner";
@@ -712,6 +713,7 @@ export default function Layout({ children }) {
                     <PuceEtat etat="info" variante="douce" libelle={role} />
                   </div>
                 </div>
+                <InboxDropdown />
                 <NotificationBell />
               </Link>
             ) : (
@@ -788,6 +790,7 @@ export default function Layout({ children }) {
               <Search size={18} aria-hidden="true" />
             </button>
             <ThemeToggle variant="icon" />
+            <InboxDropdown />
             <NotificationBell />
             <select
               value={lang}

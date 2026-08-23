@@ -43,6 +43,15 @@ export default function ImportIntelligent() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setSniff(data);
+      // Charge le mapping mémorisé pour ce fingerprint × utilisateur
+      try {
+        const mem = await api.get(`/import/mapping/${data.fingerprint}`);
+        if (mem.data?.mapping) {
+          const remembered = mem.data.mapping;
+          data.columns = data.columns.map(c => remembered[c.header] ? { ...c, field: remembered[c.header], source: "user", certainty: 1 } : c);
+          toast.info("Mappage précédent restauré — corrigez si besoin");
+        }
+      } catch {}
       setColumns(data.columns);
       setSession(data.session_id);
       setStep("mapping");
@@ -62,7 +71,11 @@ export default function ImportIntelligent() {
     setBusy(true);
     try {
       const { data } = await api.post(`/import/${session}/preview`, { mapping });
-      // Enrichissement auto en tâche de fond — n'attend pas pour ne pas bloquer.
+      // Persiste le mapping pour la prochaine fois (même fingerprint)
+      if (sniff?.fingerprint) {
+        api.post(`/import/mapping/${sniff.fingerprint}`, { mapping }).catch(() => {});
+      }
+      // Enrichissement auto en tâche de fond
       api.post(`/import/${session}/enrich`).then((r) => {
         if (r.data.enriched_rows > 0) toast.info(`${r.data.enriched_rows} lignes enrichies via Recherche-Entreprises (SIREN)`);
       }).catch(() => {});
@@ -305,7 +318,10 @@ export default function ImportIntelligent() {
                   <td className="p-3">{b.filename || "—"}</td>
                   <td className="p-3 text-stone-500">{b.user_name}</td>
                   <td className="p-3 text-xs">{b.counts?.created || 0} créés · {b.counts?.merged || 0} complétés · {b.counts?.skipped || 0} ignorés{b.undone_at && <span className="text-red-700"> · annulé</span>}</td>
-                  <td className="p-3 text-right">
+                  <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                    <a href={`${API}/import/${b.id}/rejects`} target="_blank" rel="noreferrer" className="text-xs bg-stone-100 text-stone-700 px-3 py-1.5 rounded-full min-h-[36px] inline-flex items-center gap-1" data-testid={`import-rejects-${b.id}`}>
+                      <Download size={12} aria-hidden="true" /> Rejets
+                    </a>
                     {!b.undone_at && (
                       <button onClick={() => undoBatch(b.id)} className="text-xs bg-red-50 text-red-700 px-3 py-1.5 rounded-full min-h-[36px] inline-flex items-center gap-1" data-testid={`import-undo-${b.id}`}>
                         <Undo2 size={12} aria-hidden="true" /> Annuler
