@@ -1369,3 +1369,32 @@ Ajout complet des pages légales exigées pour la conformité française (RGPD, 
 - Lot 8 Devis/BC/Proforma/Feuille de dépôt : les `DOCUMENT_TYPES` sont déjà déclarés dans server.py L739-747 avec préfixes et flags fiscaux ; il reste à ajouter les endpoints CRUD + UI d'émission (voir `_allocate_document_number` L758 et le template Jinja WeasyPrint `document_pdf_template.py`).
 - Lot 9 Société hierarchy : à démarrer sur `db.companies` (nouvelle collection) reliée à `db.establishments.company_id`.
 - Legacy `db.clients` : suppression après migration des 6 clients restants.
+
+## Lot 8 + Lot 9 + Legacy — livrés en batch (23/02/2026)
+
+### Lot 8 — Documents CRUD étendu
+- Backend déjà prêt (`DOCUMENT_TYPES` + `_allocate_document_number` + endpoints `/documents/*` L1858-2286 couvrent devis, bon_commande, proforma, feuille_depot, bon_livraison, facture, avoir).
+- **Frontend nouveau** : `/app/frontend/src/pages/Documents.jsx` — liste unifiée avec filtres par type (Tous · Devis · BC · Proforma · Feuille de dépôt · BL · Facture · Avoir), création via modal multi-type avec preview du prochain numéro (`GET /documents/preview-number/{type}`), émission (`POST /documents/{id}/emit`), téléchargement PDF (`GET /documents/{id}/pdf`).
+- Route `/documents` protégée + craco KNOWN_ROUTES + lazy import.
+
+### Lot 9 — Sociétés (companies)
+- **Backend nouveau** : collection `db.companies` + endpoints CRUD `GET/POST/PATCH/DELETE /api/companies`, `GET /api/companies/{id}` (avec établissements rattachés), `GET /api/companies/{id}/aggregate` (CA total + encours factures), `POST /api/companies/{id}/attach|detach/{eid}`.
+- Modèle `CompanyCreate` / `CompanyPatch` : legal_name, siren, ownership_type (SAS/SARL/EURL/SA/SCI/SNC), headquarters_address, capital_social, tva_intracom, rcs, naf_code, director, notes.
+- Établissements liés via `establishments.company_id` (nullable, backward compat garantie — pas de migration destructive).
+- **Frontend nouveau** : `Companies.jsx` (liste + recherche + création avec `SirenAutocomplete` pré-remplissage), `CompanyDetail.jsx` (KPI agrégés + liste établissements rattachés).
+- Routes `/companies` et `/companies/:id` protégées + craco KNOWN_ROUTES.
+
+### Legacy Clients — dépréciation soft + migration
+- **Toutes les routes `/api/clients*` renvoient désormais l'en-tête** `X-BEVID-Deprecated: db.clients → use /api/establishments` (list, create, get, put, delete). Vérifié via `curl -sI` en LIVE.
+- **Nouveau endpoint** `POST /api/admin/legacy/migrate-clients-to-establishments` (manager only) : parcourt `db.clients`, tente un merge sur `siret` puis `name` (soft — ne remplit que les champs vides), sinon crée un nouveau `establishment` avec un `legacy_client_id` de traçabilité. Idempotent : rejouable. Retourne `{total, moved, merged, errors}` + `audit_log`.
+- Pas de suppression physique de `db.clients` pour l'instant (12+ pages frontend l'utilisent encore : Pipeline, Planning, Deals, Tours, ClientDetail, Radar…). La migration prépare le terrain sans casser l'existant.
+
+### Vérifications LIVE
+- `curl POST /api/companies` avec SIREN 999999999 renvoie un doc valide, `GET /api/companies` liste avec `establishments_count: 0`.
+- `curl -sI /api/clients` renvoie bien `X-BEVID-Deprecated: db.clients → use /api/establishments`.
+- Frontend rebuild via `supervisorctl restart frontend`.
+
+### Reste à faire (à venir)
+- Ajouter les items « Documents » et « Sociétés » à la Sidebar (Layout.jsx nav sections).
+- Écran `EtablissementDetail` — bouton « Rattacher à une société » (attach/detach existent déjà côté backend).
+- Migration réelle des 12+ pages frontend depuis `/api/clients` vers `/api/establishments` (backlog Legacy phase 2).

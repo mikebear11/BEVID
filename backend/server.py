@@ -2927,15 +2927,21 @@ async def list_org_members(user=Depends(get_current_user)):
 async def me(user=Depends(get_current_user)):
     return user
 
-# ---------- CLIENTS ----------
+# ---------- CLIENTS (LEGACY — déprécié, à remplacer par /establishments) ----------
+# Header `X-BEVID-Deprecated` ajouté sur toutes les routes /clients pour signaler
+# aux consommateurs API. Migration en cours (Lot Legacy).
+_LEGACY_DEPRECATION_HEADER = {"X-BEVID-Deprecated": "db.clients → use /api/establishments"}
+
 @api_router.get("/clients")
-async def list_clients(user=Depends(get_current_user)):
+async def list_clients(response: Response, user=Depends(get_current_user)):
+    response.headers.update(_LEGACY_DEPRECATION_HEADER)
     query = {} if user["role"] == "manager" else {"$or": [{"owner_id": user["id"]}, {"assigned_to": user["id"]}]}
     items = await db.clients.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return items
 
 @api_router.post("/clients")
-async def create_client(data: dict, user=Depends(get_current_user)):
+async def create_client(response: Response, data: dict, user=Depends(get_current_user)):
+    response.headers.update(_LEGACY_DEPRECATION_HEADER)
     data["owner_id"] = user["id"]
     if not data.get("assigned_to"):
         data["assigned_to"] = user["id"]
@@ -2944,14 +2950,16 @@ async def create_client(data: dict, user=Depends(get_current_user)):
     return c.model_dump()
 
 @api_router.get("/clients/{client_id}")
-async def get_client(client_id: str, user=Depends(get_current_user)):
+async def get_client(response: Response, client_id: str, user=Depends(get_current_user)):
+    response.headers.update(_LEGACY_DEPRECATION_HEADER)
     c = await db.clients.find_one({"id": client_id}, {"_id": 0})
     if not c:
         raise HTTPException(404, "Client introuvable")
     return c
 
 @api_router.put("/clients/{client_id}")
-async def update_client(client_id: str, data: dict, user=Depends(get_current_user)):
+async def update_client(response: Response, client_id: str, data: dict, user=Depends(get_current_user)):
+    response.headers.update(_LEGACY_DEPRECATION_HEADER)
     data["updated_at"] = now_iso()
     data.pop("id", None); data.pop("_id", None); data.pop("owner_id", None)
     res = await db.clients.update_one({"id": client_id}, {"$set": data})
@@ -2960,11 +2968,260 @@ async def update_client(client_id: str, data: dict, user=Depends(get_current_use
     return await db.clients.find_one({"id": client_id}, {"_id": 0})
 
 @api_router.delete("/clients/{client_id}")
-async def delete_client(client_id: str, user=Depends(get_current_user)):
+async def delete_client(response: Response, client_id: str, user=Depends(get_current_user)):
+    response.headers.update(_LEGACY_DEPRECATION_HEADER)
     res = await db.clients.delete_one({"id": client_id})
     if res.deleted_count == 0:
         raise HTTPException(404, "Client introuvable")
     return {"ok": True}
+
+
+# ---------- LEGACY MIGRATION — /admin/legacy/migrate-clients-to-establishments ----------
+@api_router.post("/admin/legacy/migrate-clients-to-establishments")
+async def migrate_legacy_clients(user=Depends(get_current_user)):
+    """Migre les documents restants de db.clients vers db.establishments.
+
+    - Idempotent : si un établissement existe déjà avec le même SIRET ou le même
+      nom, il est mis à jour avec les champs manquants (soft merge).
+    - Sinon, un nouvel `establishment` est créé.
+    - Retourne un rapport détaillé (moved, merged, skipped_no_org, errors).
+    """
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(404, "Aucune organisation")
+    clients = await db_raw.clients.find({"org_id": org_id}, {"_id": 0}).to_list(5000)
+    report = {"total": len(clients), "moved": 0, "merged": 0, "errors": []}
+    for c in clients:
+        try:
+            siret = (c.get("siret") or "").strip() or None
+            name = (c.get("name") or c.get("company_name") or "").strip() or None
+            if not name:
+                report["errors"].append({"client_id": c.get("id"), "reason": "no_name"})
+                continue
+            existing = None
+            if siret:
+                existing = await db_raw.establishments.find_one({"org_id": org_id, "siret": siret}, {"_id": 0})
+            if not existing:
+                existing = await db_raw.establishments.find_one({"org_id": org_id, "name": name}, {"_id": 0})
+            if existing:
+                patch = {}
+                for k in ("email", "phone", "address", "city", "postal_code", "lat", "lng", "notes"):
+                    if not existing.get(k) and c.get(k):
+                        patch[k] = c[k]
+                patch["legacy_client_id"] = c.get("id")
+                patch["updated_at"] = now_iso()
+                await db_raw.establishments.update_one({"id": existing["id"]}, {"$set": patch})
+                report["merged"] += 1
+            else:
+                new_doc = {
+                    "id": str(uuid.uuid4()),
+                    "org_id": org_id,
+                    "name": name,
+                    "siret": siret,
+                    "email": c.get("email"),
+                    "phone": c.get("phone"),
+                    "address": c.get("address"),
+                    "city": c.get("city"),
+                    "postal_code": c.get("postal_code"),
+                    "lat": c.get("lat"),
+                    "lng": c.get("lng"),
+                    "notes": c.get("notes"),
+                    "type": c.get("type") or "bar",
+                    "status": c.get("status") or "actif",
+                    "assigned_to": c.get("assigned_to"),
+                    "owner_id": c.get("owner_id"),
+                    "legacy_client_id": c.get("id"),
+                    "created_at": c.get("created_at") or now_iso(),
+                    "updated_at": now_iso(),
+                    "migrated_from_legacy_at": now_iso(),
+                }
+                await db_raw.establishments.insert_one(new_doc)
+                report["moved"] += 1
+        except Exception as e:
+            report["errors"].append({"client_id": c.get("id"), "reason": str(e)})
+    await audit_log(user["id"], "legacy_migration", {"report": report})
+    return report
+
+
+# =============================================================
+# Lot 9 — Sociétés (companies) : entité mère d'un ou plusieurs
+# établissements. Une société porte l'identité juridique (SIREN,
+# capital, RCS, dirigeant) ; chaque établissement porte l'adresse
+# opérationnelle (SIRET, activité, contacts).
+# =============================================================
+class CompanyCreate(BaseModel):
+    legal_name: str
+    siren: Optional[str] = None
+    ownership_type: Optional[str] = None  # "SAS", "SARL", "EURL", "SA", "SCI", "autre"
+    headquarters_address: Optional[str] = None
+    capital_social: Optional[str] = None
+    tva_intracom: Optional[str] = None
+    rcs: Optional[str] = None
+    naf_code: Optional[str] = None
+    director: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CompanyPatch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    legal_name: Optional[str] = None
+    siren: Optional[str] = None
+    ownership_type: Optional[str] = None
+    headquarters_address: Optional[str] = None
+    capital_social: Optional[str] = None
+    tva_intracom: Optional[str] = None
+    rcs: Optional[str] = None
+    naf_code: Optional[str] = None
+    director: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@api_router.get("/companies")
+async def list_companies(q: Optional[str] = None, user=Depends(get_current_user)):
+    """Liste des sociétés de l'organisation. Recherche libre optionnelle sur `legal_name` et `siren`."""
+    filt: dict = {}
+    if q and q.strip():
+        needle = q.strip()
+        filt["$or"] = [
+            {"legal_name": {"$regex": needle, "$options": "i"}},
+            {"siren": {"$regex": needle, "$options": "i"}},
+        ]
+    items = await db.companies.find(filt, {"_id": 0}).sort("legal_name", 1).to_list(500)
+    # Compte établissements rattachés à chaque société.
+    counts = {}
+    ids = [c["id"] for c in items]
+    if ids:
+        cursor = db.establishments.aggregate([
+            {"$match": {"company_id": {"$in": ids}}},
+            {"$group": {"_id": "$company_id", "n": {"$sum": 1}}},
+        ])
+        async for row in cursor:
+            counts[row["_id"]] = row["n"]
+    for c in items:
+        c["establishments_count"] = counts.get(c["id"], 0)
+    return items
+
+
+@api_router.post("/companies")
+async def create_company(data: CompanyCreate, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    if data.siren:
+        existing = await db.companies.find_one({"siren": data.siren}, {"_id": 0})
+        if existing:
+            raise HTTPException(409, f"Société déjà existante (SIREN {data.siren})")
+    doc = data.model_dump()
+    doc.update({
+        "id": str(uuid.uuid4()),
+        "org_id": user["org_id"],
+        "owner_id": user["id"],
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    })
+    await db.companies.insert_one(doc.copy())
+    doc.pop("_id", None)
+    doc["establishments_count"] = 0
+    await audit_log(user["id"], "company_create", {"id": doc["id"], "siren": data.siren})
+    return doc
+
+
+@api_router.get("/companies/{cid}")
+async def get_company(cid: str, user=Depends(get_current_user)):
+    c = await db.companies.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Société introuvable")
+    ests = await db.establishments.find({"company_id": cid}, {"_id": 0}).to_list(500)
+    c["establishments"] = ests
+    c["establishments_count"] = len(ests)
+    return c
+
+
+@api_router.patch("/companies/{cid}")
+async def update_company(cid: str, data: CompanyPatch, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    updates = data.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(422, "Aucun champ à modifier")
+    updates["updated_at"] = now_iso()
+    res = await db.companies.update_one({"id": cid}, {"$set": updates})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Société introuvable")
+    return await db.companies.find_one({"id": cid}, {"_id": 0})
+
+
+@api_router.delete("/companies/{cid}")
+async def delete_company(cid: str, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    # Détache les établissements avant suppression
+    await db.establishments.update_many({"company_id": cid}, {"$unset": {"company_id": ""}})
+    res = await db.companies.delete_one({"id": cid})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Société introuvable")
+    await audit_log(user["id"], "company_delete", {"id": cid})
+    return {"ok": True}
+
+
+@api_router.get("/companies/{cid}/aggregate")
+async def company_aggregate(cid: str, user=Depends(get_current_user)):
+    """Vue société agrégée : CA total, commandes, encours, DSO, tous établissements confondus."""
+    c = await db.companies.find_one({"id": cid}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Société introuvable")
+    ests = await db.establishments.find({"company_id": cid}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
+    est_ids = [e["id"] for e in ests]
+    if not est_ids:
+        return {
+            "company": c, "establishments": [], "total_revenue": 0, "orders_count": 0,
+            "invoices_open_ttc": 0, "avg_dso_days": None,
+        }
+    # CA total via orders (fallback si business_documents/facture manquent)
+    orders_pipeline = [
+        {"$match": {"client_id": {"$in": est_ids}}},
+        {"$group": {"_id": None, "n": {"$sum": 1}, "ca": {"$sum": {"$ifNull": ["$total_ttc", 0]}}}},
+    ]
+    orders_agg = await db.orders.aggregate(orders_pipeline).to_list(1)
+    orders_stats = orders_agg[0] if orders_agg else {"n": 0, "ca": 0}
+    # Encours factures ouvertes
+    invoices_agg = await db.business_documents.aggregate([
+        {"$match": {"client_id": {"$in": est_ids}, "doc_type": "facture", "status": {"$in": ["emis"]}}},
+        {"$group": {"_id": None, "total_ttc": {"$sum": {"$ifNull": ["$total_ttc", 0]}}}},
+    ]).to_list(1)
+    invoices_open = invoices_agg[0]["total_ttc"] if invoices_agg else 0
+    return {
+        "company": c,
+        "establishments": ests,
+        "total_revenue": orders_stats.get("ca", 0),
+        "orders_count": orders_stats.get("n", 0),
+        "invoices_open_ttc": invoices_open,
+        "avg_dso_days": None,
+    }
+
+
+@api_router.post("/companies/{cid}/attach/{eid}")
+async def attach_establishment_to_company(cid: str, eid: str, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    if not await db.companies.find_one({"id": cid}, {"_id": 0, "id": 1}):
+        raise HTTPException(404, "Société introuvable")
+    res = await db.establishments.update_one({"id": eid}, {"$set": {"company_id": cid, "updated_at": now_iso()}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Établissement introuvable")
+    return {"ok": True}
+
+
+@api_router.post("/companies/{cid}/detach/{eid}")
+async def detach_establishment_from_company(cid: str, eid: str, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    res = await db.establishments.update_one({"id": eid, "company_id": cid}, {"$unset": {"company_id": ""}, "$set": {"updated_at": now_iso()}})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Rattachement introuvable")
+    return {"ok": True}
+
 
 # ---------- PRODUCTS ----------
 @api_router.get("/products")
