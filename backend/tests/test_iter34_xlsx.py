@@ -78,7 +78,11 @@ def test_export_establishments_includes_contacts_sheet(client):
     assert r.status_code == 200
     wb = _load(r.content)
     assert "Etablissements" in wb.sheetnames
-    assert "Contacts" in wb.sheetnames
+    # Lot 9 : la feuille Contacts embarqués est désormais renommée « (legacy) »
+    # pour faire de la place aux rôles v2 datés et à la synthèse « 4 questions ».
+    assert "Contacts (legacy)" in wb.sheetnames
+    assert "Interlocuteurs (v2)" in wb.sheetnames
+    assert "4 questions" in wb.sheetnames
 
 
 def test_roundtrip_template_establishments(client):

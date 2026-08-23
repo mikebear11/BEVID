@@ -6130,6 +6130,33 @@ CONTACT_XLSX_COLUMNS = [
     ("is_primary", "Principal (oui/non)", False),
 ]
 
+# Rôles v2 datés — feuille alimentée par `contacts_v2` + `roles` (Lot 9).
+# Contient l'historique complet : rôles actifs (date_fin vide) et clos.
+ROLE_V2_XLSX_COLUMNS = [
+    ("establishment_name", "Établissement", True),
+    ("prenom", "Prénom", False),
+    ("nom", "Nom", True),
+    ("role_label", "Rôle", True),
+    ("date_debut", "Depuis le", False),
+    ("date_fin", "Jusqu'au (si clos)", False),
+    ("principal", "Principal", False),
+    ("peut_engager", "Peut engager", False),
+    ("mobile_pro", "Portable", False),
+    ("telephone_pro", "Téléphone fixe", False),
+    ("email_pro", "Email", False),
+    ("canal_prefere", "Canal préféré", False),
+    ("creneau_joignabilite", "Créneau de joignabilité", False),
+]
+
+# Synthèse « Les 4 questions » — 1 ligne par établissement.
+FOUR_Q_XLSX_COLUMNS = [
+    ("establishment_name", "Établissement", True),
+    ("qui_commande", "Qui commande ?", False),
+    ("qui_decide", "Qui décide du référencement ?", False),
+    ("qui_paie", "Qui paie ?", False),
+    ("qui_signe", "Qui peut signer ?", False),
+]
+
 PRODUCT_XLSX_COLUMNS = [
     ("name", "Nom", True),
     ("category", "Catégorie (vin/biere/spiritueux/soft/eau/autre)", False),
@@ -6347,9 +6374,67 @@ async def xlsx_export_establishments(user=Depends(get_current_user)):
                 "notes": c.get("notes", ""),
                 "is_primary": bool(c.get("is_primary")),
             })
+
+    # Feuille « Interlocuteurs (v2) » — rôles datés avec historique complet.
+    # Une ligne par lien contact ↔ établissement, actif OU clos. Le filtrage se
+    # fait dans Excel via `Jusqu'au` (vide = actif).
+    est_by_id = {e["id"]: e for e in items}
+    all_roles = await db.roles.find({"establishment_id": {"$in": list(est_by_id.keys())}},
+                                     {"_id": 0}).sort("date_debut", -1).to_list(5000)
+    contact_ids = list({r["contact_id"] for r in all_roles})
+    contacts_v2 = {c["id"]: c for c in
+                   await db.contacts_v2.find({"id": {"$in": contact_ids}}, {"_id": 0}).to_list(5000)}
+    roles_v2_rows = []
+    for r in all_roles:
+        c = contacts_v2.get(r["contact_id"]) or {}
+        est = est_by_id.get(r.get("establishment_id")) or {}
+        roles_v2_rows.append({
+            "establishment_name": est.get("name", ""),
+            "prenom": c.get("prenom", ""),
+            "nom": c.get("nom", ""),
+            "role_label": ROLE_CATALOG.get(r.get("role", ""), {}).get("label", r.get("role", "")),
+            "date_debut": r.get("date_debut") or "",
+            "date_fin": r.get("date_fin") or "",
+            "principal": bool(r.get("principal")),
+            "peut_engager": bool(r.get("peut_engager")),
+            "mobile_pro": c.get("mobile_pro", ""),
+            "telephone_pro": c.get("telephone_pro", ""),
+            "email_pro": c.get("email_pro", ""),
+            "canal_prefere": c.get("canal_prefere", ""),
+            "creneau_joignabilite": c.get("creneau_joignabilite", ""),
+        })
+
+    # Feuille « 4 questions » — 1 ligne par établissement avec la synthèse.
+    four_q_rows = []
+    for est in items:
+        active_roles = [r for r in all_roles
+                        if r.get("establishment_id") == est["id"] and not r.get("date_fin")]
+        def _pick(pred):
+            m = [r for r in active_roles if pred(r)]
+            if not m:
+                return ""
+            m.sort(key=lambda r: (0 if r.get("principal") else 1, r.get("date_debut") or ""))
+            r = m[0]
+            c = contacts_v2.get(r["contact_id"]) or {}
+            return f"{(c.get('prenom') or '').strip()} {(c.get('nom') or '').strip()}".strip() or "—"
+        four_q_rows.append({
+            "establishment_name": est.get("name", ""),
+            "qui_commande": _pick(lambda r: ROLE_CATALOG.get(r["role"], {}).get("orderer")
+                                          or r["role"] in ("acheteur", "responsable_salle", "chef_barman", "econome")),
+            "qui_decide":   _pick(lambda r: ROLE_CATALOG.get(r["role"], {}).get("decision")
+                                          or r["role"] in ("gerant", "co_gerant", "directeur_exploitation", "proprietaire_fonds")),
+            "qui_paie":     _pick(lambda r: ROLE_CATALOG.get(r["role"], {}).get("pays")
+                                          or r["role"] in ("comptable_interne", "cabinet_comptable_externe",
+                                                          "responsable_administratif", "contact_facturation")),
+            "qui_signe":    _pick(lambda r: r.get("peut_engager")
+                                          or r["role"] in ("gerant", "co_gerant", "directeur_exploitation", "proprietaire_fonds")),
+        })
+
     buf = _xlsx_workbook([
         ("Etablissements", ESTABLISHMENT_XLSX_COLUMNS, items),
-        ("Contacts", CONTACT_XLSX_COLUMNS, contacts_rows),
+        ("4 questions", FOUR_Q_XLSX_COLUMNS, four_q_rows),
+        ("Interlocuteurs (v2)", ROLE_V2_XLSX_COLUMNS, roles_v2_rows),
+        ("Contacts (legacy)", CONTACT_XLSX_COLUMNS, contacts_rows),
     ])
     filename = f"etablissements-{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
     return _xlsx_response(buf, filename)

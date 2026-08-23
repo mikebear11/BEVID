@@ -29,16 +29,29 @@ const QUESTIONS = [
 // 60ms par ligne. CSS pur, aucune dépendance ajoutée. `prefers-reduced-motion`
 // respecté via la media query en bas du fichier — les utilisateurs sensibles
 // gardent un rendu instantané, statique.
+//
+// Halo pulse sur « Qui peut signer ? » quand `peut_engager=True` : signale
+// visuellement le contact autorisé à engager l'entreprise (spec finish 23/02).
 const FQ_ANIM_STYLES = `
 @keyframes fqSlideIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes fqPulseHalo {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45, 90, 76, 0.25); }
+  50%      { box-shadow: 0 0 0 6px rgba(45, 90, 76, 0.06); }
+}
 .fq-line {
   animation: fqSlideIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+.fq-can-engage {
+  border-radius: 6px;
+  animation:
+    fqSlideIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    fqPulseHalo 2.4s ease-in-out 1s infinite;
+}
 @media (prefers-reduced-motion: reduce) {
-  .fq-line { animation: none; }
+  .fq-line, .fq-can-engage { animation: none; }
 }
 `;
 
@@ -82,7 +95,11 @@ function Line({ q, contact, onAssign, index = 0 }) {
     );
   }
   return (
-    <div className="fq-line flex items-start gap-3 py-2 border-l-2 border-[#4A154B]/40 pl-2" style={style} data-testid={`fq-slot-${q.key}`}>
+    <div
+      className={`fq-line ${q.key === "qui_signe" && contact.peut_engager ? "fq-can-engage" : ""} flex items-start gap-3 py-2 border-l-2 border-[#4A154B]/40 pl-2`}
+      style={style}
+      data-testid={`fq-slot-${q.key}`}
+    >
       <Initials prenom={contact.prenom} nom={contact.nom} />
       <div className="flex-1 min-w-0">
         <p className="text-[11px] uppercase tracking-wider text-stone-500 flex items-center gap-1">
