@@ -1398,3 +1398,44 @@ Ajout complet des pages légales exigées pour la conformité française (RGPD, 
 - Ajouter les items « Documents » et « Sociétés » à la Sidebar (Layout.jsx nav sections).
 - Écran `EtablissementDetail` — bouton « Rattacher à une société » (attach/detach existent déjà côté backend).
 - Migration réelle des 12+ pages frontend depuis `/api/clients` vers `/api/establishments` (backlog Legacy phase 2).
+
+## Lot Import intelligent — Backend + Frontend (23/02/2026)
+
+### Livré
+- **`/app/backend/smart_import.py`** — module autonome (0 dépendance Mongo). Pipeline :
+  - `sniff_file(bytes, filename)` : détecte CSV vs XLSX, encoding (chardet + mapping FR forcé pour ISO/Latin-1/1250/1252 → windows-1252), séparateur (csv.Sniffer + heuristique FR `;`), feuilles.
+  - `read_csv_rows` / `read_xlsx_rows` : générateurs streaming, jamais tout en mémoire.
+  - `detect_columns(headers, sample)` : Couche 1 dictionnaire synonymes FR/EN normalisés (nom, siret, siren, adresse, code_postal, ville, telephone, email, contact, type, notes) + Couche 2 inférence contenu (regex email, digits pour SIRET/SIREN/CP/tel, valeurs répétées pour type). Certitude par colonne, source `header`/`content`/`none`.
+  - `clean_row(raw, mapping)` : téléphone → `+33 6 12 34 56 78`, email lowercase, code postal avec zéro initial restauré (Corse/Ain), nom en casse titre avec sigles préservés + particules FR, adresse mono-cellule découpée si motif reconnaissable. Traçabilité `corrections[]`.
+  - `dup_confidence(a, b)` : SIRET → certain, SIREN+ville → very_likely, email → likely, nom+CP → likely, tel → possible, nom flou + ville → to_confirm (via rapidfuzz).
+- **`/app/backend/tests/test_smart_import.py`** — 18 tests unitaires verts (sniff CSV FR Latin-1, XLSX streaming, détection colonnes par intitulé ET par contenu quand headers sont `Colonne1`, normalisation téléphone dans 7 formats, restauration zéro CP, casse titre sigles, split adresse).
+- **Endpoints server.py** :
+  - `POST /api/import/analyze` (upload fichier + sheet optionnel) → session_id + colonnes détectées + samples.
+  - `POST /api/import/{session_id}/preview` → counts (lues, importables, sans nom, doublons fichier, doublons base) + 20 lignes nettoyées + corrections tracées + doublons DB avec niveau de confiance.
+  - `POST /api/import/{session_id}/commit` (avec `duplicate_decisions` + `force`) → crée les `establishments`, chaque doc porte `import_batch_id`. Idempotent : refuse par 409 si fingerprint déjà committé sauf `force=true`.
+  - `GET /api/import/history` → liste des lots.
+  - `POST /api/import/{batch_id}/undo` (manager only) → supprime les fiches non modifiées depuis, conserve les autres.
+  - Session store en mémoire par (org_id, user_id), TTL 30 min, purge auto avant chaque accès.
+  - Limite dur 10 Mo.
+- **Frontend `/import`** (`ImportIntelligent.jsx`) — parcours 4 étapes : drop-zone (upload) → mappage (dropdown corrigeable + badges certitude) → aperçu (5 KPI + décisions doublons + 20 lignes) → done. Historique avec bouton « Annuler cet import ».
+- **App.js route `/import` protégée** + craco KNOWN_ROUTES.
+
+### Points 1-7 spec couverts
+1. ✅ Lecture XLSX/XLS/CSV, sniff séparateur `;,\t|`, encoding windows-1252/utf-8, choix feuille
+2. ✅ Détection colonnes 2 couches, badges certitude, dropdown corrigeable
+3. ✅ Nettoyage tracé — corrections visibles au survol
+4. ✅ Aperçu obligatoire — 20 lignes + counts avant commit
+5. ✅ Doublons intra-fichier + contre base, décisions ignore/merge/create par ligne
+6. ✅ Idempotence par fingerprint SHA1 (filename + headers)
+7. ✅ Marche arrière (`/import/{batch_id}/undo`) — ne supprime que les fiches non modifiées
+
+### Reste à faire (points 8-10 + files_of_reference)
+- Collage direct depuis presse-papier (paste TSV/CSV) — pas encore d'endpoint dédié
+- Enrichissement Recherche-Entreprises quand SIRET/SIREN présent (endpoint existe : `/api/enrichissement/autocomplete`)
+- Fichier de rejets XLSX au même format que l'original
+- Mémorisation du mappage par utilisateur × fingerprint (déjà stocké côté session, à persister dans une collection `import_mappings`)
+- Import asynchrone au-delà de 500 lignes (aujourd'hui synchrone)
+- 3 fichiers de test réels pour mesurer le taux 80% cible
+
+### File d'attente pour prochain lot
+- **Travail en équipe** (spec reçue, non commencée) — messagerie contextuelle, portefeuilles, demandes/validations, revue hebdo composée

@@ -85,6 +85,7 @@ const EstablishmentNew = lazy(() => import("@/pages/EstablishmentNew"));
 const Documents = lazy(() => import("@/pages/Documents"));
 const Companies = lazy(() => import("@/pages/Companies"));
 const CompanyDetail = lazy(() => import("@/pages/CompanyDetail"));
+const ImportIntelligent = lazy(() => import("@/pages/ImportIntelligent"));
 const LegalMentions = lazy(() => import("@/pages/LegalMentions"));
 const LegalCGV = lazy(() => import("@/pages/LegalCGV"));
 const LegalCGU = lazy(() => import("@/pages/LegalCGU"));
@@ -175,6 +176,7 @@ function App() {
                         <Route path="/documents" element={<Protected><Documents /></Protected>} />
                         <Route path="/companies" element={<Protected><Companies /></Protected>} />
                         <Route path="/companies/:id" element={<Protected><CompanyDetail /></Protected>} />
+                        <Route path="/import" element={<Protected><ImportIntelligent /></Protected>} />
                         <Route path="/activate/:token" element={<Activate />} />
                         <Route path="/legal/mentions-legales" element={<LegalMentions />} />
                         <Route path="/legal/cgv" element={<LegalCGV />} />

@@ -10911,6 +10911,257 @@ async def voice_transcribe(
     return {"ok": True, "id": doc_id, "transcript": ""}
 
 
+# === Lot Import intelligent — endpoints ===
+# Session store en mémoire (par worker). Idempotent : chaque analyse renvoie
+# un session_id ; le fichier source est purgé après commit ou après 30 min
+# d'inactivité. Cloisonnement par (org_id, user_id) systématique.
+from smart_import import (
+    sniff_file as _si_sniff, read_csv_rows as _si_read_csv, read_xlsx_rows as _si_read_xlsx,
+    detect_columns as _si_detect, clean_row as _si_clean, dup_confidence as _si_dup,
+    INTERNAL_FIELDS as _si_fields,
+)
+import hashlib as _si_hash, time as _si_time
+
+_import_sessions: Dict[str, dict] = {}
+_IMPORT_SESSION_TTL = 30 * 60  # 30 min
+
+
+def _import_gc():
+    """Purge les sessions expirées avant chaque nouvel accès."""
+    now = _si_time.time()
+    expired = [k for k, v in _import_sessions.items() if now - v.get("touched", 0) > _IMPORT_SESSION_TTL]
+    for k in expired:
+        _import_sessions.pop(k, None)
+
+
+@api_router.post("/import/analyze")
+async def import_analyze(
+    file: UploadFile = File(...),
+    sheet: Optional[str] = None,
+    user=Depends(get_current_user),
+):
+    """Étape 1 — sniff + détection colonnes. Renvoie un session_id."""
+    _import_gc()
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(413, "Fichier > 10 Mo")
+    try:
+        sniff = _si_sniff(data, file.filename or "upload.csv")
+    except Exception as e:
+        raise HTTPException(422, f"Fichier illisible : {e}")
+
+    # Streaming des 200 premières lignes pour la détection
+    rows_iter = _si_read_xlsx(data, sheet or sniff.active_sheet or "") if sniff.kind == "xlsx" \
+        else _si_read_csv(data, sniff.encoding or "utf-8", sniff.separator or ";")
+    sample_rows: List[dict] = []
+    headers: List[str] = []
+    for i, row, hdrs in rows_iter:
+        if not headers:
+            headers = hdrs
+        sample_rows.append(row)
+        if len(sample_rows) >= 200:
+            break
+
+    dets = _si_detect(headers, sample_rows)
+    session_id = str(uuid.uuid4())
+    fingerprint = _si_hash.sha1((file.filename or "") .encode() + b"|" + "|".join(headers).encode("utf-8", errors="ignore")).hexdigest()
+    _import_sessions[session_id] = {
+        "user_id": user["id"], "org_id": user["org_id"],
+        "filename": file.filename, "data": data,
+        "sniff": {"kind": sniff.kind, "encoding": sniff.encoding, "separator": sniff.separator, "sheets": sniff.sheets, "active_sheet": sheet or sniff.active_sheet},
+        "headers": headers, "mapping": {d.header: d.field for d in dets if d.field},
+        "fingerprint": fingerprint,
+        "touched": _si_time.time(),
+    }
+    return {
+        "session_id": session_id,
+        "kind": sniff.kind, "encoding": sniff.encoding, "separator": sniff.separator,
+        "sheets": sniff.sheets, "active_sheet": sheet or sniff.active_sheet,
+        "row_count_sample": len(sample_rows),
+        "columns": [
+            {"header": d.header, "field": d.field, "certainty": round(d.certainty, 2),
+             "source": d.source, "samples": d.samples}
+            for d in dets
+        ],
+        "fields_available": _si_fields,
+        "fingerprint": fingerprint,
+    }
+
+
+@api_router.post("/import/{session_id}/preview")
+async def import_preview(session_id: str, payload: dict, user=Depends(get_current_user)):
+    """Étape 2 — reçoit le mapping user, renvoie l'aperçu (20 lignes + counts + doublons)."""
+    _import_gc()
+    sess = _import_sessions.get(session_id)
+    if not sess or sess["user_id"] != user["id"]:
+        raise HTTPException(404, "Session introuvable")
+    sess["touched"] = _si_time.time()
+    mapping: Dict[str, str] = payload.get("mapping") or sess["mapping"]
+    sess["mapping"] = mapping
+
+    rows_iter = _si_read_xlsx(sess["data"], sess["sniff"]["active_sheet"]) if sess["sniff"]["kind"] == "xlsx" \
+        else _si_read_csv(sess["data"], sess["sniff"]["encoding"], sess["sniff"]["separator"])
+
+    counts = {"read": 0, "importable": 0, "ignored_empty_name": 0, "duplicates_file": 0}
+    preview_rows: List[dict] = []
+    cleaned_all: List[dict] = []
+    for _, row, _ in rows_iter:
+        counts["read"] += 1
+        cleaned, corrections = _si_clean(row, mapping)
+        if not (cleaned.get("nom") or "").strip():
+            counts["ignored_empty_name"] += 1
+            continue
+        counts["importable"] += 1
+        cleaned_all.append(cleaned)
+        if len(preview_rows) < 20:
+            preview_rows.append({"cleaned": cleaned, "corrections": corrections, "original": row})
+
+    # Doublons intra-fichier
+    dup_pairs: List[dict] = []
+    for i in range(len(cleaned_all)):
+        for j in range(i + 1, min(i + 100, len(cleaned_all))):
+            level, score = _si_dup(cleaned_all[i], cleaned_all[j])
+            if level:
+                dup_pairs.append({"a": i, "b": j, "level": level, "score": round(score, 2)})
+                counts["duplicates_file"] += 1
+                break
+
+    # Doublons contre base : SIRET/SIREN/nom+CP
+    existing = await db.establishments.find(
+        {"org_id": user["org_id"]},
+        {"_id": 0, "id": 1, "name": 1, "siret": 1, "postal_code": 1, "city": 1, "phone": 1, "email": 1},
+    ).to_list(5000)
+    counts["duplicates_db"] = 0
+    dup_db: List[dict] = []
+    for idx, cleaned in enumerate(cleaned_all):
+        for e in existing:
+            cand = {
+                "siret": e.get("siret"), "nom": e.get("name"),
+                "code_postal": e.get("postal_code"), "ville": e.get("city"),
+                "telephone": e.get("phone"), "email": e.get("email"),
+            }
+            level, score = _si_dup(cleaned, cand)
+            if level:
+                dup_db.append({"row": idx, "existing_id": e["id"], "existing_name": e.get("name"), "level": level, "score": round(score, 2)})
+                counts["duplicates_db"] += 1
+                break
+
+    sess["cleaned_all"] = cleaned_all
+    sess["dup_db"] = dup_db
+    return {"counts": counts, "preview": preview_rows, "dup_file": dup_pairs[:50], "dup_db": dup_db[:50]}
+
+
+@api_router.post("/import/{session_id}/commit")
+async def import_commit(session_id: str, payload: dict, user=Depends(get_current_user)):
+    """Étape 3 — persiste. Chaque étab. reçoit un `import_batch_id` traçable + annulable."""
+    _import_gc()
+    sess = _import_sessions.get(session_id)
+    if not sess or sess["user_id"] != user["id"]:
+        raise HTTPException(404, "Session introuvable")
+    cleaned_all: List[dict] = sess.get("cleaned_all") or []
+    if not cleaned_all:
+        raise HTTPException(422, "Appelez /preview d'abord")
+
+    # Idempotence : refuser si le fingerprint a déjà été committé
+    prior = await db.import_batches.find_one({"org_id": user["org_id"], "fingerprint": sess["fingerprint"]}, {"_id": 0, "id": 1})
+    if prior and not payload.get("force"):
+        raise HTTPException(409, f"Fichier déjà importé (lot {prior['id']}). Renvoyer avec force=true pour réimporter.")
+
+    batch_id = str(uuid.uuid4())
+    dup_decisions: Dict[int, str] = {int(k): v for k, v in (payload.get("duplicate_decisions") or {}).items()}
+    dup_db_map = {d["row"]: d for d in (sess.get("dup_db") or [])}
+
+    created, merged, skipped = 0, 0, 0
+    created_ids: List[str] = []
+    for idx, cleaned in enumerate(cleaned_all):
+        dup = dup_db_map.get(idx)
+        decision = dup_decisions.get(idx) if dup else None
+        if dup and decision == "ignore":
+            skipped += 1
+            continue
+        if dup and decision == "merge":
+            patch = {}
+            existing = await db.establishments.find_one({"id": dup["existing_id"]}, {"_id": 0}) or {}
+            for k_clean, k_db in [("email", "email"), ("telephone", "phone"), ("adresse", "address"),
+                                   ("code_postal", "postal_code"), ("ville", "city"), ("siret", "siret"),
+                                   ("siren", "siren")]:
+                if cleaned.get(k_clean) and not existing.get(k_db):
+                    patch[k_db] = cleaned[k_clean]
+            patch["updated_at"] = now_iso()
+            patch["last_import_batch_id"] = batch_id
+            if patch:
+                await db.establishments.update_one({"id": dup["existing_id"]}, {"$set": patch})
+            merged += 1
+            continue
+        doc = {
+            "id": str(uuid.uuid4()), "org_id": user["org_id"], "owner_id": user["id"],
+            "name": cleaned.get("nom") or "", "siret": cleaned.get("siret"), "siren": cleaned.get("siren"),
+            "email": cleaned.get("email"), "phone": cleaned.get("telephone"),
+            "address": cleaned.get("adresse"), "city": cleaned.get("ville"), "postal_code": cleaned.get("code_postal"),
+            "notes": cleaned.get("notes"), "type": cleaned.get("type") or "bar",
+            "status": "actif",
+            "created_at": now_iso(), "updated_at": now_iso(),
+            "import_batch_id": batch_id,
+        }
+        await db.establishments.insert_one(doc)
+        created_ids.append(doc["id"])
+        created += 1
+
+    batch = {
+        "id": batch_id, "org_id": user["org_id"], "user_id": user["id"],
+        "user_name": user.get("name") or user.get("email"),
+        "filename": sess["filename"], "fingerprint": sess["fingerprint"],
+        "created_at": now_iso(),
+        "counts": {"created": created, "merged": merged, "skipped": skipped, "total": len(cleaned_all)},
+        "created_ids": created_ids,
+    }
+    await db.import_batches.insert_one(batch)
+    await audit_log(user["id"], "import_commit", {"batch_id": batch_id, "counts": batch["counts"]})
+    _import_sessions.pop(session_id, None)  # purge après commit
+    batch.pop("_id", None)
+    return batch
+
+
+@api_router.get("/import/history")
+async def import_history(user=Depends(get_current_user)):
+    """Historique des lots d'import de l'org courante."""
+    items = await db.import_batches.find(
+        {"org_id": user["org_id"]}, {"_id": 0, "created_ids": 0},
+    ).sort("created_at", -1).to_list(100)
+    return items
+
+
+@api_router.post("/import/{batch_id}/undo")
+async def import_undo(batch_id: str, user=Depends(get_current_user)):
+    """Marche arrière : supprime les fiches créées par ce lot non modifiées depuis.
+
+    Une fiche est « non modifiée » si `updated_at == created_at`. Sinon elle
+    est conservée et listée à part.
+    """
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    batch = await db.import_batches.find_one({"id": batch_id, "org_id": user["org_id"]}, {"_id": 0})
+    if not batch:
+        raise HTTPException(404, "Lot introuvable")
+    if batch.get("undone_at"):
+        raise HTTPException(409, "Lot déjà annulé")
+    deleted, kept = 0, []
+    for eid in batch.get("created_ids") or []:
+        est = await db.establishments.find_one({"id": eid}, {"_id": 0, "created_at": 1, "updated_at": 1, "name": 1})
+        if not est:
+            continue
+        if est.get("created_at") == est.get("updated_at"):
+            await db.establishments.delete_one({"id": eid})
+            deleted += 1
+        else:
+            kept.append({"id": eid, "name": est.get("name")})
+    await db.import_batches.update_one({"id": batch_id}, {"$set": {"undone_at": now_iso(), "undone_by": user["id"], "undo_stats": {"deleted": deleted, "kept": len(kept)}}})
+    await audit_log(user["id"], "import_undo", {"batch_id": batch_id, "deleted": deleted, "kept": len(kept)})
+    return {"deleted": deleted, "kept": kept}
+
+
+# === Fin Lot Import intelligent ===
+
 # === Lot 5 P4 — Phase 1 du découpage de server.py ===
 # Le routeur de télémétrie (/api/errors, /api/csp-report) vit maintenant dans
 # routes/telemetry.py et est monté ici via injection de dépendances (db + helpers
