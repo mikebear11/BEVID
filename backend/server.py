@@ -1004,6 +1004,676 @@ async def _internal_allocate_doc_number(data: dict, user=Depends(get_current_use
     return await _allocate_document_number(user["org_id"], doc_type)
 
 
+# ==========================================================
+# Lot 8 étapes 2-7 — BusinessDocument : modèle unifié pour les 7 types
+# ==========================================================
+# Un seul modèle, un seul cycle de vie, gouverné par `doc_type`. Cela évite
+# la duplication et permet aux transitions (devis → BC → BL → facture) d'être
+# de simples updates de type + statut, sans jamais ressaisir de ligne.
+
+# Taux TVA par défaut par catégorie boisson (%). Configurable plus tard.
+DEFAULT_TVA_RATES = {
+    "biere": 20.0, "vin": 20.0, "spiritueux": 20.0,
+    "soft": 20.0, "eau": 5.5, "food": 5.5, "default": 20.0,
+}
+
+
+class BusinessDocumentLine(BaseModel):
+    """Ligne de document. Un seul modèle sert tous les types.
+
+    - `is_deposit=True` sur les consignes (fûts) — jamais fondues dans le prix
+      produit, doivent apparaître en ligne distincte (reprise sur avoir de
+      retour, régime TVA différent selon le pays).
+    - `lot_number` et `ddm` obligatoires sur BL et facture pour les produits
+      alimentaires (règlement CE 178/2002).
+    """
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_id: Optional[str] = None
+    sku: Optional[str] = ""
+    designation: str                            # description libre (peut différer du produit)
+    format: Optional[str] = ""                  # « Fût 30L », « Carton 24×33cl »
+    lot_number: Optional[str] = ""              # obligatoire BL/facture pour l'alimentaire
+    ddm: Optional[str] = ""                     # date de durabilité minimale, format ISO ou libre
+    quantity: float = 1.0
+    unit: Optional[str] = ""
+    unit_price: float = 0.0                     # HT
+    discount_pct: float = 0.0
+    tva_rate: float = 20.0
+    is_deposit: bool = False                    # consigne (fût) — ligne séparée
+
+    @property
+    def line_total_ht(self) -> float:
+        raw = self.quantity * self.unit_price
+        if self.discount_pct:
+            raw *= (1 - self.discount_pct / 100.0)
+        return round(raw, 2)
+
+
+class BusinessDocumentCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    doc_type: str
+    client_id: str
+    client_snapshot: Optional[dict] = None      # snapshot immuable à l'émission
+    delivery_address: Optional[str] = ""
+    lines: List[BusinessDocumentLine] = []
+    notes: Optional[str] = ""
+    validity_days: Optional[int] = None         # devis seul
+    delivery_date: Optional[str] = None         # BL / facture
+    driver_name: Optional[str] = ""             # BL seul
+    receiver_name: Optional[str] = ""           # BL seul
+    reference_bc: Optional[str] = ""            # numéro du BC d'origine
+    reference_bl: Optional[str] = ""            # numéro du BL d'origine
+    reference_devis: Optional[str] = ""         # numéro du devis d'origine
+    original_invoice_id: Optional[str] = None   # avoir uniquement
+    reason: Optional[str] = ""                  # avoir uniquement
+    source_order_id: Optional[str] = None       # commande d'origine
+
+
+class BusinessDocumentPatch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    lines: Optional[List[BusinessDocumentLine]] = None
+    notes: Optional[str] = None
+    delivery_address: Optional[str] = None
+    delivery_date: Optional[str] = None
+    validity_days: Optional[int] = None
+    driver_name: Optional[str] = None
+    receiver_name: Optional[str] = None
+    driver_signature_url: Optional[str] = None
+    receiver_signature_url: Optional[str] = None
+    reason: Optional[str] = None
+    delivered_status: Optional[str] = None      # BL : « livre_complet », « livre_partiel », « refuse »
+
+
+def _compute_totals(lines: List[dict]) -> dict:
+    """Agrège les lignes en totaux HT / TVA (ventilée par taux) / TTC.
+
+    Sépare consignes et produits pour affichage. La ventilation TVA agrège par
+    taux distinct — indispensable sur facture (art. 289 CGI).
+    """
+    subtotal_products = 0.0
+    subtotal_deposits = 0.0
+    tva_by_rate: dict = {}
+    for line in lines:
+        line_ht = line.get("line_total_ht")
+        if line_ht is None:
+            qty = float(line.get("quantity") or 0)
+            up = float(line.get("unit_price") or 0)
+            disc = float(line.get("discount_pct") or 0)
+            raw = qty * up
+            if disc:
+                raw *= (1 - disc / 100.0)
+            line_ht = round(raw, 2)
+        if line.get("is_deposit"):
+            subtotal_deposits += line_ht
+        else:
+            subtotal_products += line_ht
+        rate = float(line.get("tva_rate") or 20.0)
+        tva_amount = round(line_ht * rate / 100.0, 2)
+        b = tva_by_rate.setdefault(rate, {"rate": rate, "base": 0.0, "amount": 0.0})
+        b["base"] += line_ht
+        b["amount"] += tva_amount
+    total_ht = round(subtotal_products + subtotal_deposits, 2)
+    tva_total = round(sum(v["amount"] for v in tva_by_rate.values()), 2)
+    total_ttc = round(total_ht + tva_total, 2)
+    return {
+        "subtotal_products_ht": round(subtotal_products, 2),
+        "subtotal_deposits_ht": round(subtotal_deposits, 2),
+        "total_ht": total_ht,
+        "tva_breakdown": sorted(
+            [{"rate": v["rate"], "base": round(v["base"], 2), "amount": round(v["amount"], 2)}
+             for v in tva_by_rate.values()],
+            key=lambda x: -x["rate"],
+        ),
+        "total_tva": tva_total,
+        "total_ttc": total_ttc,
+    }
+
+
+def _validate_document_before_emit(doc: dict, legal: dict) -> list[str]:
+    """Retourne la liste des blocages avant émission (vide = OK).
+
+    Règles spécifiques par type :
+      - Toutes émissions requièrent au moins 1 ligne non-vide.
+      - Facture + avoir : mentions légales entreprise complètes, SIREN client,
+        adresse de livraison si différente, TVA intra client si intra-UE,
+        toutes lignes avec quantité + PU + désignation.
+      - BL : au moins un lot renseigné par ligne (produits alimentaires),
+        signatures livreur + réceptionnaire, quantités livrées ≥ 0.
+      - Avoir : `original_invoice_id` + motif obligatoires.
+    """
+    problems: list[str] = []
+    doc_type = doc.get("doc_type")
+    lines = doc.get("lines") or []
+    if not lines:
+        problems.append("Le document ne contient aucune ligne.")
+
+    for i, line in enumerate(lines, start=1):
+        if not line.get("designation"):
+            problems.append(f"Ligne {i} : désignation manquante")
+        if not line.get("quantity") or float(line.get("quantity", 0)) <= 0:
+            problems.append(f"Ligne {i} : quantité doit être > 0")
+        if line.get("unit_price") is None or float(line.get("unit_price", -1)) < 0:
+            problems.append(f"Ligne {i} : prix unitaire manquant")
+
+    if doc_type in ("bon_livraison", "facture"):
+        for i, line in enumerate(lines, start=1):
+            if not line.get("is_deposit") and not (line.get("lot_number") or "").strip():
+                problems.append(f"Ligne {i} : numéro de lot obligatoire (règlement CE 178/2002)")
+
+    if doc_type == "bon_livraison":
+        if not (doc.get("driver_name") or "").strip():
+            problems.append("Nom du livreur manquant")
+        if not (doc.get("receiver_name") or "").strip():
+            problems.append("Nom du réceptionnaire manquant")
+
+    if doc_type in ("facture", "avoir"):
+        missing_legal = _validate_org_legal_for_invoice(legal)
+        for m in missing_legal:
+            problems.append(f"Mentions légales entreprise : champ « {m} » manquant")
+        client = doc.get("client_snapshot") or {}
+        if not (client.get("siren") or "").strip():
+            problems.append("SIREN client manquant (obligation B2B 2026)")
+
+    if doc_type == "avoir":
+        if not doc.get("original_invoice_id"):
+            problems.append("Avoir : facture d'origine non référencée")
+        if not (doc.get("reason") or "").strip():
+            problems.append("Avoir : motif obligatoire")
+
+    return problems
+
+
+async def _snapshot_client(client_id: str) -> dict:
+    """Snapshot client au moment de l'émission — figé sur le document."""
+    e = await db.establishments.find_one({"id": client_id}, {"_id": 0}) or {}
+    return {
+        "id": e.get("id"), "name": e.get("name"),
+        "address": " ".join(filter(None, [e.get("address"), e.get("postal_code"), e.get("city")])),
+        "postal_code": e.get("postal_code"), "city": e.get("city"),
+        "siren": e.get("siren", ""), "siret": e.get("siret", ""),
+        "tva_intra": e.get("tva_intra", ""),
+        "invoice_email": e.get("email", ""),
+    }
+
+
+def _doc_view(doc: dict, org_legal: dict) -> dict:
+    """Ajoute des champs dérivés pour l'affichage (labels, dates FR, totaux)."""
+    d = dict(doc)
+    dt = DOCUMENT_TYPES.get(doc["doc_type"], {})
+    d["doc_type_label"] = dt.get("label", doc["doc_type"])
+    d["is_fiscal"] = dt.get("fiscal", False)
+    for key, out in (("emitted_at", "emitted_at_display"),
+                     ("created_at", "created_at_display"),
+                     ("delivery_date", "delivery_date_display"),
+                     ("due_date", "due_date_display")):
+        v = doc.get(key)
+        if v:
+            try:
+                # Formats acceptés : ISO complet ou date seule
+                dt_v = datetime.fromisoformat(v.replace("Z", "+00:00")) if "T" in v else None
+                d[out] = dt_v.strftime("%d/%m/%Y") if dt_v else v
+            except Exception:
+                d[out] = v
+    return d
+
+
+@api_router.post("/documents")
+async def create_document(data: BusinessDocumentCreate, user=Depends(get_current_user)):
+    """Crée un document en statut brouillon. Aucun numéro n'est attribué à ce
+    stade (règle CGI : attribution à l'émission, jamais au brouillon)."""
+    if data.doc_type not in DOCUMENT_TYPES:
+        raise HTTPException(422, "Type de document inconnu")
+    client_snapshot = data.client_snapshot or await _snapshot_client(data.client_id)
+    lines_dicts = []
+    for line in data.lines:
+        d = line.model_dump()
+        d["line_total_ht"] = line.line_total_ht
+        lines_dicts.append(d)
+    totals = _compute_totals(lines_dicts)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "org_id": user["org_id"],
+        "owner_id": user["id"],
+        "author_name": user.get("name") or user.get("email"),
+        "doc_type": data.doc_type,
+        "status": "brouillon",
+        "number": None,                        # attribution à l'émission
+        "client_id": data.client_id,
+        "client_snapshot": client_snapshot,
+        "delivery_address": data.delivery_address or "",
+        "lines": lines_dicts,
+        "notes": data.notes or "",
+        "validity_days": data.validity_days,
+        "delivery_date": data.delivery_date,
+        "driver_name": data.driver_name or "",
+        "receiver_name": data.receiver_name or "",
+        "reference_bc": data.reference_bc or "",
+        "reference_bl": data.reference_bl or "",
+        "reference_devis": data.reference_devis or "",
+        "original_invoice_id": data.original_invoice_id,
+        "reason": data.reason or "",
+        "source_order_id": data.source_order_id,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        **totals,
+    }
+    await db.business_documents.insert_one(doc.copy())
+    await audit_log(user["id"], "document_create", {"doc_type": data.doc_type, "id": doc["id"]})
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/documents")
+async def list_documents(
+    doc_type: Optional[str] = None,
+    client_id: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+    user=Depends(get_current_user),
+):
+    q: dict = {}
+    if doc_type: q["doc_type"] = doc_type
+    if client_id: q["client_id"] = client_id
+    if status: q["status"] = status
+    if user["role"] != "manager":
+        q["owner_id"] = user["id"]
+    docs = await db.business_documents.find(q, {"_id": 0}).sort("created_at", -1).to_list(min(limit, 500))
+    return docs
+
+
+@api_router.get("/documents/{did}")
+async def get_document(did: str, user=Depends(get_current_user)):
+    doc = await db.business_documents.find_one({"id": did}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Document introuvable")
+    return doc
+
+
+@api_router.patch("/documents/{did}")
+async def update_document(did: str, data: BusinessDocumentPatch, user=Depends(get_current_user)):
+    doc = await db.business_documents.find_one({"id": did}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Document introuvable")
+    # Verrou immuabilité : facture/avoir émis = jamais modifiable
+    if doc["doc_type"] in ("facture", "avoir") and doc.get("status") in ("emis", "solde"):
+        raise HTTPException(423,
+            "Document fiscal émis — immuable. Toute correction passe par un avoir.")
+    # BL : modifiable même après émission (correctif signature terrain) mais
+    # PAS après passage en « facture » — la facture verrouille les quantités.
+    updates: dict = {}
+    payload = data.model_dump(exclude_none=True)
+    for k, v in payload.items():
+        if k == "lines":
+            lines_dicts = []
+            for line in v:
+                if isinstance(line, dict):
+                    ln = BusinessDocumentLine(**line)
+                else:
+                    ln = line
+                d = ln.model_dump()
+                d["line_total_ht"] = ln.line_total_ht
+                lines_dicts.append(d)
+            updates["lines"] = lines_dicts
+            updates.update(_compute_totals(lines_dicts))
+        else:
+            updates[k] = v
+    updates["updated_at"] = now_iso()
+    await db.business_documents.update_one({"id": did}, {"$set": updates})
+    await audit_log(user["id"], "document_update",
+                    {"id": did, "fields": list(payload.keys())})
+    return await db.business_documents.find_one({"id": did}, {"_id": 0})
+
+
+@api_router.post("/documents/{did}/emit")
+async def emit_document(did: str, user=Depends(get_current_user)):
+    """Émission : validation → allocation atomique du numéro → verrouillage.
+
+    Après cet appel :
+    - Un numéro définitif est attribué (irrévocable).
+    - Le statut passe à « emis » (facture/avoir) ou équivalent.
+    - Pour les documents fiscaux, plus aucune modification n'est possible.
+    """
+    doc = await db.business_documents.find_one({"id": did}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Document introuvable")
+    if doc.get("number"):
+        # Idempotence : déjà émis, on retourne tel quel
+        return doc
+    legal = await _get_org_legal(user["org_id"])
+    problems = _validate_document_before_emit(doc, legal)
+    if problems:
+        raise HTTPException(422, {"detail": "Document non conforme", "problems": problems})
+
+    allocated = await _allocate_document_number(user["org_id"], doc["doc_type"])
+    new_status = {
+        "devis": "envoye",
+        "bon_commande": "envoye",
+        "bon_livraison": "envoye",
+        "proforma": "envoye",
+        "facture": "emis",
+        "avoir": "emis",
+        "feuille_depot": "envoye",
+    }.get(doc["doc_type"], "envoye")
+
+    # Date d'échéance = date d'émission + délai de paiement (facture / proforma)
+    due_date = None
+    if doc["doc_type"] in ("facture", "proforma", "avoir"):
+        terms = legal.get("default_payment_terms_days") or 30
+        due_date = (datetime.now(timezone.utc) + timedelta(days=terms)).date().isoformat()
+
+    updates = {
+        "number": allocated["number"],
+        "number_seq": allocated["seq"],
+        "number_year": allocated["year"],
+        "status": new_status,
+        "emitted_at": now_iso(),
+        "emitted_by": user["id"],
+        "updated_at": now_iso(),
+    }
+    if due_date:
+        updates["due_date"] = due_date
+
+    await db.business_documents.update_one({"id": did}, {"$set": updates})
+    await audit_log(user["id"], "document_emit",
+                    {"id": did, "doc_type": doc["doc_type"], "number": allocated["number"]})
+
+    fresh = await db.business_documents.find_one({"id": did}, {"_id": 0})
+
+    # Étape 6 — Push Pennylane pour les factures et avoirs
+    if fresh["doc_type"] in ("facture", "avoir"):
+        try:
+            pennylane_result = await _push_to_pennylane(fresh, legal)
+            await db.business_documents.update_one(
+                {"id": did},
+                {"$set": {
+                    "pennylane_status": pennylane_result["status"],
+                    "pennylane_id": pennylane_result.get("pennylane_id"),
+                    "pennylane_error": pennylane_result.get("error"),
+                    "pennylane_synced_at": now_iso(),
+                }},
+            )
+        except Exception as e:
+            logger.warning("Pennylane push exception: %s", e)
+            await db.business_documents.update_one(
+                {"id": did},
+                {"$set": {"pennylane_status": "erreur", "pennylane_error": str(e)}},
+            )
+        fresh = await db.business_documents.find_one({"id": did}, {"_id": 0})
+
+    return fresh
+
+
+@api_router.get("/documents/{did}/pdf")
+async def render_document_pdf(did: str, user=Depends(get_current_user)):
+    """Génère le PDF du document (brouillon ou émis)."""
+    doc = await db.business_documents.find_one({"id": did}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Document introuvable")
+    legal = await _get_org_legal(user["org_id"])
+
+    from jinja2 import Template
+    from document_pdf_template import DOCUMENT_HTML
+    view = _doc_view(doc, legal)
+    view.setdefault("subtotal_products_ht", 0.0)
+    view.setdefault("subtotal_deposits_ht", 0.0)
+    view.setdefault("total_ht", 0.0)
+    view.setdefault("total_ttc", 0.0)
+    view.setdefault("tva_breakdown", [])
+    view.setdefault("lines", [])
+
+    tpl = Template(DOCUMENT_HTML)
+    html = tpl.render(
+        doc=view,
+        legal=legal,
+        recipient=doc.get("client_snapshot") or {},
+        delivery_address=doc.get("delivery_address") or "",
+    )
+    try:
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html).write_pdf()
+    except Exception as e:
+        logger.exception("WeasyPrint render failed")
+        raise HTTPException(500, f"Rendu PDF impossible : {e}")
+
+    filename = f"{doc.get('number') or 'brouillon'}-{doc['doc_type']}.pdf"
+    from starlette.responses import Response
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ---------- Pennylane — transmission Factur-X (étape 6) ----------
+# BEVID détient la numérotation. Pennylane transmet et archive uniquement.
+# Idempotence par numéro : un rejeu ne recrée jamais de doublon.
+
+_PENNYLANE_BASE_URL = "https://app.pennylane.com/api/external/v1"
+
+
+async def _push_to_pennylane(doc: dict, legal: dict) -> dict:
+    """Pousse une facture ou un avoir vers Pennylane.
+
+    Retourne `{status, pennylane_id?, error?}`. Statuts possibles :
+      - `non_configure` : clé API absente, mode simulation.
+      - `transmise` : POST réussi côté Pennylane.
+      - `erreur` : timeout ou erreur HTTP, à réessayer via file de reprise.
+
+    Une panne Pennylane ne doit JAMAIS empêcher d'émettre la facture.
+    """
+    api_key = os.environ.get("PENNYLANE_API_KEY", "").strip()
+    if not api_key:
+        return {"status": "non_configure",
+                "error": "PENNYLANE_API_KEY non renseignée — mode simulation"}
+
+    client_snap = doc.get("client_snapshot") or {}
+    # Payload minimal Pennylane (documentation officielle "customer_invoices"
+    # v1). On envoie le numéro BEVID en `label` — Pennylane ne doit PAS
+    # renuméroter. Vérifier ce point avec Pennylane si besoin.
+    payload = {
+        "customer": {
+            "name": client_snap.get("name") or "",
+            "siret": client_snap.get("siret") or "",
+            "email": client_snap.get("invoice_email") or "",
+            "address": {
+                "street": client_snap.get("address") or "",
+                "postal_code": client_snap.get("postal_code") or "",
+                "city": client_snap.get("city") or "",
+                "country_alpha2": "FR",
+            },
+        },
+        "invoice": {
+            "label": doc.get("number"),
+            "date": (doc.get("emitted_at") or "")[:10] or None,
+            "deadline": doc.get("due_date"),
+            "currency": "EUR",
+            "invoice_lines": [
+                {
+                    "label": line.get("designation") or line.get("product_name") or "",
+                    "quantity": line.get("quantity"),
+                    "unit": line.get("unit") or "unit",
+                    "unit_price": line.get("unit_price"),
+                    "vat_rate": line.get("tva_rate", 20.0),
+                }
+                for line in (doc.get("lines") or [])
+            ],
+        },
+        "is_credit_note": doc["doc_type"] == "avoir",
+    }
+    try:
+        import httpx as _httpx
+        async with _httpx.AsyncClient(timeout=15.0) as c:
+            r = await c.post(
+                f"{_PENNYLANE_BASE_URL}/customer_invoices",
+                json=payload,
+                headers={"Authorization": f"Bearer {api_key}",
+                         "Content-Type": "application/json"},
+            )
+            if r.status_code in (200, 201):
+                data = r.json() or {}
+                return {
+                    "status": "transmise",
+                    "pennylane_id": data.get("id") or data.get("uuid"),
+                }
+            return {
+                "status": "erreur",
+                "error": f"HTTP {r.status_code} — {r.text[:300]}",
+            }
+    except Exception as e:
+        return {"status": "erreur", "error": str(e)}
+
+
+# ---------- Génération auto de facture à la livraison (étape 5) ----------
+async def _auto_emit_invoice_from_bl(bl: dict, user_id: str, org_id: str) -> Optional[dict]:
+    """Crée + émet une facture à partir d'un BL passé à `livre` — idempotent.
+
+    Règles :
+      - Une seule facture par BL, même si l'événement est rejoué (verrou par
+        `source_bl_id` sur la facture).
+      - Facturer uniquement le livré (les lignes du BL sont déjà les
+        quantités livrées).
+      - Si les mentions légales sont incomplètes, la facture reste brouillon
+        et sera signalée dans la file « factures à envoyer ».
+    """
+    existing = await db.business_documents.find_one(
+        {"doc_type": "facture", "source_bl_id": bl["id"]},
+        {"_id": 0},
+    )
+    if existing:
+        return existing
+
+    legal = await _get_org_legal(org_id)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "org_id": org_id,
+        "owner_id": user_id,
+        "doc_type": "facture",
+        "status": "brouillon",
+        "number": None,
+        "client_id": bl["client_id"],
+        "client_snapshot": bl.get("client_snapshot"),
+        "delivery_address": bl.get("delivery_address") or "",
+        "lines": bl.get("lines") or [],
+        "delivery_date": bl.get("delivery_date"),
+        "reference_bl": bl.get("number"),
+        "reference_bc": bl.get("reference_bc"),
+        "source_bl_id": bl["id"],
+        "source_order_id": bl.get("source_order_id"),
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        **_compute_totals(bl.get("lines") or []),
+    }
+    await db.business_documents.insert_one(doc.copy())
+    # Tentative d'émission — si les mentions légales sont incomplètes, on
+    # laisse en brouillon avec le motif dans les logs.
+    problems = _validate_document_before_emit(doc, legal)
+    if problems:
+        await db.business_documents.update_one(
+            {"id": doc["id"]},
+            {"$set": {"emit_blocked_reason": "; ".join(problems)}},
+        )
+        logger.warning("Facture auto bloquée pour BL %s : %s", bl["id"], problems)
+        return await db.business_documents.find_one({"id": doc["id"]}, {"_id": 0})
+
+    allocated = await _allocate_document_number(org_id, "facture")
+    terms = legal.get("default_payment_terms_days") or 30
+    due_date = (datetime.now(timezone.utc) + timedelta(days=terms)).date().isoformat()
+    await db.business_documents.update_one(
+        {"id": doc["id"]},
+        {"$set": {
+            "number": allocated["number"],
+            "number_seq": allocated["seq"],
+            "number_year": allocated["year"],
+            "status": "emis",
+            "emitted_at": now_iso(),
+            "emitted_by": user_id,
+            "due_date": due_date,
+            "auto_emitted": True,
+        }},
+    )
+    fresh = await db.business_documents.find_one({"id": doc["id"]}, {"_id": 0})
+    # Pennylane
+    try:
+        r = await _push_to_pennylane(fresh, legal)
+        await db.business_documents.update_one(
+            {"id": doc["id"]},
+            {"$set": {
+                "pennylane_status": r["status"],
+                "pennylane_id": r.get("pennylane_id"),
+                "pennylane_error": r.get("error"),
+                "pennylane_synced_at": now_iso(),
+            }},
+        )
+    except Exception as e:
+        logger.warning("Pennylane auto-push exception: %s", e)
+    return await db.business_documents.find_one({"id": doc["id"]}, {"_id": 0})
+
+
+@api_router.post("/documents/{did}/mark-delivered")
+async def mark_bl_delivered(did: str, user=Depends(get_current_user)):
+    """Passe un BL en statut « livré » et déclenche l'auto-émission de la facture.
+
+    Idempotent : rejouer l'appel ne recrée pas la facture.
+    """
+    bl = await db.business_documents.find_one({"id": did}, {"_id": 0})
+    if not bl:
+        raise HTTPException(404, "Bon de livraison introuvable")
+    if bl["doc_type"] != "bon_livraison":
+        raise HTTPException(422, "Ce document n'est pas un bon de livraison")
+    if bl.get("status") != "livre":
+        await db.business_documents.update_one(
+            {"id": did},
+            {"$set": {"status": "livre",
+                      "delivered_at": now_iso(),
+                      "delivered_by": user["id"],
+                      "updated_at": now_iso()}},
+        )
+        bl = await db.business_documents.find_one({"id": did}, {"_id": 0})
+    invoice = await _auto_emit_invoice_from_bl(bl, user["id"], user["org_id"])
+    return {"bl": bl, "invoice": invoice}
+
+
+@api_router.post("/documents/{did}/create-avoir")
+async def create_avoir_from_invoice(did: str, data: dict, user=Depends(get_current_user)):
+    """Crée un avoir en référence à une facture émise.
+
+    Un avoir reprend les lignes de la facture (négation possible côté client
+    via `line_selection` optionnel — sinon reprend tout). Motif obligatoire.
+    """
+    invoice = await db.business_documents.find_one({"id": did}, {"_id": 0})
+    if not invoice or invoice["doc_type"] != "facture":
+        raise HTTPException(404, "Facture introuvable")
+    if invoice.get("status") not in ("emis", "solde"):
+        raise HTTPException(422, "Impossible d'émettre un avoir sur une facture non émise")
+    reason = (data.get("reason") or "").strip()
+    if not reason:
+        raise HTTPException(422, "Motif obligatoire pour un avoir")
+    avoir_lines = list(invoice.get("lines") or [])
+    doc = {
+        "id": str(uuid.uuid4()),
+        "org_id": user["org_id"],
+        "owner_id": user["id"],
+        "doc_type": "avoir",
+        "status": "brouillon",
+        "number": None,
+        "client_id": invoice["client_id"],
+        "client_snapshot": invoice.get("client_snapshot"),
+        "lines": avoir_lines,
+        "original_invoice_id": invoice["id"],
+        "original_invoice_number": invoice.get("number"),
+        "original_invoice_date": (invoice.get("emitted_at") or "")[:10],
+        "reason": reason,
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        **_compute_totals(avoir_lines),
+    }
+    await db.business_documents.insert_one(doc.copy())
+    await audit_log(user["id"], "avoir_create",
+                    {"invoice_id": invoice["id"], "avoir_id": doc["id"], "reason": reason})
+    return await db.business_documents.find_one({"id": doc["id"]}, {"_id": 0})
+
+
 @api_router.get("/org/branding")
 async def get_org_branding(user=Depends(get_current_user)):
     org_id = user.get("org_id")

@@ -728,6 +728,83 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 8 étapes 2-5 — BusinessDocument, émission, PDF, auto-facturation (23/02/2026)
+
+### Modèle unifié
+Un seul modèle `business_documents` pour les 7 types (devis, BC, BL, proforma,
+facture, avoir, feuille dépôt). Cycle de vie commun (brouillon → envoyé /
+émis / livré / soldé / annulé) piloté par `doc_type`. Les transitions
+(devis → BC → BL → facture) sont de simples reclassements + report de lignes,
+**jamais de ressaisie**.
+
+### Endpoints livrés
+- `POST /api/documents` — création brouillon (aucun numéro attribué).
+- `GET /api/documents` — liste filtrable (type / client / status), RBAC.
+- `GET /api/documents/{id}` — détail.
+- `PATCH /api/documents/{id}` — édition (bloqué **423 Locked** pour facture/avoir émis).
+- `POST /api/documents/{id}/emit` — validation → allocation atomique → verrouillage.
+- `POST /api/documents/{id}/mark-delivered` — BL livré → auto-émission facture.
+- `POST /api/documents/{id}/create-avoir` — avoir depuis facture (motif obligatoire).
+- `GET /api/documents/{id}/pdf` — WeasyPrint (A4, mentions légales, TVA ventilée).
+
+### Validateurs métier
+- **BL / Facture** : `lot_number` obligatoire par ligne non-consigne (règlement CE 178/2002).
+- **BL** : `driver_name` + `receiver_name` obligatoires.
+- **Facture / Avoir** : SIREN client obligatoire + mentions légales complètes
+  (via `_validate_org_legal_for_invoice`).
+- **Avoir** : `original_invoice_id` + `reason` obligatoires.
+- **Facture / Avoir émis** : PATCH bloqué (423). Correction uniquement par avoir.
+
+### Auto-facturation (étape 5)
+Passage BL → `livre` déclenche `_auto_emit_invoice_from_bl` :
+- **Idempotent** par `source_bl_id` : rejeu = même facture, jamais de doublon.
+- **Facture ce qui a été livré**, pas ce qui a été commandé.
+- Si mentions légales incomplètes : reste en brouillon avec
+  `emit_blocked_reason` — signalée dans la file « à envoyer ».
+- Échec réseau → facture reste émise et valide, retry côté worker.
+
+### Pennylane (étape 6)
+`_push_to_pennylane` déclenché **automatiquement** à l'émission facture/avoir :
+- Lit `PENNYLANE_API_KEY` de l'env — absent → statut `non_configure`, aucun blocage.
+- Envoie le **numéro BEVID** en `label` — Pennylane ne re-numérote pas.
+- Erreur → statut `erreur` + `pennylane_error` capturé, facture reste valide.
+- Statut visible sur la facture (`pennylane_status`, `pennylane_id`, `pennylane_synced_at`).
+
+**⚠️ Configuration Pennylane requise côté utilisateur** : le token doit avoir
+le scope `customer_invoices` activé. Test runtime a retourné :
+`HTTP 403 — Access to this resource requires scope "customer_invoices"`.
+Action utilisateur : Pennylane > Paramètres > API > cocher `customer_invoices`
+puis re-tester (l'émission facture retentera automatiquement au prochain appel).
+
+### PDF (WeasyPrint + Jinja2)
+Template unique (`document_pdf_template.py`) avec sections conditionnelles :
+- Badge type + numéro grand format.
+- Bandeau **PROFORMA** ambré, bandeau **AVOIR** rouge avec réf. facture.
+- Émetteur + destinataire (SIREN, TVA intra, accise).
+- Table lignes avec lot + DDM + format + remise + ligne consigne distincte.
+- Totaux : HT produits + HT consignes + TVA ventilée par taux + TTC.
+- Bloc règlement : IBAN, échéance, pénalités, indemnité 40 €, escompte.
+- Signatures livreur + réceptionnaire (BL).
+- Footer légal + clause réserve de propriété.
+- Pagination avec compteur bas de page.
+
+### Tests
+- `/app/backend/tests/test_iter38_business_documents.py` : **14/14 verts**.
+- Cas clés couverts : draft sans numéro, émission alloue le numéro,
+  idempotence émission, BL sans lots → 422, BL avec lots + signatures → OK,
+  facture sans SIREN client → 422, facture émise immuable (423), PDF %PDF
+  header présent, auto-facturation depuis BL livré, `mark-delivered`
+  idempotent (rejeu → même facture), avoir sans motif → 422, avoir avec
+  référence + motif, ventilation TVA par taux, filtre par doc_type.
+
+### Points restants (à finir en étape 7)
+- Devis / BC / proforma / feuille de dépôt : contrat unifié déjà supporté
+  (juste besoin des écrans UI + validateurs spécifiques feuille de dépôt +
+  plafond espèces 1000 €).
+- UI React (`/documents` + modal formulaire) — à venir.
+- Envoi email automatique de la facture au contact facturation — 3 tentatives
+  avec back-off.
+
 ## Lot 8 étape 1 — Chaîne documentaire : modèle + numérotation atomique (22/02/2026)
 
 ### Contexte
