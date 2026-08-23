@@ -57,6 +57,8 @@ SCOPED_COLLECTIONS = {
     "document_sequences",  # Lot 8 étape 1 — compteurs atomiques factures/BL/devis…
     "business_documents",  # Lot 8 étape 1 — documents commerciaux et fiscaux
     "org_legal",  # Lot 8 étape 1 — mentions légales par organisation
+    "contacts_v2",  # Lot 9 étape 1 — personnes physiques (déduplication cross-etab)
+    "roles",  # Lot 9 étape 1 — liens datés contact ↔ établissement/société
 }
 
 

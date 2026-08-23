@@ -1005,7 +1005,634 @@ async def _internal_allocate_doc_number(data: dict, user=Depends(get_current_use
 
 
 # ==========================================================
-# Lot 8 étapes 2-7 — BusinessDocument : modèle unifié pour les 7 types
+# Lot 9 étape 1 — Contact (personne) + Rôle (lien daté)
+# ==========================================================
+# Fondation : une personne physique unique dans `contacts_v2`, reliée à ses
+# établissements par des rôles datés dans `roles`. Ne dupliquer JAMAIS une
+# personne (RGPD + cauchemar de divergence de fiches). Un rôle clos ne se
+# supprime pas — on renseigne `date_fin`, l'historique de signature reste.
+#
+# La collection legacy `establishments.contacts` (embarqué) est conservée pour
+# rétro-compat le temps que l'UI migre. La migration au démarrage
+# `_migrate_contacts_v2_on_startup` remplit `contacts_v2` + `roles` de manière
+# idempotente sans jamais détruire l'existant.
+
+# Catalogue fermé de rôles (spec 20/08/2026). L'ajout d'un rôle métier passe
+# par une modification de ce dictionnaire, jamais par un champ libre.
+ROLE_CATALOG = {
+    # Direction
+    "gerant":                     {"group": "direction", "label": "Gérant", "can_sign_default": True, "decision": True},
+    "co_gerant":                  {"group": "direction", "label": "Co-gérant", "can_sign_default": True, "decision": True},
+    "directeur_exploitation":     {"group": "direction", "label": "Directeur d'exploitation", "can_sign_default": True, "decision": True},
+    "proprietaire_fonds":         {"group": "direction", "label": "Propriétaire du fonds", "can_sign_default": True, "decision": True},
+    "associe":                    {"group": "direction", "label": "Associé", "can_sign_default": False, "decision": True},
+    # Opérationnel
+    "acheteur":                   {"group": "operationnel", "label": "Acheteur", "orderer": True},
+    "responsable_salle":          {"group": "operationnel", "label": "Responsable de salle", "orderer": True},
+    "chef_barman":                {"group": "operationnel", "label": "Chef barman", "orderer": True},
+    "sommelier":                  {"group": "operationnel", "label": "Sommelier"},
+    "responsable_cave":           {"group": "operationnel", "label": "Responsable de cave"},
+    "chef_cuisine":               {"group": "operationnel", "label": "Chef de cuisine"},
+    "econome":                    {"group": "operationnel", "label": "Économe", "orderer": True},
+    # Administratif
+    "comptable_interne":          {"group": "administratif", "label": "Comptable interne", "pays": True},
+    "cabinet_comptable_externe":  {"group": "administratif", "label": "Cabinet comptable externe", "pays": True},
+    "responsable_administratif":  {"group": "administratif", "label": "Responsable administratif", "pays": True},
+    "contact_facturation":        {"group": "administratif", "label": "Contact facturation", "pays": True},
+    # Autre
+    "contact_livraison":          {"group": "autre", "label": "Contact livraison"},
+    "contact_technique":          {"group": "autre", "label": "Contact technique (pression)"},
+    "repreneur_pressenti":        {"group": "autre", "label": "Repreneur pressenti"},
+    "autre":                      {"group": "autre", "label": "Autre"},
+}
+
+# Canaux de contact préférés (fermé aussi — pour permettre le filtrage).
+CONTACT_CHANNELS = {"appel", "sms", "whatsapp", "email", "face_a_face"}
+# Créneaux de joignabilité — enum simple pour l'analytics; texte libre en complément.
+CONTACT_TIMESLOTS = {
+    "matin", "apres_midi", "avant_service", "jamais_pendant_service",
+    "jour_fermeture", "n_importe_quand",
+}
+
+
+class ContactV2Create(BaseModel):
+    """Création minimale — spec : 3 champs max (prénom + nom + rôle).
+
+    Le rôle et l'établissement de rattachement sont facultatifs ici et créent
+    automatiquement un rôle si les 3 sont fournis (raccourci mobile).
+    """
+    model_config = ConfigDict(extra="ignore")
+    civilite: Optional[str] = ""       # M. / Mme / Mx
+    prenom: Optional[str] = ""
+    nom: str
+    telephone_pro: Optional[str] = ""
+    mobile_pro: Optional[str] = ""
+    email_pro: Optional[str] = ""
+    canal_prefere: Optional[str] = ""
+    creneau_joignabilite: Optional[str] = ""
+    photo_url: Optional[str] = ""
+    date_naissance: Optional[str] = ""  # FACULTATIF — spec RGPD explicite
+    notes: Optional[str] = ""
+    # Raccourci : si role + establishment_id sont fournis, crée aussi le rôle
+    role: Optional[str] = None
+    establishment_id: Optional[str] = None
+    principal: bool = False
+    peut_engager: bool = False
+
+
+class ContactV2Patch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    civilite: Optional[str] = None
+    prenom: Optional[str] = None
+    nom: Optional[str] = None
+    telephone_pro: Optional[str] = None
+    mobile_pro: Optional[str] = None
+    email_pro: Optional[str] = None
+    canal_prefere: Optional[str] = None
+    creneau_joignabilite: Optional[str] = None
+    photo_url: Optional[str] = None
+    date_naissance: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class RoleCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    contact_id: str
+    establishment_id: Optional[str] = None
+    societe_id: Optional[str] = None
+    role: str
+    date_debut: Optional[str] = None   # ISO date, défaut = aujourd'hui
+    date_fin: Optional[str] = None
+    principal: bool = False
+    peut_engager: bool = False
+
+
+class RolePatch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    role: Optional[str] = None
+    date_debut: Optional[str] = None
+    date_fin: Optional[str] = None
+    principal: Optional[bool] = None
+    peut_engager: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+def _validate_role_key(role: str) -> str:
+    if role not in ROLE_CATALOG:
+        raise HTTPException(422, f"Rôle inconnu. Catalogue : {sorted(ROLE_CATALOG)}")
+    return role
+
+
+def _canal_check(canal: Optional[str]) -> Optional[str]:
+    if canal and canal not in CONTACT_CHANNELS:
+        raise HTTPException(422, f"Canal préféré inconnu. Valeurs : {sorted(CONTACT_CHANNELS)}")
+    return canal
+
+
+def _timeslot_check(slot: Optional[str]) -> Optional[str]:
+    if slot and slot not in CONTACT_TIMESLOTS:
+        raise HTTPException(422, f"Créneau inconnu. Valeurs : {sorted(CONTACT_TIMESLOTS)}")
+    return slot
+
+
+async def _find_or_create_contact_v2(
+    org_id: str, owner_id: str, prenom: str, nom: str,
+    phone: Optional[str] = None, mobile: Optional[str] = None, email: Optional[str] = None,
+    extra: Optional[dict] = None,
+) -> dict:
+    """Dédoublonnage doux : match sur email OU mobile (les 2 canaux les plus
+    stables). Sinon crée un nouveau contact.
+
+    Cas usage : le comptable externe qui suit 12 établissements — on veut UNE
+    entité, pas 12.
+    """
+    email = (email or "").strip().lower()
+    mobile = (mobile or "").strip()
+    query = None
+    if email:
+        query = {"org_id": org_id, "email_pro": email}
+    elif mobile:
+        query = {"org_id": org_id, "mobile_pro": mobile}
+    if query:
+        existing = await db.contacts_v2.find_one(query, {"_id": 0})
+        if existing:
+            return existing
+    contact = {
+        "id": str(uuid.uuid4()),
+        "org_id": org_id,
+        "owner_id": owner_id,
+        "civilite": "",
+        "prenom": (prenom or "").strip(),
+        "nom": (nom or "").strip() or (prenom or "").strip() or "Inconnu",
+        "telephone_pro": (phone or "").strip(),
+        "mobile_pro": mobile,
+        "email_pro": email,
+        "canal_prefere": "",
+        "creneau_joignabilite": "",
+        "photo_url": "",
+        "date_naissance": "",
+        "notes": "",
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    if extra:
+        contact.update({k: v for k, v in extra.items() if k in contact})
+    await db.contacts_v2.insert_one(contact.copy())
+    return contact
+
+
+async def _create_role(
+    org_id: str, owner_id: str, contact_id: str,
+    establishment_id: Optional[str] = None, societe_id: Optional[str] = None,
+    role: str = "autre", date_debut: Optional[str] = None,
+    principal: bool = False, peut_engager: bool = False,
+) -> dict:
+    _validate_role_key(role)
+    role_doc = {
+        "id": str(uuid.uuid4()),
+        "org_id": org_id,
+        "owner_id": owner_id,
+        "contact_id": contact_id,
+        "establishment_id": establishment_id,
+        "societe_id": societe_id,
+        "role": role,
+        "date_debut": date_debut or datetime.now(timezone.utc).date().isoformat(),
+        "date_fin": None,
+        "principal": bool(principal),
+        "peut_engager": bool(peut_engager),
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+    }
+    if principal and establishment_id:
+        # Démote les autres principaux ACTIFS pour cet établissement
+        await db.roles.update_many(
+            {"establishment_id": establishment_id, "principal": True,
+             "date_fin": None, "id": {"$ne": role_doc["id"]}},
+            {"$set": {"principal": False, "updated_at": now_iso()}},
+        )
+    await db.roles.insert_one(role_doc.copy())
+    return role_doc
+
+
+# ---------- Migration idempotente au démarrage ----------
+async def _migrate_contacts_v2_on_startup():
+    """Migre les contacts embarqués `establishments.contacts` vers
+    `contacts_v2` + `roles`. Idempotent : safe à rejouer.
+
+    Règles de non-perte :
+      - Aucun contact embarqué n'est supprimé après migration.
+      - Flag `_migrated_to_v2=True` sur l'entrée embarquée après traitement.
+      - Match par email > mobile > (prenom+nom+establishment) pour éviter les
+        doublons cross-migration.
+    """
+    from motor.core import AgnosticDatabase
+    cursor = db_raw.establishments.find({"contacts": {"$exists": True, "$ne": []}}, {"_id": 0})
+    total_processed = 0
+    total_contacts = 0
+    total_roles = 0
+    async for est in cursor:
+        eid = est["id"]
+        org_id = est.get("org_id") or est.get("owner_id")
+        owner_id = est.get("owner_id") or "system"
+        embedded = est.get("contacts") or []
+        updated_embedded = []
+        for c in embedded:
+            if c.get("_migrated_to_v2"):
+                updated_embedded.append(c)
+                continue
+            # Match cross-org sur email OU mobile
+            v2 = None
+            email = (c.get("email") or "").strip().lower()
+            mobile = (c.get("phone_mobile") or "").strip()
+            if email:
+                v2 = await db_raw.contacts_v2.find_one(
+                    {"org_id": org_id, "email_pro": email}, {"_id": 0},
+                )
+            if not v2 and mobile:
+                v2 = await db_raw.contacts_v2.find_one(
+                    {"org_id": org_id, "mobile_pro": mobile}, {"_id": 0},
+                )
+            if not v2:
+                # Prénom/Nom split naïf sur le premier espace
+                full = (c.get("name") or "").strip()
+                parts = full.split(" ", 1)
+                prenom = parts[0] if len(parts) > 1 else ""
+                nom = parts[1] if len(parts) > 1 else full
+                v2 = {
+                    "id": str(uuid.uuid4()),
+                    "org_id": org_id,
+                    "owner_id": owner_id,
+                    "civilite": "",
+                    "prenom": prenom,
+                    "nom": nom or "Inconnu",
+                    "telephone_pro": (c.get("phone_landline") or c.get("phone") or "").strip(),
+                    "mobile_pro": mobile,
+                    "email_pro": email,
+                    "canal_prefere": "",
+                    "creneau_joignabilite": "",
+                    "photo_url": "",
+                    "date_naissance": "",
+                    "notes": (c.get("notes") or ""),
+                    "migrated_from_embedded": True,
+                    "created_at": c.get("created_at") or now_iso(),
+                    "updated_at": now_iso(),
+                }
+                await db_raw.contacts_v2.insert_one(v2.copy())
+                total_contacts += 1
+
+            # Rôle daté — le rôle embarqué doit correspondre à une clé du
+            # catalogue v9. Mapping simple : les clés de Lot 8 étape 1
+            # matchent 1:1 sauf « proprietaire » → « proprietaire_fonds ».
+            legacy_role = c.get("role") or "autre"
+            role_map = {
+                "gerant": "gerant",
+                "proprietaire": "proprietaire_fonds",
+                "comptable": "comptable_interne",
+                "acheteur": "acheteur",
+                "chef_cuisine": "chef_cuisine",
+                "chef_cave": "responsable_cave",
+                "sommelier": "sommelier",
+                "responsable_achats": "acheteur",
+                "reception": "responsable_salle",
+                "autre": "autre",
+            }
+            v9_role = role_map.get(legacy_role, "autre")
+
+            # N'insère qu'un seul rôle actif par (contact, établissement, rôle)
+            existing_role = await db_raw.roles.find_one({
+                "org_id": org_id, "contact_id": v2["id"],
+                "establishment_id": eid, "role": v9_role, "date_fin": None,
+            })
+            if not existing_role:
+                role_doc = {
+                    "id": str(uuid.uuid4()),
+                    "org_id": org_id,
+                    "owner_id": owner_id,
+                    "contact_id": v2["id"],
+                    "establishment_id": eid,
+                    "societe_id": None,
+                    "role": v9_role,
+                    "date_debut": (c.get("created_at") or now_iso())[:10],
+                    "date_fin": None,
+                    "principal": bool(c.get("is_primary")),
+                    "peut_engager": v9_role in ("gerant", "co_gerant", "directeur_exploitation", "proprietaire_fonds"),
+                    "migrated_from_embedded": True,
+                    "legacy_role": legacy_role,
+                    "created_at": now_iso(),
+                    "updated_at": now_iso(),
+                }
+                await db_raw.roles.insert_one(role_doc)
+                total_roles += 1
+
+            c["_migrated_to_v2"] = True
+            c["_v2_contact_id"] = v2["id"]
+            updated_embedded.append(c)
+        # Écrit le flag mais ne supprime rien
+        await db_raw.establishments.update_one(
+            {"id": eid}, {"$set": {"contacts": updated_embedded}},
+        )
+        total_processed += 1
+    if total_contacts or total_roles:
+        logger.info(
+            "[migrate_v2] %d établissements traités, %d contacts créés, %d rôles créés",
+            total_processed, total_contacts, total_roles,
+        )
+    return {"establishments_processed": total_processed,
+            "contacts_created": total_contacts,
+            "roles_created": total_roles}
+
+
+@api_router.get("/roles/catalog")
+async def role_catalog(user=Depends(get_current_user)):
+    """Catalogue fermé de rôles avec libellé + groupe + hints (peut signer / paie / commande)."""
+    return {
+        "roles": [{"key": k, **v} for k, v in ROLE_CATALOG.items()],
+        "channels": sorted(CONTACT_CHANNELS),
+        "timeslots": sorted(CONTACT_TIMESLOTS),
+    }
+
+
+@api_router.post("/contacts-v2")
+async def create_contact_v2(data: ContactV2Create, user=Depends(get_current_user)):
+    """Création rapide (3 champs minimum : prénom facultatif, nom + rôle + établissement).
+
+    Aucun champ obligatoire hors le nom. Si role + establishment_id sont
+    fournis, crée aussi le rôle daté du jour.
+    """
+    nom = (data.nom or "").strip()
+    if not nom:
+        raise HTTPException(422, "Le nom est requis")
+    _canal_check(data.canal_prefere)
+    _timeslot_check(data.creneau_joignabilite)
+    contact = await _find_or_create_contact_v2(
+        org_id=user["org_id"],
+        owner_id=user["id"],
+        prenom=data.prenom or "",
+        nom=nom,
+        phone=data.telephone_pro,
+        mobile=data.mobile_pro,
+        email=data.email_pro,
+        extra={
+            "civilite": data.civilite or "",
+            "canal_prefere": data.canal_prefere or "",
+            "creneau_joignabilite": data.creneau_joignabilite or "",
+            "photo_url": data.photo_url or "",
+            "date_naissance": data.date_naissance or "",
+            "notes": data.notes or "",
+        },
+    )
+    role_doc = None
+    if data.role and data.establishment_id:
+        _validate_role_key(data.role)
+        role_doc = await _create_role(
+            org_id=user["org_id"], owner_id=user["id"],
+            contact_id=contact["id"], establishment_id=data.establishment_id,
+            role=data.role, principal=data.principal, peut_engager=data.peut_engager,
+        )
+    return {"contact": contact, "role": role_doc}
+
+
+@api_router.get("/contacts-v2")
+async def list_contacts_v2(q: Optional[str] = None, user=Depends(get_current_user)):
+    """Recherche libre — utilisé pour rattacher un contact existant à un
+    nouveau rôle sur un autre établissement (comptable externe multi-clients)."""
+    query: dict = {}
+    if q:
+        # Recherche sur nom, prénom, email
+        query["$or"] = [
+            {"nom": {"$regex": q, "$options": "i"}},
+            {"prenom": {"$regex": q, "$options": "i"}},
+            {"email_pro": {"$regex": q, "$options": "i"}},
+        ]
+    docs = await db.contacts_v2.find(query, {"_id": 0}).limit(50).to_list(50)
+    return docs
+
+
+@api_router.get("/contacts-v2/{cid}")
+async def get_contact_v2(cid: str, user=Depends(get_current_user)):
+    doc = await db.contacts_v2.find_one({"id": cid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Contact introuvable")
+    # Retourne aussi la liste des rôles (actifs + historiques)
+    roles = await db.roles.find({"contact_id": cid}, {"_id": 0}).sort("date_debut", -1).to_list(200)
+    doc["roles"] = roles
+    return doc
+
+
+@api_router.patch("/contacts-v2/{cid}")
+async def update_contact_v2(cid: str, data: ContactV2Patch, user=Depends(get_current_user)):
+    doc = await db.contacts_v2.find_one({"id": cid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Contact introuvable")
+    payload = data.model_dump(exclude_none=True)
+    _canal_check(payload.get("canal_prefere"))
+    _timeslot_check(payload.get("creneau_joignabilite"))
+    for k, v in payload.items():
+        if isinstance(v, str):
+            payload[k] = v.strip()
+    if "email_pro" in payload:
+        payload["email_pro"] = payload["email_pro"].lower()
+    payload["updated_at"] = now_iso()
+    await db.contacts_v2.update_one({"id": cid}, {"$set": payload})
+    return await db.contacts_v2.find_one({"id": cid}, {"_id": 0})
+
+
+@api_router.get("/establishments/{eid}/roles")
+async def list_establishment_roles(
+    eid: str, include_closed: bool = False, user=Depends(get_current_user),
+):
+    """Rôles d'un établissement + snapshot contact enrichi.
+
+    Par défaut, retourne uniquement les rôles ACTIFS (`date_fin = null`).
+    Passer `include_closed=true` pour l'historique (utile pour l'écran
+    « Historique des gérants »).
+    """
+    query: dict = {"establishment_id": eid}
+    if not include_closed:
+        query["date_fin"] = None
+    roles = await db.roles.find(query, {"_id": 0}).sort([("principal", -1), ("date_debut", -1)]).to_list(500)
+    contact_ids = list({r["contact_id"] for r in roles})
+    contacts = {c["id"]: c for c in
+                await db.contacts_v2.find({"id": {"$in": contact_ids}}, {"_id": 0}).to_list(500)}
+    for r in roles:
+        c = contacts.get(r["contact_id"])
+        r["contact"] = c
+        r["role_meta"] = ROLE_CATALOG.get(r["role"], {})
+    return roles
+
+
+@api_router.post("/establishments/{eid}/roles")
+async def create_establishment_role(eid: str, data: RoleCreate, user=Depends(get_current_user)):
+    _validate_role_key(data.role)
+    role_doc = await _create_role(
+        org_id=user["org_id"], owner_id=user["id"],
+        contact_id=data.contact_id,
+        establishment_id=eid, societe_id=data.societe_id,
+        role=data.role, date_debut=data.date_debut,
+        principal=data.principal, peut_engager=data.peut_engager,
+    )
+    return role_doc
+
+
+@api_router.patch("/roles/{rid}")
+async def update_role(rid: str, data: RolePatch, user=Depends(get_current_user)):
+    doc = await db.roles.find_one({"id": rid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Rôle introuvable")
+    payload = data.model_dump(exclude_none=True)
+    if "role" in payload:
+        _validate_role_key(payload["role"])
+    payload["updated_at"] = now_iso()
+    if payload.get("principal") and doc.get("establishment_id"):
+        await db.roles.update_many(
+            {"establishment_id": doc["establishment_id"], "principal": True,
+             "date_fin": None, "id": {"$ne": rid}},
+            {"$set": {"principal": False, "updated_at": now_iso()}},
+        )
+    await db.roles.update_one({"id": rid}, {"$set": payload})
+    return await db.roles.find_one({"id": rid}, {"_id": 0})
+
+
+@api_router.get("/establishments/{eid}/four-questions")
+async def four_questions_snapshot(eid: str, user=Depends(get_current_user)):
+    """Les 4 questions du haut de fiche (spec Lot 9) — en 1 appel.
+
+    Qui commande ? Qui décide ? Qui paie ? Qui peut signer ?
+    Retourne pour chaque : le contact affiché OU `null` (à afficher « À renseigner »).
+    """
+    roles = await db.roles.find(
+        {"establishment_id": eid, "date_fin": None}, {"_id": 0},
+    ).to_list(500)
+    contact_ids = list({r["contact_id"] for r in roles})
+    contacts = {c["id"]: c for c in
+                await db.contacts_v2.find({"id": {"$in": contact_ids}}, {"_id": 0}).to_list(500)}
+
+    def _pick(pred, key_priority=None):
+        """Retourne le meilleur rôle qui matche `pred` (`principal` en priorité)."""
+        matching = [r for r in roles if pred(r)]
+        if not matching:
+            return None
+        matching.sort(key=lambda r: (
+            0 if r.get("principal") else 1,
+            r.get("date_debut") or "",
+        ))
+        r = matching[0]
+        c = contacts.get(r["contact_id"])
+        if not c:
+            return None
+        meta = ROLE_CATALOG.get(r["role"], {})
+        return {
+            "contact_id": c["id"], "nom": c.get("nom"), "prenom": c.get("prenom"),
+            "role": r["role"], "role_label": meta.get("label"),
+            "telephone_pro": c.get("telephone_pro"), "mobile_pro": c.get("mobile_pro"),
+            "email_pro": c.get("email_pro"),
+            "canal_prefere": c.get("canal_prefere"),
+            "creneau_joignabilite": c.get("creneau_joignabilite"),
+            "role_id": r["id"], "peut_engager": r.get("peut_engager"),
+        }
+
+    return {
+        "qui_commande": _pick(lambda r: ROLE_CATALOG.get(r["role"], {}).get("orderer")
+                                     or r["role"] in ("acheteur", "responsable_salle", "chef_barman", "econome")),
+        "qui_decide":   _pick(lambda r: ROLE_CATALOG.get(r["role"], {}).get("decision")
+                                     or r["role"] in ("gerant", "co_gerant", "directeur_exploitation", "proprietaire_fonds")),
+        "qui_paie":     _pick(lambda r: ROLE_CATALOG.get(r["role"], {}).get("pays")
+                                     or r["role"] in ("comptable_interne", "cabinet_comptable_externe",
+                                                     "responsable_administratif", "contact_facturation")),
+        "qui_signe":    _pick(lambda r: r.get("peut_engager")
+                                     or r["role"] in ("gerant", "co_gerant", "directeur_exploitation", "proprietaire_fonds")),
+    }
+
+
+@api_router.post("/establishments/{eid}/change-of-manager")
+async def change_of_manager(eid: str, data: dict, user=Depends(get_current_user)):
+    """Parcours guidé « Changement de gérant » (spec Lot 9 §5).
+
+    Étapes :
+      1. Clôture les rôles direction actifs (date_fin = aujourd'hui).
+      2. Crée le nouveau gérant (nouveau contact ou existant).
+      3. Requestion : les autres restent-ils ?
+      4. Marque l'établissement `to_requalify=True` avec bouclier prudent.
+    """
+    est = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not est:
+        raise HTTPException(404, "Établissement introuvable")
+
+    today = datetime.now(timezone.utc).date().isoformat()
+
+    # 1. Clôture des rôles direction actifs
+    closed = await db.roles.update_many(
+        {"establishment_id": eid, "date_fin": None,
+         "role": {"$in": ["gerant", "co_gerant", "directeur_exploitation", "proprietaire_fonds"]}},
+        {"$set": {"date_fin": today, "updated_at": now_iso(),
+                  "closure_reason": "change_of_manager"}},
+    )
+
+    # 2. Nouveau gérant
+    new_manager = data.get("new_manager") or {}
+    new_contact_id = new_manager.get("contact_id")
+    if not new_contact_id:
+        if not new_manager.get("nom"):
+            raise HTTPException(422, "Nom du nouveau gérant requis")
+        c = await _find_or_create_contact_v2(
+            org_id=user["org_id"], owner_id=user["id"],
+            prenom=new_manager.get("prenom") or "",
+            nom=new_manager["nom"],
+            phone=new_manager.get("telephone_pro"),
+            mobile=new_manager.get("mobile_pro"),
+            email=new_manager.get("email_pro"),
+        )
+        new_contact_id = c["id"]
+
+    new_role_key = new_manager.get("role") or "gerant"
+    _validate_role_key(new_role_key)
+    new_role = await _create_role(
+        org_id=user["org_id"], owner_id=user["id"],
+        contact_id=new_contact_id, establishment_id=eid,
+        role=new_role_key, principal=True, peut_engager=True,
+    )
+
+    # 3. Autres contacts — si `close_all=True`, on clôture tout ce qui reste
+    close_all = bool(data.get("close_all_other_contacts"))
+    others_closed = 0
+    if close_all:
+        r = await db.roles.update_many(
+            {"establishment_id": eid, "date_fin": None,
+             "id": {"$ne": new_role["id"]}},
+            {"$set": {"date_fin": today, "updated_at": now_iso(),
+                      "closure_reason": "change_of_manager"}},
+        )
+        others_closed = r.modified_count
+
+    # 4. Marquage établissement à requalifier + bouclier prudent
+    await db.establishments.update_one(
+        {"id": eid},
+        {"$set": {
+            "to_requalify": True,
+            "to_requalify_reason": "change_of_manager",
+            "to_requalify_since": now_iso(),
+            # Bouclier de crédit prudent — le manager doit revalider
+            "credit_status": "orange",
+            "credit_status_updated_at": now_iso(),
+            "credit_status_reason": "Changement de gérant — revalidation manager requise",
+            "updated_at": now_iso(),
+        }},
+    )
+    await audit_log(user["id"], "change_of_manager", {
+        "establishment_id": eid, "new_contact_id": new_contact_id,
+        "closed_direction_roles": closed.modified_count,
+        "closed_other_roles": others_closed,
+    })
+    return {
+        "closed_direction_roles": closed.modified_count,
+        "new_role": new_role,
+        "closed_other_roles": others_closed,
+        "to_requalify": True,
+        "credit_status": "orange",
+    }
+
+
+
 # ==========================================================
 # Un seul modèle, un seul cycle de vie, gouverné par `doc_type`. Cela évite
 # la duplication et permet aux transitions (devis → BC → BL → facture) d'être
@@ -10002,3 +10629,23 @@ async def _startup_tenant_migration():
             logger.warning(f"[tenant] ORPHELINS RESTANTS : {report['orphans']}")
     except Exception as e:
         logger.warning(f"[tenant] migration skipped: {e}")
+
+
+@app.on_event("startup")
+async def _startup_contacts_v2_migration():
+    """Lot 9 étape 1 — migration idempotente des contacts embarqués vers
+    `contacts_v2` + `roles`. Safe à rejouer, jamais destructive."""
+    try:
+        result = await _migrate_contacts_v2_on_startup()
+        if result.get("contacts_created") or result.get("roles_created"):
+            logger.info(f"[startup:contacts_v2] {result}")
+    except Exception as e:
+        logger.exception(f"[startup:contacts_v2] migration failed: {e}")
+
+
+@api_router.post("/_internal/run-contacts-v2-migration")
+async def _internal_run_contacts_v2_migration(user=Depends(get_current_user)):
+    """Endpoint utilitaire pour rejouer la migration (manager only)."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return await _migrate_contacts_v2_on_startup()

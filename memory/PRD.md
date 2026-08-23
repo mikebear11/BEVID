@@ -728,6 +728,67 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 9 étape 1 — Contacts (personnes) + Rôles datés + migration (23/02/2026)
+
+### Modèle
+Trois niveaux distincts pour refléter la réalité CHR :
+- `contacts_v2` — la personne physique unique. **Un comptable externe qui
+  suit 12 établissements = 1 seule entité**, jamais dupliquée.
+- `roles` — le lien daté entre un contact et un établissement / une société.
+  `date_debut` obligatoire (défaut = aujourd'hui), `date_fin` renseignée à la
+  clôture. **Aucune suppression jamais.**
+- `establishments` — existant, avec bientôt `societe_id` pour les groupes.
+
+### Catalogue fermé de 20 rôles (spec §3)
+- **Direction** (5) : gérant, co-gérant, directeur d'exploitation,
+  propriétaire du fonds, associé — hints `peut_engager` par défaut.
+- **Opérationnel** (7) : acheteur, responsable de salle, chef barman,
+  sommelier, responsable de cave, chef de cuisine, économe.
+- **Administratif** (4) : comptable interne, cabinet externe, responsable
+  administratif, contact facturation — hint `pays=True` pour la relance.
+- **Autre** (4) : contact livraison, contact technique pression,
+  repreneur pressenti, autre.
+
+### Migration idempotente au startup
+`_migrate_contacts_v2_on_startup` :
+- Lit `establishments.contacts` (embarqué), pour chaque contact :
+  - Match par email > mobile (dédoublonnage cross-établissement).
+  - Sinon crée un contact v2 avec split naïf « Prénom Nom ».
+- Crée un rôle daté avec mapping legacy → v9 (`proprietaire` → `proprietaire_fonds`,
+  `chef_cave` → `responsable_cave`, etc.).
+- Marque le contact embarqué `_migrated_to_v2=True` + `_v2_contact_id=<id>`.
+- **Ne supprime rien** : les données embarquées restent pour rétro-compat UI.
+- **Résultat runtime** : 4 établissements, **8 contacts créés, 8 rôles créés**,
+  0 erreur.
+
+### Endpoints livrés
+- `GET /api/roles/catalog` — catalogue rôles + canaux + créneaux.
+- `POST /api/contacts-v2` — création **en 3 champs max** (nom seul obligatoire),
+  raccourci pour créer aussi le rôle si `role + establishment_id` fournis.
+- `GET /api/contacts-v2` — recherche par nom/prénom/email (comptable multi-clients).
+- `GET /api/contacts-v2/{cid}` — détail + historique complet des rôles.
+- `PATCH /api/contacts-v2/{cid}` — update (canaux/créneaux validés).
+- `GET /api/establishments/{eid}/roles?include_closed=` — rôles + snapshot
+  contact enrichi + hint `role_meta`.
+- `POST /api/establishments/{eid}/roles` — rattache un contact existant.
+- `PATCH /api/roles/{rid}` — édition (clôture = date_fin, principal auto-démote
+  les autres actifs).
+- `GET /api/establishments/{eid}/four-questions` — Qui commande / décide / paie / signe.
+  Retourne 4 slots, chaque slot `None` (à afficher « À renseigner ») ou un dict
+  avec contact + rôle.
+- `POST /api/establishments/{eid}/change-of-manager` — parcours guidé :
+  clôture rôles direction actifs, création nouveau gérant, option
+  `close_all_other_contacts`, marquage établissement `to_requalify=True`,
+  **bouclier crédit orange** (revalidation manager requise).
+
+### Tests
+- `/app/backend/tests/test_iter39_contacts_v2.py` : **13/13 verts** couvrant
+  migration (contacts créés depuis embarqué), catalogue fermé (rejet
+  `empereur`), création rapide 1 champ, dédoublonnage par email lowercase,
+  démotion `principal`, clôture jamais destructive (rôle clos toujours
+  accessible via `include_closed`), les 4 questions, changement de gérant
+  avec bouclier orange, historique multi-rôles par contact.
+
 ## Lot 8 étapes 2-5 — BusinessDocument, émission, PDF, auto-facturation (23/02/2026)
 
 ### Modèle unifié
