@@ -1652,3 +1652,26 @@ Tests suite complète : **14/14 pytest verts**.
 
 ### Scénario critique (à valider par l'utilisateur sur un vrai iPhone)
 Installer via Partager → Sur l'écran d'accueil, se connecter, activer notifications + persist, couper le réseau, saisir une visite, fermer l'app, rouvrir hors réseau → **la visite doit être là et partir à la reconnexion**. La file `message_outbox` + `sync_queue` (Dexie IndexedDB) survit dès que le stockage persistant est accordé.
+
+
+## Lot Fiabilité PWA — Compléments (23/02/2026 · soir)
+
+### Storage Quota Warning — bandeau discret dans /settings
+- **`StorageQuotaBanner.jsx`** monté en tête de `SettingsPage`.
+- Affiché uniquement si `persistent_storage=false`.
+- Message contextuel selon la cause (app non installée / notifications refusées / persist refusé).
+- Clic → redirige vers `/pwa-status` où l'utilisateur peut agir.
+- Auto-caché quand persist est accordé — ne pollue pas les Réglages en usage nominal.
+
+### Screenshots réels du manifest
+- 3 captures mobile 390×844 (iPhone 14 narrow) prises depuis le preview :
+  - `/screenshot-tournee.png` — Ma tournée avec portefeuille et prédictions de rupture
+  - `/screenshot-clients.png` — Liste clients & filtres
+  - `/screenshot-etablissement.png` — Fiche client 360°
+- `manifest.json` mis à jour avec ces 3 entrées `form_factor: narrow` — améliore la fenêtre d'installation Android.
+
+### Runbook `/app/PWA_MOBILE_TEST.md`
+- Documente le scénario critique iPhone en 6 étapes (install → connexion → permissions → mode avion → visite → fermeture → réouverture hors réseau → sync).
+- Fournit un mode d'emploi de dépannage à distance via `/pwa-status` (6 lignes de diagnostic).
+
+**Statut** : reste à valider par l'utilisateur sur un vrai iPhone (le scénario complet ne peut pas être scripté depuis le serveur).

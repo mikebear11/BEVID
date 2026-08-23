@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { MessageSquare, Percent, Save, Bell } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
+import StorageQuotaBanner from "@/components/StorageQuotaBanner";
 
 export default function SettingsPage() {
   usePageMeta({ title: `${t("preferences")} · BEVID` });
@@ -24,6 +25,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl" data-testid="settings-page">
       <div><p className="overline">{t("automations")}</p><h1 className="font-display text-4xl">{t("preferences")}</h1></div>
+
+      <StorageQuotaBanner />
 
       <div className="card-crm p-6">
         <div className="flex items-center gap-2 mb-4"><Bell size={18} className="text-[#4A154B]" aria-hidden="true" /><h2 className="font-display text-xl">{t("auto_reminders")}</h2></div>

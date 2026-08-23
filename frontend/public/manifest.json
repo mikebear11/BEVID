@@ -37,18 +37,25 @@
   ],
   "screenshots": [
     {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
+      "src": "/screenshot-tournee.png",
+      "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Tournée du jour"
+      "label": "Ma tournée — portefeuille du jour"
     },
     {
-      "src": "/icon-maskable-512.png",
-      "sizes": "512x512",
+      "src": "/screenshot-clients.png",
+      "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Fiche client 360°"
+      "label": "Liste clients et prise de commande"
+    },
+    {
+      "src": "/screenshot-etablissement.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Fiche client 360° et crédit"
     }
   ]
 }
