@@ -6,7 +6,7 @@ import { API } from "@/lib/api";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 
-const COLORS = ["#4A154B", "#2D5A4C", "#C78B3A", "#8C2A2A", "#6B2D5C"];
+const COLORS = ["#4A154B", "#2D5A4C", "#C78B3A", "#8C2A2A", "#6B2D5C", "#0F766E", "#7C3AED", "#B45309", "#78716C"];
 
 export default function Reports() {
   const [perf, setPerf] = useState([]);
@@ -91,17 +91,48 @@ export default function Reports() {
 
         <div className="card-crm p-6">
           <h3 className="font-display text-xl mb-4">Répartition CA</h3>
-          <div className="h-64">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={perf} dataKey="ca" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
-                  {perf.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {/* Fix visuel : avec 30+ agents, la légende écrasait le camembert.
+              On regroupe le top 8 + « Autres », on place la légende à droite
+              (verticale, scrollable) et on augmente la hauteur du conteneur. */}
+          {(() => {
+            const sorted = [...perf].sort((a, b) => (b.ca || 0) - (a.ca || 0));
+            const TOP = 8;
+            const top = sorted.slice(0, TOP).filter(a => (a.ca || 0) > 0);
+            const rest = sorted.slice(TOP).filter(a => (a.ca || 0) > 0);
+            const restCa = rest.reduce((s, a) => s + (a.ca || 0), 0);
+            const pieData = restCa > 0
+              ? [...top, { name: `Autres (${rest.length})`, ca: restCa, _is_others: true }]
+              : top;
+            return (
+              <div className="h-80" data-testid="ca-pie-container">
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="ca"
+                      nameKey="name"
+                      cx="35%"
+                      cy="50%"
+                      outerRadius={110}
+                      innerRadius={50}
+                    >
+                      {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v) => `${Number(v).toLocaleString("fr-FR")} €`} />
+                    <Legend
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="middle"
+                      wrapperStyle={{
+                        right: 0, top: 0, maxWidth: "50%", maxHeight: "100%",
+                        overflowY: "auto", fontSize: "11px", lineHeight: "1.6",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

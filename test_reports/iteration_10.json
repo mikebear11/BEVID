@@ -1,0 +1,27 @@
+{
+  "summary": "Retest visuel du fix camembert 'Répartition CA' sur /reports après hot-reload. Le fix est bien actif en runtime : le titre 'Répartition CA' est visible et non masqué, la légende est positionnée à droite (align=right, verticalAlign=middle), le camembert (donut inner=40 outer=90) s'affiche proprement au centre-gauche du conteneur h-80, et le tooltip formaté affiche bien le symbole '€' (ex: 'Marie Manager : 78 231 €'). Le bug initial (légende écrasant le camembert avec 30+ agents) est corrigé.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/reports - Répartition CA", "issues": ["Critère (c) 'width .recharts-pie > 200px' non satisfait strictement : le SVG mesure 184px (outerRadius=90 => diamètre 180). Visuellement OK, mais si un seuil >200 est requis, augmenter outerRadius à ~100-110 ou élargir le conteneur."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optionnel) Augmenter outerRadius du Pie de 90 à ~110 pour satisfaire strictement le critère width>200px",
+    "(Optionnel) Étendre la palette COLORS à 9 couleurs comme mentionné dans la review (actuellement 5 couleurs, cyclées via i % length — fonctionnel mais visuellement moins distinctif pour 9 tranches)"
+  ],
+  "critical_code_review_comments": [
+    "Reports.jsx ligne 9 : COLORS ne contient que 5 couleurs, pas 9 comme indiqué dans le request. Avec Top8+Autres (9 slices max) certaines couleurs se répètent. Cycling via COLORS[i % COLORS.length] fonctionne mais moins lisible.",
+    "Le jeu de données de démo n'a qu'un seul agent avec ca>0 (Marie Manager: 78 231€), donc la logique Top8+Autres n'a pas pu être testée en runtime — seule la présence du code a été vérifiée statiquement. Recommander de seeder plus d'agents avec CA pour valider visuellement la branche 'Autres (n)'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% sur critères visuels (a,b,d,f) - critère (c) width>200 non strictement satisfait mais rendu OK"},
+  "seed_data_creation": "Aucun",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Vérifications faites en tant que manager.demo@bevidcrm.fr. Le screenshot .screenshots/tooltip.png montre le rendu final: donut centre-gauche, légende à droite, tooltip formaté en €. Un seul agent (Marie Manager) a un CA > 0 dans le seed courant, donc la logique 'Autres (n)' n'apparait pas mais son code est présent lignes 97-105 de Reports.jsx.",
+  "rca of the issue": "Bug initial: avec 30+ agents, la légende Recharts (layout par défaut horizontal en bas) écrasait le camembert. Fix appliqué: layout='vertical' align='right' verticalAlign='middle', regroupement Top8+Autres pour limiter le nombre de slices, hauteur conteneur h-80, cx='35%' pour laisser la moitié droite à la légende. Vérifié visuellement OK."
+}

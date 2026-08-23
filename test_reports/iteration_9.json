@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only visual test of /reports 'Répartition CA' pie chart fix (BEVID CRM, manager role). Login OK. Reports page loads. However the described fix (Top 8 + 'Autres', legend to the right vertical scrollable, h-80, innerRadius=40, currency tooltip, data-testid='ca-pie-container') has NOT been applied to /app/frontend/src/pages/Reports.jsx — the code at lines 92-105 is still the original problematic version. DOM check confirms data-testid 'ca-pie-container' is absent; container remains h-64; no aggregation logic; Legend uses default bottom position. Visual screenshot shows the pie is squeezed and legend items overlap/wrap next to the chart, exactly reproducing the bug the user reported.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Reports.jsx — Répartition CA card", "issue": "Fix not applied. Current code still uses <div className='h-64'> with <Pie outerRadius={80}/> and <Legend/> (default bottom). No 'ca-pie-container' testid, no Top-8+Autres grouping, no innerRadius, no € tooltip formatter. Legend still overlaps/compresses the pie for many agents.", "selector": "[data-testid='reports-page'] >> text=Répartition CA", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/reports — Répartition CA", "issues": ["Pie chart squeezed to ~164px wide (h-64 container with 10+ agents in legend). Legend swatches wrap around/beside the pie, cutting its visible area. Reproduces the reported overlap bug."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/reports_pie.png"],
+  "action_items": [
+    "Actually apply the described fix to /app/frontend/src/pages/Reports.jsx lines 92-105: (1) wrap in data-testid='ca-pie-container', (2) increase height to h-80, (3) compute topN = 8 by CA desc and aggregate the rest as {name:'Autres (N)', ca: sum}, (4) set <Legend layout='vertical' align='right' verticalAlign='middle' wrapperStyle={{maxHeight:'260px', overflowY:'auto'}} />, (5) shift pie cx to '35%' or '40%' to leave room, (6) add innerRadius={40}, (7) Tooltip formatter that returns value.toLocaleString('fr-FR')+' €'.",
+    "After applying, request a retest."
+  ],
+  "critical_code_review_comments": [
+    "Reports.jsx: PieChart currently rebuilds on every render with no memoization; for larger datasets (30+ agents claimed by user) consider useMemo for the aggregated series.",
+    "COLORS palette only has 5 entries — used with modulo, so many segments share colors. Consider extending palette to 9 (8 top + Autres)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "0% (fix not applied)"},
+  "test_credentials": "manager.demo@bevidcrm.fr / Manager!2026Demo — OK",
+  "seed_data_creation": "None. Environment currently has 10 agents in perf data (not 30+ as user screenshot suggested), but bug is still visibly reproducible.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Once main agent applies the fix to Reports.jsx (see action_items), rerun the same login + navigate to /reports and assert: (a) [data-testid='ca-pie-container'] exists, (b) title 'Répartition CA' bounding box does not vertically overlap with .recharts-legend-wrapper, (c) .recharts-pie width > 200px, (d) if agents with ca>0 > 8 then a legend item text starts with 'Autres (', (e) hover a slice → tooltip contains ' €'.",
+  "rca of the issue": "Root cause of remaining bug: E1 described the fix in the review request but never wrote it to disk. Reports.jsx still contains the pre-fix implementation (verified by view_file lines 92-105 and DOM query for data-testid='ca-pie-container' returning null). No code change to test."
+}

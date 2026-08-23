@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import {
   ShoppingCart, Crown, Wallet, PenLine, Phone, Smartphone, Mail, Plus, AlertCircle,
 } from "lucide-react";
+import AvailabilityBadge from "@/components/AvailabilityBadge";
 
 /**
  * Bloc « Les 4 questions » (Lot 9 étape 2).
@@ -70,7 +71,7 @@ function Initials({ prenom, nom }) {
   );
 }
 
-function Line({ q, contact, onAssign, index = 0 }) {
+function Line({ q, contact, onAssign, index = 0, establishment }) {
   const Icon = q.icon;
   // Stagger 60ms : chaque ligne démarre 60ms après la précédente.
   const style = { animationDelay: `${index * 60}ms` };
@@ -109,7 +110,10 @@ function Line({ q, contact, onAssign, index = 0 }) {
           {[contact.prenom, contact.nom].filter(Boolean).join(" ")}
           <span className="ml-1 text-[11px] text-stone-500">· {contact.role_label}</span>
         </p>
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[11px]">
+        <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1 items-center">
+          <AvailabilityBadge contact={contact} establishment={establishment} size="xs" />
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px]">
           {contact.mobile_pro && (
             <a href={`tel:${contact.mobile_pro.replace(/\s/g,"")}`}
                className="text-stone-600 dark:text-stone-300 hover:text-[#4A154B] flex items-center gap-1"
@@ -144,6 +148,7 @@ function Line({ q, contact, onAssign, index = 0 }) {
 
 export default function FourQuestions({ establishmentId, onAddContact, refreshKey = 0 }) {
   const [data, setData] = useState(null);
+  const [establishment, setEstablishment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toRequalify, setToRequalify] = useState(null);
 
@@ -155,6 +160,7 @@ export default function FourQuestions({ establishmentId, onAddContact, refreshKe
       api.get(`/establishments/${establishmentId}`).then(r => r.data).catch(() => null),
     ]).then(([fq, est]) => {
       setData(fq);
+      setEstablishment(est || null);
       setToRequalify(est?.to_requalify ? {
         reason: est?.to_requalify_reason,
         since: est?.to_requalify_since,
@@ -198,6 +204,7 @@ export default function FourQuestions({ establishmentId, onAddContact, refreshKe
               contact={data?.[q.key] || null}
               onAssign={onAddContact}
               index={i}
+              establishment={establishment}
             />
           ))}
         </div>
