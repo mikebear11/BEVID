@@ -10,6 +10,8 @@ import ClientMemory from "@/components/ClientMemory";
 import BriefButton from "@/components/BriefButton";
 import CommentsThread from "@/components/CommentsThread";
 import ContactsPanel from "@/components/ContactsPanel";
+import ContactsPanelV2 from "@/components/ContactsPanelV2";
+import FourQuestions from "@/components/FourQuestions";
 
 const CREDIT_COLOR = { vert: "#2D5A4C", orange: "#C78B3A", rouge: "#8C2A2A" };
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", rouge: "COMPTE BLOQUÉ" };
@@ -82,14 +84,26 @@ export default function Etablissement360() {
         <div className="card-crm p-3"><p className="overline">Prochaine action</p><p className="text-xs">{e.last_visit?.next_action || "—"}</p></div>
       </div>
 
+      {/* Lot 9 étape 2 — Les 4 questions (haut de fiche) */}
+      <div className="mt-3" data-testid="etab-four-questions">
+        <FourQuestions
+          establishmentId={id}
+          refreshKey={memoryVer}
+          onAddContact={() => document.querySelector('[data-testid="contact-add-btn"]')?.click()}
+        />
+      </div>
+
+      {/* Lot 9 étape 3 — Liste contacts v2 (rôles datés) */}
+      <div className="mt-3" data-testid="etab-contacts-v2">
+        <ContactsPanelV2
+          establishmentId={id}
+          onChange={() => setMemoryVer(v => v + 1)}
+        />
+      </div>
+
       {/* Lot 7 étape 2 — Mémoire client "Ce qu'il faut savoir" */}
       <div className="card-crm p-4 mt-3" data-testid="etab-memory">
         <ClientMemory establishmentId={id} refreshTrigger={memoryVer} />
-      </div>
-
-      {/* Lot 8 — Interlocuteurs (gérant, comptable, acheteur…) */}
-      <div className="card-crm p-4 mt-3" data-testid="etab-contacts">
-        <ContactsPanel establishmentId={id} />
       </div>
 
       {e.top_products?.length > 0 && (

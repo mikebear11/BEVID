@@ -728,6 +728,36 @@ Suite au walkthrough utilisateur en tant que commercial (testing_agent iteration
 - Réponses cross-tenant strictement impossibles (via scoped_db).
 - Brief disponible hors-ligne dans la cave (snapshot embarqué).
 
+## Lot 9 étapes 2-3 — UI : 4 questions + liste contacts + changement de gérant (23/02/2026)
+
+### Composants livrés
+- **`FourQuestions.jsx`** — bloc haut de fiche avec les 4 questions (spec §2).
+  Chaque slot affiche : initiales colorées déterministes (hash prénom/nom),
+  contact + rôle + canal préféré, actions rapides tel/mail. Trous en creux
+  « À renseigner · <hint> » cliquables pour ouvrir l'ajout.
+- **`ContactsPanelV2.jsx`** — liste contacts groupée par catégorie
+  (Direction / Opérationnel / Administratif / Autre), création en 3 champs
+  (prénom facultatif, nom + rôle + établissement déjà connu), historique
+  replié par défaut avec dates de début/fin, actions rapides principal/clôturer.
+- **`ChangeManagerModal`** (dans ContactsPanelV2) — parcours guidé 2 étapes :
+  saisie nouveau gérant → question « équipe entière renouvelée ? » avec
+  rappel visuel du bouclier orange qui va s'appliquer.
+
+### Ergonomie clef (spec §9)
+- **3 champs pour créer un contact** — le reste au fil des visites.
+- **Actions primaires 1-tap** : tel: sur portable, mailto: sur email.
+- **Trous visibles** dans les 4 questions (« À renseigner » cliquable).
+- **Bannière requalification** affichée en tête de fiche quand
+  `to_requalify=True`, avec explicitation des 3 points à revalider.
+- **Historique replié** — un rôle clos reste consultable mais n'encombre pas.
+
+### Validation runtime (ADT 64)
+- 4 questions : `Paul Acheteur` (Qui commande) + `Marie Compta` (Qui paie)
+  auto-affichés depuis les rôles migrés ; 2 slots vides « À renseigner ».
+- Bannière requalification affichée suite au test de changement de gérant.
+- 5 rôles actifs listés (chef barman, chef cuisine, acheteur ×2, comptable
+  interne) groupés par catégorie.
+
 ## Lot 9 étape 1 — Contacts (personnes) + Rôles datés + migration (23/02/2026)
 
 ### Modèle
