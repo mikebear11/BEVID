@@ -1439,3 +1439,39 @@ Ajout complet des pages légales exigées pour la conformité française (RGPD, 
 
 ### File d'attente pour prochain lot
 - **Travail en équipe** (spec reçue, non commencée) — messagerie contextuelle, portefeuilles, demandes/validations, revue hebdo composée
+
+## Lot Import (paste+enrich) + Travail en équipe Item 1 (23/02/2026)
+
+### Import — Collage direct
+- **Backend** `POST /api/import/paste` : accepte `{text}` (TSV Excel ou CSV Sheets), détecte le séparateur sur la 1ère ligne (`\t;,`), passe par `smart_import.detect_columns`, renvoie un session_id compatible avec l'endpoint `/preview` existant.
+- **Frontend** `/import` — bloc « Ou collez vos lignes depuis Excel / Google Sheets » sous la drop-zone, `onPaste` intercepte, appelle `/import/paste`, bascule direct en étape mappage. Test curl : 2 lignes collées → 3 colonnes détectées (nom, telephone, code_postal).
+
+### Import — Enrichissement Recherche-Entreprises
+- **Backend** `POST /api/import/{session_id}/enrich` : parcourt les lignes de la session, quand SIREN présent (ou dérivé du SIRET), appelle Recherche-Entreprises via `integrations.http_client.fetch_json` (rate-limité côté serveur), remplit **uniquement les champs vides**, marque chaque champ enrichi dans `_enriched_fields[]`. Ne bloque jamais l'import si l'API tombe.
+- **Frontend** appel `enrich` en fire-and-forget après `preview` — toast d'information quand des lignes ont été enrichies.
+
+### Travail en équipe — Item 1 : Messagerie contextuelle
+- **Modèle** `messages` : `object_type` ∈ {establishment, order, document, tour, container, team}, `object_id`, `author_id`, `text` (2000 chars), `mentions[]`, `voice_transcript`, `photos[]` (3 max), `due_date`, `edited`, `read_by{}`. Cloisonnement `org_id` obligatoire.
+- **Modèle** `message_actions` : chaque mention crée une action `pending` datée dans la boîte du destinataire.
+- **Endpoints** :
+  - `POST /api/messages` : cloisonne l'accès à l'objet (vérifie que `establishment.org_id == user.org_id`), crée actions pour chaque mention.
+  - `GET /api/messages?object_type=X&object_id=Y` : fil chronologique plat.
+  - `PATCH /api/messages/{mid}` : édition auteur seul, 15 min max, marque `edited=true`.
+  - `POST /api/messages/{mid}/mark-read` : accusé sur mentions uniquement.
+  - `GET /api/inbox` : mentions en attente + preview + auteur + due_date + `unread_count`.
+- **Composant** `MessageThread.jsx` : fil chronologique intégré dans `Etablissement360.jsx` en bas de page. Édition inline, autocomplete `@Nom` depuis `/team/members`, échéance optionnelle. Mentions rendues en violet `#4A154B`. Aucune suppression du message d'un autre. Pas de canal généraliste — le fil vit sur l'objet.
+- **Règles respectées** : aucune entrée sidebar, aucune saisie en plus, cloisonnement org strict, pas de surveillance. « Vu » uniquement sur mentions.
+
+### Vérifications LIVE
+- `POST /import/paste` : sépration TSV/CSV OK, session créée
+- `POST /messages` : création OK avec cloisonnement établissement
+- `GET /messages` : fil chronologique renvoyé
+- `GET /inbox` : mentions pending + unread_count
+
+### Reste à faire pour Travail en équipe
+- Item 2 (Boîte de réception dans la barre du haut) : composant `InboxDropdown` à côté de la cloche
+- Item 3 (Mentions → engagements datés visibles dans la tournée)
+- Item 4 (Hors-ligne + file d'envoi via Dexie)
+- Item 5 (Notifications 3 niveaux + plage silence)
+- Item 6 (Message vocal via `MediaRecorder` + `/api/voice/transcribe`)
+- Items 7-15 (Demandes/validations, portefeuilles, relais, planning équipe, revue hebdo, savoir partagé, recherche ⌘K, messages directs en dernier)

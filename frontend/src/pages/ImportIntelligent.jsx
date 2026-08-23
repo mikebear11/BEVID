@@ -62,6 +62,10 @@ export default function ImportIntelligent() {
     setBusy(true);
     try {
       const { data } = await api.post(`/import/${session}/preview`, { mapping });
+      // Enrichissement auto en tâche de fond — n'attend pas pour ne pas bloquer.
+      api.post(`/import/${session}/enrich`).then((r) => {
+        if (r.data.enriched_rows > 0) toast.info(`${r.data.enriched_rows} lignes enrichies via Recherche-Entreprises (SIREN)`);
+      }).catch(() => {});
       setPreview(data);
       setStep("preview");
     } catch (e) { toast.error(e?.response?.data?.detail || "Preview impossible"); }
@@ -125,6 +129,30 @@ export default function ImportIntelligent() {
             <p className="text-xs text-stone-500 mt-1">XLSX · XLS · CSV — jusqu'à 10 Mo et 5 000 lignes</p>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => onFile(e.target.files[0])} data-testid="import-file-input" />
           </div>
+
+          <div className="card-crm p-4 space-y-2">
+            <p className="overline">Ou collez vos lignes depuis Excel / Google Sheets</p>
+            <textarea
+              id="import-paste-area" rows={4} placeholder="Coller ici (Ctrl+V) — un en-tête sur la 1ère ligne."
+              className="input-crm text-sm font-mono" data-testid="import-paste-textarea"
+              aria-label="Zone de collage direct"
+              onPaste={async (e) => {
+                const raw = e.clipboardData.getData("text");
+                if (!raw || raw.trim().split("\n").length < 2) return;
+                e.preventDefault();
+                setBusy(true);
+                try {
+                  const { data } = await api.post("/import/paste", { text: raw });
+                  setSniff(data); setColumns(data.columns); setSession(data.session_id);
+                  setStep("mapping");
+                  toast.success(`${data.row_count_sample} ligne(s) collée(s)`);
+                } catch (err) { toast.error(err?.response?.data?.detail || "Collage impossible"); }
+                finally { setBusy(false); }
+              }}
+            />
+            <p className="text-xs text-stone-500">Pour 20 lignes c'est plus rapide qu'un téléversement.</p>
+          </div>
+
           <p className="text-xs text-stone-500 text-center">Ou <a href="/api/xlsx/template" className="text-[#4A154B] hover:underline">téléchargez un modèle vierge</a> si vous préférez.</p>
         </div>
       )}

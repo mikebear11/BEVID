@@ -1,0 +1,163 @@
+import React, { useEffect, useRef, useState } from "react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check } from "lucide-react";
+
+/**
+ * Fil de discussion rattaché à un objet.
+ * Props : objectType ("establishment"|"order"|"document"|"tour"|"container")
+ *         objectId    (id de l'objet)
+ *         mentionsCatalog (liste { id, name } pour l'autocomplete @)
+ *
+ * Règles :
+ *   - Chronologique plat, pas d'imbrication.
+ *   - Édition auteur uniquement, 15 min max.
+ *   - Aucune suppression du message d'un autre.
+ *   - Mentions @Nom → engagements datés dans la boîte du destinataire.
+ */
+export default function MessageThread({ objectType, objectId, mentionsCatalog = [] }) {
+  const [items, setItems] = useState([]);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [showMentions, setShowMentions] = useState(false);
+  const inputRef = useRef(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get(`/messages?object_type=${objectType}&object_id=${encodeURIComponent(objectId)}`);
+      setItems(data);
+    } catch { toast.error("Fil indisponible"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { if (objectId) load(); }, [objectType, objectId]);
+
+  const parseMentions = (t) => {
+    const found = [];
+    for (const u of mentionsCatalog) {
+      const alias = "@" + (u.name || "").split(" ")[0];
+      if (t.includes(alias)) found.push(u.id);
+    }
+    return found;
+  };
+
+  const send = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      const payload = {
+        object_type: objectType, object_id: objectId,
+        text: text.trim(), mentions: parseMentions(text),
+        due_date: dueDate || undefined,
+      };
+      await api.post("/messages", payload);
+      setText(""); setDueDate("");
+      load();
+      toast.success("Message envoyé");
+    } catch (e) { toast.error(e?.response?.data?.detail || "Envoi impossible"); }
+    finally { setBusy(false); }
+  };
+
+  const saveEdit = async (id) => {
+    setBusy(true);
+    try {
+      await api.patch(`/messages/${id}`, { text: editText });
+      setEditing(null); setEditText("");
+      load();
+    } catch (e) { toast.error(e?.response?.data?.detail || "Édition impossible"); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <section className="card-crm p-4" data-testid={`message-thread-${objectType}`}>
+      <div className="flex items-center gap-2 mb-3">
+        <MessageSquare size={16} className="text-[#4A154B]" aria-hidden="true" />
+        <h2 className="font-display text-lg">Discussion</h2>
+        <span className="text-xs text-stone-500">· visible par l'équipe qui a accès à cet objet</span>
+      </div>
+
+      <div className="space-y-3 max-h-96 overflow-y-auto pr-1" data-testid="message-list">
+        {loading && <div className="text-center py-6"><Loader2 size={16} className="mx-auto animate-spin text-stone-400" /></div>}
+        {!loading && items.length === 0 && <p className="text-center text-sm text-stone-500 py-6">Aucun message. Ouvrez le fil en écrivant une note ou en @mentionnant un collègue.</p>}
+        {items.map(m => (
+          <div key={m.id} className="border-l-2 border-stone-200 dark:border-stone-700 pl-3 py-1" data-testid={`msg-${m.id}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-stone-800 dark:text-stone-200">{m.author_name}</span>
+                <span className="text-[10px] text-stone-400">{(m.created_at || "").slice(0, 16).replace("T", " ")}</span>
+                {m.edited && <span className="text-[10px] text-stone-400 italic">modifié</span>}
+                {m.due_date && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">⏱ {m.due_date}</span>}
+              </div>
+              {editing !== m.id && (
+                <button onClick={() => { setEditing(m.id); setEditText(m.text); }} className="text-stone-400 hover:text-[#4A154B]" aria-label="Modifier" data-testid={`msg-edit-${m.id}`}>
+                  <Pencil size={12} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+            {editing === m.id ? (
+              <div className="mt-1 flex gap-2 items-start">
+                <textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={2} className="input-crm text-sm flex-1" data-testid={`msg-edit-input-${m.id}`} />
+                <button onClick={() => saveEdit(m.id)} disabled={busy} className="text-emerald-700 hover:text-emerald-900" aria-label="Enregistrer" data-testid={`msg-edit-save-${m.id}`}><Check size={14} aria-hidden="true" /></button>
+                <button onClick={() => setEditing(null)} className="text-stone-400" aria-label="Annuler"><X size={14} aria-hidden="true" /></button>
+              </div>
+            ) : (
+              <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap">{renderWithMentions(m.text, mentionsCatalog)}</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 border-t border-stone-200 dark:border-stone-700 pt-3">
+        <div className="relative">
+          <label htmlFor="msg-input" className="sr-only">Nouveau message</label>
+          <textarea
+            id="msg-input" ref={inputRef} value={text}
+            onChange={(e) => { setText(e.target.value); setShowMentions(e.target.value.endsWith("@")); }}
+            rows={2} placeholder="Écrire un message. @nom pour créer une action datée."
+            className="input-crm text-sm" data-testid="msg-input"
+          />
+          {showMentions && mentionsCatalog.length > 0 && (
+            <ul className="absolute z-10 bottom-full mb-1 left-0 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg shadow-md max-h-40 overflow-y-auto min-w-[200px]" role="listbox">
+              {mentionsCatalog.map(u => (
+                <li key={u.id}>
+                  <button type="button" onClick={() => { setText(text + (u.name || "").split(" ")[0] + " "); setShowMentions(false); inputRef.current?.focus(); }}
+                    className="w-full text-left px-3 py-1.5 text-sm hover:bg-stone-100 dark:hover:bg-stone-800 min-h-[36px]" data-testid={`msg-mention-${u.id}`}>
+                    <AtSign size={12} className="inline mr-1" aria-hidden="true" />{u.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-2">
+          <label className="text-xs text-stone-500 flex items-center gap-1">
+            <span className="hidden sm:inline">Échéance :</span>
+            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+              className="input-crm min-h-[32px] text-xs py-1" data-testid="msg-due-date" aria-label="Échéance de la mention" />
+          </label>
+          <button onClick={send} disabled={busy || !text.trim()} className="btn-primary flex items-center gap-1 min-h-[36px] text-sm px-4" data-testid="msg-send">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} aria-hidden="true" />}
+            Envoyer
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderWithMentions(text, catalog) {
+  if (!text) return "";
+  const parts = text.split(/(@[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ-]+)/g);
+  return parts.map((p, i) => {
+    if (p.startsWith("@")) {
+      const short = p.slice(1);
+      const user = catalog.find(u => (u.name || "").toLowerCase().startsWith(short.toLowerCase()));
+      if (user) return <span key={i} className="text-[#4A154B] font-medium">{p}</span>;
+    }
+    return <span key={i}>{p}</span>;
+  });
+}

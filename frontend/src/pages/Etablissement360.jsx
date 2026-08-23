@@ -12,6 +12,7 @@ import CommentsThread from "@/components/CommentsThread";
 import ContactsPanel from "@/components/ContactsPanel";
 import ContactsPanelV2 from "@/components/ContactsPanelV2";
 import FourQuestions from "@/components/FourQuestions";
+import MessageThread from "@/components/MessageThread";
 
 const CREDIT_COLOR = { vert: "#2D5A4C", orange: "#C78B3A", rouge: "#8C2A2A" };
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", rouge: "COMPTE BLOQUÉ" };
@@ -20,6 +21,7 @@ export default function Etablissement360() {
   const { id } = useParams();
   const nav = useNavigate();
   const [e, setE] = useState(null);
+  const [team, setTeam] = useState([]);
   const [showDerog, setShowDerog] = useState(false);
   const [derogReason, setDerogReason] = useState("");
   const [amt, setAmt] = useState("");
@@ -29,7 +31,11 @@ export default function Etablissement360() {
     try { const { data } = await api.get(`/establishments/${id}`); setE(data); }
     catch { toast.error(t("toast.erreur_chargement")); }
   };
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => {
+    load();
+    // Catalogue d'équipe pour l'autocomplete des @mentions
+    api.get("/team/members").then(r => setTeam(r.data || [])).catch(() => setTeam([]));
+  }, [id]);
 
   const askDerog = async () => {
     if (!derogReason.trim()) { toast.error(t("toast.motif_requis")); return; }
@@ -155,6 +161,9 @@ export default function Etablissement360() {
           </div>
         </div>
       )}
+
+      {/* Lot Travail en équipe — fil de discussion rattaché à cet établissement */}
+      <MessageThread objectType="establishment" objectId={id} mentionsCatalog={team} />
     </div>
   );
 }

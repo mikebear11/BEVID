@@ -11162,6 +11162,225 @@ async def import_undo(batch_id: str, user=Depends(get_current_user)):
 
 # === Fin Lot Import intelligent ===
 
+# === Lot Import — Collage direct ===
+@api_router.post("/import/paste")
+async def import_paste(payload: dict, user=Depends(get_current_user)):
+    """Collage direct depuis Excel/Google Sheets.
+    Attend `{text: "..."}` — TSV (Excel) ou CSV (Sheets). Renvoie un session_id
+    exactement comme /import/analyze."""
+    _import_gc()
+    text = (payload.get("text") or "").strip()
+    if not text:
+        raise HTTPException(422, "Aucune ligne collée")
+    if len(text) > 2 * 1024 * 1024:
+        raise HTTPException(413, "Collage > 2 Mo")
+    # Détection tab vs ; vs , sur la première ligne
+    first_line = text.split("\n", 1)[0]
+    if "\t" in first_line:
+        sep = "\t"
+    elif first_line.count(";") >= first_line.count(","):
+        sep = ";"
+    else:
+        sep = ","
+    data = text.encode("utf-8")
+    sample_rows: List[dict] = []
+    headers: List[str] = []
+    for i, row, hdrs in _si_read_csv(data, "utf-8", sep):
+        if not headers:
+            headers = hdrs
+        sample_rows.append(row)
+        if len(sample_rows) >= 200:
+            break
+    dets = _si_detect(headers, sample_rows)
+    session_id = str(uuid.uuid4())
+    fingerprint = _si_hash.sha1(("paste|" + "|".join(headers)).encode("utf-8", errors="ignore")).hexdigest()
+    _import_sessions[session_id] = {
+        "user_id": user["id"], "org_id": user["org_id"],
+        "filename": "collage-direct.txt", "data": data,
+        "sniff": {"kind": "csv", "encoding": "utf-8", "separator": sep, "sheets": [], "active_sheet": None},
+        "headers": headers, "mapping": {d.header: d.field for d in dets if d.field},
+        "fingerprint": fingerprint, "touched": _si_time.time(),
+    }
+    return {
+        "session_id": session_id, "kind": "csv", "encoding": "utf-8", "separator": sep,
+        "row_count_sample": len(sample_rows),
+        "columns": [{"header": d.header, "field": d.field, "certainty": round(d.certainty, 2),
+                     "source": d.source, "samples": d.samples} for d in dets],
+        "fields_available": _si_fields, "fingerprint": fingerprint,
+    }
+
+
+# === Lot Import — Enrichissement auto via Recherche-Entreprises ===
+async def _re_lookup_by_siren(siren: str) -> Optional[dict]:
+    """Appel Recherche-Entreprises API gouv. Timeout court, échec silencieux."""
+    if not siren or len(siren) != 9:
+        return None
+    try:
+        from integrations.http_client import fetch_json
+        payload = await fetch_json(
+            "https://recherche-entreprises.api.gouv.fr/search",
+            source="recherche-entreprises", db=db, kind="autocomplete",
+            params={"q": siren, "per_page": 1},
+        )
+        results = payload.get("results") or []
+        if not results:
+            return None
+        r = results[0]
+        siege = r.get("siege") or {}
+        return {
+            "denomination": r.get("nom_complet") or r.get("nom_raison_sociale"),
+            "adresse": siege.get("adresse"),
+            "code_postal": siege.get("code_postal"),
+            "ville": siege.get("libelle_commune"),
+            "naf": r.get("activite_principale"),
+            "forme_juridique": r.get("nature_juridique"),
+        }
+    except Exception:
+        return None
+
+
+@api_router.post("/import/{session_id}/enrich")
+async def import_enrich(session_id: str, user=Depends(get_current_user)):
+    """Enrichit les lignes de la session avec Recherche-Entreprises quand SIRET/SIREN présents.
+    Ne remplace jamais une valeur saisie — ajoute seulement les manquantes en les marquant."""
+    _import_gc()
+    sess = _import_sessions.get(session_id)
+    if not sess or sess["user_id"] != user["id"]:
+        raise HTTPException(404, "Session introuvable")
+    cleaned_all: List[dict] = sess.get("cleaned_all") or []
+    if not cleaned_all:
+        raise HTTPException(422, "Appelez /preview d'abord")
+    enriched_count = 0
+    for row in cleaned_all:
+        siren = (row.get("siren") or (row.get("siret") or "")[:9]).strip()
+        if len(siren) != 9:
+            continue
+        info = await _re_lookup_by_siren(siren)
+        if not info:
+            continue
+        marks = row.setdefault("_enriched_fields", [])
+        for src, dst in [("denomination", "nom"), ("adresse", "adresse"),
+                          ("code_postal", "code_postal"), ("ville", "ville")]:
+            if info.get(src) and not row.get(dst):
+                row[dst] = info[src]
+                marks.append(dst)
+        if info.get("naf") and not row.get("naf"):
+            row["naf"] = info["naf"]
+            marks.append("naf")
+        if marks:
+            enriched_count += 1
+    return {"enriched_rows": enriched_count, "total_rows": len(cleaned_all)}
+
+
+# === Lot Travail en équipe — Item 1 : Messagerie contextuelle ===
+# Un message est TOUJOURS rattaché à un objet (établissement, commande, BL,
+# facture, tournée, contenant) OU au canal Équipe unique. Aucune création
+# libre de canal. Cloisonnement strict par org_id.
+class MessageCreate(BaseModel):
+    object_type: str  # "establishment"|"order"|"document"|"tour"|"container"|"team"
+    object_id: Optional[str] = None  # None pour "team"
+    text: str
+    mentions: List[str] = []  # user IDs
+    voice_transcript: Optional[str] = None
+    voice_audio_id: Optional[str] = None
+    photos: List[str] = []  # data URIs ou IDs upload — 3 max
+    due_date: Optional[str] = None  # échéance sur mention
+
+
+@api_router.post("/messages")
+async def create_message(data: MessageCreate, user=Depends(get_current_user)):
+    if data.object_type not in ("establishment", "order", "document", "tour", "container", "team"):
+        raise HTTPException(422, "object_type invalide")
+    if data.object_type != "team" and not data.object_id:
+        raise HTTPException(422, "object_id requis sauf pour team")
+    if len(data.photos) > 3:
+        raise HTTPException(422, "3 photos maximum par message")
+    # Cloisonnement : vérifier accès à l'objet (RBAC + org)
+    if data.object_type == "establishment" and data.object_id:
+        est = await db.establishments.find_one({"id": data.object_id}, {"_id": 0, "org_id": 1})
+        if not est or est.get("org_id") != user["org_id"]:
+            raise HTTPException(403, "Établissement inaccessible")
+    doc = {
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "object_type": data.object_type, "object_id": data.object_id,
+        "author_id": user["id"], "author_name": user.get("name") or user.get("email"),
+        "text": data.text.strip()[:2000],
+        "voice_transcript": data.voice_transcript, "voice_audio_id": data.voice_audio_id,
+        "photos": data.photos[:3],
+        "mentions": data.mentions or [],
+        "due_date": data.due_date,
+        "created_at": now_iso(), "updated_at": now_iso(), "edited": False,
+        "read_by": {},  # user_id -> ISO date (uniquement mentions)
+    }
+    await db.messages.insert_one(doc.copy())
+    # Chaque mention crée un « engagement » daté visible dans la boîte de réception
+    for uid in data.mentions or []:
+        await db.message_actions.insert_one({
+            "id": str(uuid.uuid4()), "org_id": user["org_id"],
+            "message_id": doc["id"], "user_id": uid,
+            "object_type": data.object_type, "object_id": data.object_id,
+            "due_date": data.due_date,
+            "status": "pending", "created_at": now_iso(),
+        })
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/messages")
+async def list_messages(object_type: str, object_id: Optional[str] = None,
+                         limit: int = 100, user=Depends(get_current_user)):
+    """Fil chronologique pour un objet. Cloisonnement org obligatoire."""
+    q = {"org_id": user["org_id"], "object_type": object_type}
+    if object_id:
+        q["object_id"] = object_id
+    docs = await db.messages.find(q, {"_id": 0}).sort("created_at", 1).to_list(min(limit, 500))
+    return docs
+
+
+@api_router.patch("/messages/{mid}")
+async def edit_message(mid: str, data: dict, user=Depends(get_current_user)):
+    """Édition dans les 15 min par l'auteur uniquement."""
+    m = await db.messages.find_one({"id": mid, "org_id": user["org_id"]}, {"_id": 0})
+    if not m:
+        raise HTTPException(404, "Message introuvable")
+    if m["author_id"] != user["id"]:
+        raise HTTPException(403, "Édition réservée à l'auteur")
+    created = datetime.fromisoformat(m["created_at"].replace("Z", "+00:00"))
+    if (datetime.now(timezone.utc) - created).total_seconds() > 900:
+        raise HTTPException(423, "Délai de 15 min dépassé")
+    new_text = (data.get("text") or "").strip()[:2000]
+    await db.messages.update_one({"id": mid}, {"$set": {"text": new_text, "edited": True, "updated_at": now_iso()}})
+    return await db.messages.find_one({"id": mid}, {"_id": 0})
+
+
+@api_router.get("/inbox")
+async def user_inbox(user=Depends(get_current_user)):
+    """Boîte de réception : mentions en attente + fils où je suis concerné."""
+    actions = await db.message_actions.find(
+        {"org_id": user["org_id"], "user_id": user["id"], "status": "pending"},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(100)
+    # Récupère le message associé pour l'aperçu
+    for a in actions:
+        m = await db.messages.find_one({"id": a["message_id"]}, {"_id": 0, "text": 1, "author_name": 1, "voice_transcript": 1})
+        a["preview"] = (m or {}).get("text") or (m or {}).get("voice_transcript") or ""
+        a["author_name"] = (m or {}).get("author_name")
+    return {"pending_mentions": actions, "unread_count": len(actions)}
+
+
+@api_router.post("/messages/{mid}/mark-read")
+async def mark_read(mid: str, user=Depends(get_current_user)):
+    """Accusé de lecture — uniquement sur les mentions."""
+    await db.messages.update_one({"id": mid}, {"$set": {f"read_by.{user['id']}": now_iso()}})
+    await db.message_actions.update_many(
+        {"message_id": mid, "user_id": user["id"], "status": "pending"},
+        {"$set": {"status": "acknowledged", "acknowledged_at": now_iso()}},
+    )
+    return {"ok": True}
+
+
+# === Fin Lot Travail en équipe — Item 1 ===
+
 # === Lot 5 P4 — Phase 1 du découpage de server.py ===
 # Le routeur de télémétrie (/api/errors, /api/csp-report) vit maintenant dans
 # routes/telemetry.py et est monté ici via injection de dépendances (db + helpers
