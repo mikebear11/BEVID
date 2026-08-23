@@ -25,6 +25,23 @@ const QUESTIONS = [
     hint: "gérant ou porteur d'une délégation" },
 ];
 
+// Micro-animation d'entrée (spec finish 23/02) : fade + slide 8px, staggered
+// 60ms par ligne. CSS pur, aucune dépendance ajoutée. `prefers-reduced-motion`
+// respecté via la media query en bas du fichier — les utilisateurs sensibles
+// gardent un rendu instantané, statique.
+const FQ_ANIM_STYLES = `
+@keyframes fqSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fq-line {
+  animation: fqSlideIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fq-line { animation: none; }
+}
+`;
+
 function Initials({ prenom, nom }) {
   const p = (prenom || "").trim();
   const n = (nom || "").trim();
@@ -40,14 +57,17 @@ function Initials({ prenom, nom }) {
   );
 }
 
-function Line({ q, contact, onAssign }) {
+function Line({ q, contact, onAssign, index = 0 }) {
   const Icon = q.icon;
+  // Stagger 60ms : chaque ligne démarre 60ms après la précédente.
+  const style = { animationDelay: `${index * 60}ms` };
   if (!contact) {
     return (
       <button
         type="button"
         onClick={() => onAssign(q.key)}
-        className="flex items-center gap-3 w-full text-left py-2 border-l-2 border-dashed border-stone-300 dark:border-stone-600 pl-2 hover:border-[#4A154B] transition-colors"
+        className="fq-line flex items-center gap-3 w-full text-left py-2 border-l-2 border-dashed border-stone-300 dark:border-stone-600 pl-2 hover:border-[#4A154B] transition-colors"
+        style={style}
         data-testid={`fq-slot-empty-${q.key}`}
       >
         <div className="w-9 h-9 rounded-full border-2 border-dashed border-stone-300 dark:border-stone-600 flex items-center justify-center text-stone-400 shrink-0">
@@ -62,7 +82,7 @@ function Line({ q, contact, onAssign }) {
     );
   }
   return (
-    <div className="flex items-start gap-3 py-2 border-l-2 border-[#4A154B]/40 pl-2" data-testid={`fq-slot-${q.key}`}>
+    <div className="fq-line flex items-start gap-3 py-2 border-l-2 border-[#4A154B]/40 pl-2" style={style} data-testid={`fq-slot-${q.key}`}>
       <Initials prenom={contact.prenom} nom={contact.nom} />
       <div className="flex-1 min-w-0">
         <p className="text-[11px] uppercase tracking-wider text-stone-500 flex items-center gap-1">
@@ -127,6 +147,7 @@ export default function FourQuestions({ establishmentId, onAddContact, refreshKe
 
   return (
     <div className="card-crm p-4" data-testid="four-questions-block">
+      <style>{FQ_ANIM_STYLES}</style>
       {toRequalify && (
         <div
           className="mb-3 p-2 rounded-lg text-xs flex items-start gap-2"
@@ -153,12 +174,13 @@ export default function FourQuestions({ establishmentId, onAddContact, refreshKe
         <div className="text-xs text-stone-500 py-2" data-testid="fq-loading">Chargement…</div>
       ) : (
         <div className="space-y-1">
-          {QUESTIONS.map(q => (
+          {QUESTIONS.map((q, i) => (
             <Line
               key={q.key}
               q={q}
               contact={data?.[q.key] || null}
               onAssign={onAddContact}
+              index={i}
             />
           ))}
         </div>
