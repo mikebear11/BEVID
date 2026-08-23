@@ -4,14 +4,25 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { usePageMeta } from "@/lib/pageMeta";
-import { Users, ChevronRight, ArrowRightLeft, RefreshCcw, Loader2 } from "lucide-react";
+import {
+  Users, ChevronRight, ArrowRightLeft, RefreshCcw, Loader2,
+  AlertTriangle, TrendingDown, Sparkles,
+} from "lucide-react";
 
 /**
  * Vue Portefeuilles commerciaux — Manager & Gérant uniquement.
- * - Liste par commercial (nb clients, commandes 30j)
- * - File "clients non attribués" avec assignation rapide
- * - Réattribution en masse (multi-sélection + dropdown cible)
+ * - Heatmap de charge (rouge=surchargé, ambre=au-dessus, vert=OK, bleu=capacité)
+ * - Suggestions de rééquilibrage en 1 clic
+ * - Réattribution en masse manuelle (multi-sélection + dropdown cible)
  */
+function loadColor(score, wl) {
+  if (!wl || wl.median === 0) return { bg: "bg-stone-50 dark:bg-stone-800", ring: "border-stone-200 dark:border-stone-700", label: "" };
+  if (score > wl.overload_threshold) return { bg: "bg-red-50 dark:bg-red-950/40", ring: "border-red-300 dark:border-red-800", label: "surchargé" };
+  if (score > wl.median) return { bg: "bg-amber-50 dark:bg-amber-950/40", ring: "border-amber-300 dark:border-amber-800", label: "au-dessus" };
+  if (score < wl.underload_threshold) return { bg: "bg-sky-50 dark:bg-sky-950/40", ring: "border-sky-300 dark:border-sky-800", label: "capacité disponible" };
+  return { bg: "bg-emerald-50 dark:bg-emerald-950/40", ring: "border-emerald-200 dark:border-emerald-800", label: "équilibré" };
+}
+
 export default function Portefeuilles() {
   usePageMeta({ title: "Portefeuilles · BEVID" });
   const { user } = useAuth();
@@ -24,6 +35,7 @@ export default function Portefeuilles() {
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [applyingSug, setApplyingSug] = useState(null);
 
   const load = async () => {
     try {
@@ -75,6 +87,24 @@ export default function Portefeuilles() {
     } finally { setBusy(false); }
   };
 
+  const applySuggestion = async (s, idx) => {
+    setApplyingSug(idx);
+    try {
+      const { data } = await api.post("/portfolios/apply-suggestion", {
+        from_user_id: s.from_user_id, to_user_id: s.to_user_id, move_count: s.move_count,
+      });
+      toast.success(`${data.reassigned} client(s) déplacé(s) vers ${data.to?.name || "—"}`);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Application impossible");
+    } finally { setApplyingSug(null); }
+  };
+
+  const maxScore = useMemo(() => {
+    if (!data) return 0;
+    return Math.max(1, ...(data.portfolios || []).map(p => p.workload_score || 0));
+  }, [data]);
+
   if (!isMgr) {
     return <div className="text-stone-500 text-sm p-4" data-testid="portefeuilles-forbidden">
       Réservé aux managers, gérants et owners.
@@ -84,6 +114,7 @@ export default function Portefeuilles() {
 
   const commercials = (data.portfolios || []).filter(p => p.user.role === "commercial");
   const managers = (data.portfolios || []).filter(p => p.user.role !== "commercial");
+  const wl = data.workload || {};
 
   return (
     <div className="space-y-6" data-testid="portefeuilles-page">
@@ -97,28 +128,101 @@ export default function Portefeuilles() {
         </button>
       </div>
 
+      {/* Bandeau charge d'équipe */}
+      {commercials.length >= 2 && wl.median > 0 && (
+        <section className="card-crm p-4" data-testid="workload-summary">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingDown size={16} className="text-[#4A154B]" aria-hidden="true" />
+            <h2 className="font-display text-lg">Charge d'équipe</h2>
+            <span className="text-xs text-stone-500">
+              · médiane {wl.median} client{wl.median > 1 ? "s" : ""} · seuil surcharge {Math.round(wl.overload_threshold)}
+            </span>
+          </div>
+          {(wl.suggestions || []).length === 0 ? (
+            <p className="text-sm text-stone-500">Portefeuilles équilibrés. Aucune suggestion.</p>
+          ) : (
+            <ul className="space-y-2" data-testid="workload-suggestions">
+              {(wl.suggestions || []).map((s, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 p-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 rounded-lg" data-testid={`suggestion-${i}`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Sparkles size={14} className="text-amber-700 dark:text-amber-400" aria-hidden="true" />
+                      <span className="text-sm font-medium">
+                        Déplacer {s.move_count} client{s.move_count > 1 ? "s" : ""} de <b>{s.from_user_name}</b> vers <b>{s.to_user_name}</b>
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">{s.reason}</p>
+                  </div>
+                  <button
+                    onClick={() => applySuggestion(s, i)}
+                    disabled={applyingSug === i}
+                    className="btn-primary text-sm min-h-[36px] px-3 flex items-center gap-1 shrink-0"
+                    data-testid={`apply-suggestion-${i}`}
+                  >
+                    {applyingSug === i ? <Loader2 size={14} className="animate-spin" /> : <ArrowRightLeft size={14} />}
+                    Appliquer
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* Heatmap commerciaux */}
       <section className="card-crm p-4" data-testid="portfolios-list">
         <div className="flex items-center gap-2 mb-3">
           <Users size={16} className="text-[#4A154B]" aria-hidden="true" />
           <h2 className="font-display text-lg">Commerciaux ({commercials.length})</h2>
+          <div className="ml-auto flex items-center gap-3 text-[10px] text-stone-500" aria-label="Légende heatmap">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-sky-300" aria-hidden="true" />Capacité</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-300" aria-hidden="true" />Équilibré</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-300" aria-hidden="true" />Au-dessus</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400" aria-hidden="true" />Surchargé</span>
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {commercials.map(p => (
-            <button
-              key={p.user.id}
-              onClick={() => openDetail(p.user.id)}
-              className="border border-stone-200 dark:border-stone-700 rounded-lg p-3 text-left hover:border-[#4A154B] min-h-[64px] flex items-center justify-between gap-2"
-              data-testid={`portfolio-user-${p.user.id}`}
-            >
-              <div>
-                <p className="font-medium text-sm">{p.user.display_name || p.user.name || p.user.email}</p>
-                <p className="text-xs text-stone-500">
-                  {p.clients_count} client{p.clients_count > 1 ? "s" : ""} · {p.orders_last_30d} commande{p.orders_last_30d > 1 ? "s" : ""} 30j
-                </p>
-              </div>
-              <ChevronRight size={16} className="text-stone-400" aria-hidden="true" />
-            </button>
-          ))}
+          {commercials.map(p => {
+            const c = loadColor(p.workload_score || 0, wl);
+            const width = maxScore ? Math.max(4, Math.round((p.workload_score / maxScore) * 100)) : 0;
+            const isOverloaded = wl.overloaded_ids?.includes(p.user.id);
+            return (
+              <button
+                key={p.user.id}
+                onClick={() => openDetail(p.user.id)}
+                className={`border ${c.ring} ${c.bg} rounded-lg p-3 text-left hover:opacity-90 min-h-[76px] transition-colors`}
+                data-testid={`portfolio-user-${p.user.id}`}
+                aria-label={`Portefeuille de ${p.user.name}, ${p.clients_count} clients, ${c.label}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate flex items-center gap-1">
+                      {isOverloaded && <AlertTriangle size={12} className="text-red-600 shrink-0" aria-hidden="true" />}
+                      {p.user.display_name || p.user.name || p.user.email}
+                    </p>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      {p.clients_count} client{p.clients_count > 1 ? "s" : ""} · {p.orders_last_30d} commande{p.orders_last_30d > 1 ? "s" : ""} 30j
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="text-stone-400 shrink-0" aria-hidden="true" />
+                </div>
+                {/* Barre de charge */}
+                <div className="mt-2 h-1.5 bg-white/60 dark:bg-black/30 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${
+                      c.label === "surchargé" ? "bg-red-500" :
+                      c.label === "au-dessus" ? "bg-amber-500" :
+                      c.label === "capacité disponible" ? "bg-sky-500" : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${width}%` }}
+                    aria-hidden="true"
+                    data-testid={`workload-bar-${p.user.id}`}
+                  />
+                </div>
+                {c.label && <p className="text-[10px] text-stone-500 mt-1 capitalize">{c.label}</p>}
+              </button>
+            );
+          })}
           {commercials.length === 0 && <p className="text-sm text-stone-500">Aucun commercial actif.</p>}
         </div>
         {managers.length > 0 && (

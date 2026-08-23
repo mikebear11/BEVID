@@ -1,11 +1,9 @@
 /**
  * Web Push helpers — abonnement navigateur, opt-in strict.
- * VAPID public key doit venir du backend, sinon utilise une clé de démo.
- * Note : sans VAPID configuré côté serveur, les envois retomberont en "simulé".
+ * Clé publique VAPID récupérée dynamiquement depuis le backend (source unique
+ * de vérité). Si le serveur n'a pas de clé, l'option est proposée en mode dégradé.
  */
 import { api } from "./api";
-
-const DEMO_VAPID_PUBLIC = process.env.REACT_APP_VAPID_PUBLIC_KEY || "";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -21,20 +19,32 @@ export function pushSupported() {
     "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+async function fetchVapidPublic() {
+  try {
+    const { data } = await api.get("/notifications/vapid-public-key");
+    return data.public_key || null;
+  } catch { return null; }
+}
+
 export async function subscribePush() {
   if (!pushSupported()) throw new Error("Push non supporté sur ce navigateur");
   const reg = await navigator.serviceWorker.ready;
   const perm = await Notification.requestPermission();
   if (perm !== "granted") throw new Error("Permission refusée");
-  if (!DEMO_VAPID_PUBLIC) {
-    // Pas de VAPID → on marque l'opt-in côté serveur mais pas d'endpoint réel.
-    await api.put("/notifications/preferences", { push_enabled: true });
-    return { ok: true, simulated: true };
+  const publicKey = await fetchVapidPublic();
+  if (!publicKey) {
+    // Serveur sans VAPID → on marque l'opt-in mais pas d'envoi possible.
+    await api.put("/notifications/preferences", { push_enabled: true }).catch(() => {});
+    return { ok: true, simulated: true, reason: "no_vapid" };
   }
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(DEMO_VAPID_PUBLIC),
-  });
+  // Réutilise l'abonnement existant si présent
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  }
   const raw = sub.toJSON();
   await api.post("/notifications/push-subscribe", {
     endpoint: raw.endpoint,
@@ -51,4 +61,10 @@ export async function unsubscribePush() {
   } catch { /* silencieux */ }
   await api.delete("/notifications/push-subscribe").catch(() => {});
   return { ok: true };
+}
+
+/** Envoi un test au user courant. Retour {ok, simulated?}. */
+export async function sendTestPush() {
+  const { data } = await api.post("/notifications/test-push");
+  return data;
 }

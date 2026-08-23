@@ -11974,6 +11974,68 @@ async def cron_weekly_review_monday(request: Request):
 
 
 # --- Item 8 : Portefeuilles commerciaux ---
+def _analyze_workload(portfolios: list) -> dict:
+    """Analyse de charge sur les COMMERCIAUX uniquement.
+    - workload_score = clients_count (charge statique, la plus lisible pour le manager).
+    - médiane calculée sur les commerciaux actifs avec ≥ 1 client (les tout-neufs à 0 ne
+      biaisent pas la médiane vers le bas).
+    - overloaded : score > 1.5 × médiane ET écart ≥ 3 clients (évite les faux positifs
+      quand la médiane est très petite).
+    - underloaded : score < 0.7 × médiane (a de la capacité).
+    - suggestions : pour chaque overloaded, propose le commercial le moins chargé (avec
+      capacité > 0). `move_count` = min(excès / 2, capacité disponible, cap dur 10).
+    """
+    comm = [p for p in portfolios if p["user"].get("role") == "commercial"]
+    if len(comm) < 2:
+        return {"median": 0, "overload_threshold": 0, "underload_threshold": 0,
+                "overloaded": [], "underloaded": [], "suggestions": []}
+    scores_pos = sorted([p["clients_count"] for p in comm if p["clients_count"] > 0])
+    if not scores_pos:
+        return {"median": 0, "overload_threshold": 0, "underload_threshold": 0,
+                "overloaded": [], "underloaded": [], "suggestions": []}
+    n = len(scores_pos)
+    median = scores_pos[n // 2] if n % 2 == 1 else (scores_pos[n // 2 - 1] + scores_pos[n // 2]) / 2
+    overload_threshold = max(median * 1.5, median + 3)
+    underload_threshold = median * 0.7
+    overloaded = sorted(
+        [p for p in comm if p["clients_count"] > overload_threshold],
+        key=lambda p: -p["clients_count"],
+    )
+    underloaded = sorted(
+        [p for p in comm if p["clients_count"] < underload_threshold],
+        key=lambda p: p["clients_count"],
+    )
+    suggestions = []
+    # Copies mutables pour distribuer sans double-affectation d'un même destinataire.
+    remaining_capacity = {p["user"]["id"]: max(0, int(median - p["clients_count"])) for p in underloaded}
+    for src in overloaded:
+        excess = int(src["clients_count"] - median)
+        # Trouve le moins chargé avec de la capacité restante
+        candidates = [p for p in underloaded if remaining_capacity.get(p["user"]["id"], 0) > 0]
+        if not candidates:
+            break
+        target = min(candidates, key=lambda p: p["clients_count"])
+        move_count = min(excess // 2 + 1, remaining_capacity[target["user"]["id"]], 10)
+        if move_count <= 0:
+            continue
+        suggestions.append({
+            "from_user_id": src["user"]["id"],
+            "from_user_name": src["user"].get("display_name") or src["user"].get("name"),
+            "to_user_id": target["user"]["id"],
+            "to_user_name": target["user"].get("display_name") or target["user"].get("name"),
+            "move_count": move_count,
+            "reason": f"{src['clients_count']} clients (médiane {median:g}) → allègement suggéré",
+        })
+        remaining_capacity[target["user"]["id"]] -= move_count
+    return {
+        "median": median, "overload_threshold": overload_threshold,
+        "underload_threshold": underload_threshold,
+        "overloaded_ids": [p["user"]["id"] for p in overloaded],
+        "underloaded_ids": [p["user"]["id"] for p in underloaded],
+        "suggestions": suggestions,
+    }
+
+
 @api_router.get("/portfolios")
 async def list_portfolios(user=Depends(get_current_user)):
     if user["role"] not in ("manager", "gerant", "owner"):
@@ -11993,11 +12055,53 @@ async def list_portfolios(user=Depends(get_current_user)):
         orders_last_30d = await db_raw.orders.count_documents(
             {"org_id": org_id, "agent_id": u["id"], "created_at": {"$gte": since}}
         )
-        portfolios.append({"user": u, "clients_count": clients_count, "orders_last_30d": orders_last_30d})
+        portfolios.append({
+            "user": u, "clients_count": clients_count, "orders_last_30d": orders_last_30d,
+            "workload_score": clients_count,
+        })
     unassigned = await db_raw.establishments.count_documents(
         {"org_id": org_id, "$or": [{"assigned_to": None}, {"assigned_to": {"$exists": False}}, {"assigned_to": ""}]},
     )
-    return {"portfolios": portfolios, "unassigned_count": unassigned}
+    analysis = _analyze_workload(portfolios)
+    return {"portfolios": portfolios, "unassigned_count": unassigned, "workload": analysis}
+
+
+@api_router.post("/portfolios/apply-suggestion")
+async def apply_workload_suggestion(data: dict, user=Depends(get_current_user)):
+    """Applique une suggestion en 1 clic : réattribue les N clients les plus récemment
+    créés du portefeuille source vers la cible. Contrainte : from et to dans même org,
+    tous 2 actifs, manager only. Idempotent au sens Mongo (update_many)."""
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Manager/gérant only")
+    from_uid = (data or {}).get("from_user_id")
+    to_uid = (data or {}).get("to_user_id")
+    move_count = int((data or {}).get("move_count") or 0)
+    if not from_uid or not to_uid or move_count <= 0 or move_count > 100:
+        raise HTTPException(422, "Paramètres invalides")
+    target = await db_raw.users.find_one(
+        {"id": to_uid, "org_id": user["org_id"], "active": True}, {"_id": 0, "id": 1, "name": 1},
+    )
+    if not target:
+        raise HTTPException(404, "Utilisateur cible introuvable")
+    # Prend les N derniers clients affectés au commercial source
+    to_move = await db_raw.establishments.find(
+        {"org_id": user["org_id"], "assigned_to": from_uid},
+        {"_id": 0, "id": 1},
+    ).sort("created_at", -1).to_list(move_count)
+    ids = [d["id"] for d in to_move]
+    if not ids:
+        return {"reassigned": 0, "to": target}
+    res = await db_raw.establishments.update_many(
+        {"id": {"$in": ids}, "org_id": user["org_id"]},
+        {"$set": {"assigned_to": to_uid, "reassigned_by": user["id"], "reassigned_at": now_iso()}},
+    )
+    await db_raw.audit_logs.insert_one({
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "kind": "portfolio_reassign_suggestion", "actor_id": user["id"],
+        "from_user_id": from_uid, "target_user_id": to_uid,
+        "count": res.modified_count, "at": now_iso(),
+    })
+    return {"reassigned": res.modified_count, "to": target}
 
 
 @api_router.get("/portfolios/user/{uid}")
@@ -12061,6 +12165,112 @@ async def portfolios_reassign(data: ReassignRequest, user=Depends(get_current_us
     return {"reassigned": res.modified_count, "to": target}
 
 # === Fin Lot Travail équipe items 4/5/7/8/12 ===
+
+
+# === Lot Fiabilité PWA (23/02/2026) : VAPID auto-gen + notifications de test ===
+# Génère une paire de clés VAPID au premier démarrage si absente. Aucune clé à
+# demander à l'utilisateur — c'est un secret serveur.
+async def _ensure_vapid_keys() -> dict:
+    """Retourne {public, private, subject}. Persiste dans db.system_settings si
+    absent. Idempotent. Utilise py-vapid (dépendance de pywebpush)."""
+    doc = await db_raw.system_settings.find_one({"key": "vapid_keys"}, {"_id": 0})
+    if doc and doc.get("public") and doc.get("private"):
+        return doc
+    try:
+        from py_vapid import Vapid01 as _Vapid
+        v = _Vapid()
+        v.generate_keys()
+        # Sortie base64url standard (utilisable par pushManager.subscribe)
+        from py_vapid.utils import b64urlencode
+        public = b64urlencode(
+            v.public_key.public_bytes(
+                __import__("cryptography").hazmat.primitives.serialization.Encoding.X962,
+                __import__("cryptography").hazmat.primitives.serialization.PublicFormat.UncompressedPoint,
+            )
+        )
+        private = b64urlencode(
+            v.private_key.private_numbers().private_value.to_bytes(32, "big")
+        )
+    except Exception as e:
+        logger.warning("[vapid] generation failed: %s", str(e)[:200])
+        return {"public": None, "private": None, "subject": None}
+    subject = os.environ.get("VAPID_SUBJECT", "mailto:noreply@bevidcrm.fr")
+    doc = {"key": "vapid_keys", "public": public, "private": private,
+            "subject": subject, "created_at": now_iso()}
+    await db_raw.system_settings.replace_one({"key": "vapid_keys"}, doc, upsert=True)
+    logger.info("[vapid] paire de clés générée et persistée (%d chars public)", len(public or ""))
+    return doc
+
+
+@app.on_event("startup")
+async def _startup_vapid():
+    try:
+        await _ensure_vapid_keys()
+    except Exception as e:
+        logger.warning("[vapid] startup skipped: %s", str(e)[:200])
+
+
+@api_router.get("/notifications/vapid-public-key")
+async def get_vapid_public_key():
+    """Endpoint public : le navigateur en a besoin pour souscrire via
+    `pushManager.subscribe({applicationServerKey})`. Ce n'est PAS un secret."""
+    doc = await _ensure_vapid_keys()
+    pub = doc.get("public")
+    if not pub:
+        raise HTTPException(503, "Notifications push non configurées")
+    return {"public_key": pub}
+
+
+# Surcharge `_try_send_push` pour utiliser les clés persistées si les env VAPID
+# ne sont pas définies. Le mode env garde la priorité (permet override manuel).
+_orig_try_send_push = _try_send_push  # référence originale conservée pour compat
+
+async def _try_send_push(user_id: str, kind: str, payload: dict) -> dict:  # noqa: F811
+    u = await db_raw.users.find_one({"id": user_id}, {"_id": 0, "push_subscription": 1, "notif_level_prefs": 1})
+    prefs = ((u or {}).get("notif_level_prefs") or {})
+    if not prefs.get("push_enabled"):
+        return {"ok": False, "reason": "push_disabled"}
+    sub = (u or {}).get("push_subscription")
+    if not sub:
+        return {"ok": False, "reason": "no_subscription"}
+    # Priorité env > DB
+    vapid_priv = os.environ.get("VAPID_PRIVATE_KEY")
+    vapid_sub = os.environ.get("VAPID_SUBJECT", "mailto:noreply@bevidcrm.fr")
+    if not vapid_priv:
+        doc = await db_raw.system_settings.find_one({"key": "vapid_keys"}, {"_id": 0})
+        if doc:
+            vapid_priv = doc.get("private")
+            vapid_sub = doc.get("subject") or vapid_sub
+    if not vapid_priv:
+        logger.info("[push] simulate → user=%s kind=%s (no vapid)", user_id[:8], kind)
+        return {"ok": True, "simulated": True}
+    try:
+        from pywebpush import webpush
+        webpush(
+            subscription_info={"endpoint": sub["endpoint"], "keys": sub["keys"]},
+            data=_json_notif.dumps({"kind": kind, **payload})[:4000],
+            vapid_private_key=vapid_priv,
+            vapid_claims={"sub": vapid_sub},
+        )
+        return {"ok": True}
+    except Exception as e:
+        logger.warning("[push] error user=%s: %s", user_id[:8], str(e)[:200])
+        return {"ok": False, "reason": str(e)[:200]}
+
+
+@api_router.post("/notifications/test-push")
+async def send_test_push(user=Depends(get_current_user)):
+    """Envoie une notification de test au user courant. Utile depuis l'écran
+    de diagnostic PWA. Ignore le silence — c'est un déclenchement manuel."""
+    r = await _try_send_push(user["id"], "test",
+                              {"title": "BEVID · Test",
+                               "body": "Les notifications fonctionnent sur cet appareil.",
+                               "url": "/"})
+    return {"ok": r.get("ok", False), "simulated": r.get("simulated", False),
+            "reason": r.get("reason")}
+
+
+# === Fin Lot Fiabilité PWA ===
 
 
 # === Lot 5 P4 — Phase 1 du découpage de server.py ===

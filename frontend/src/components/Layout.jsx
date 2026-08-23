@@ -14,6 +14,7 @@ import {
   Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText, Landmark, Compass,
   Radio, AlertOctagon, Shield, Database, Search, ChevronDown, Truck, Pin, PinOff,
   User as UserIcon, RotateCcw, GripVertical, PanelLeftClose, PanelLeftOpen, Lock,
+  Smartphone,
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import InboxDropdown from "@/components/InboxDropdown";
@@ -87,6 +88,7 @@ const SECTIONS = [
     { to: "/admin/users",       key: "users",        feature: "page:users",         icon: Users },
     { to: "/portefeuilles",     key: "portfolios",   feature: "manager_only",       icon: Users },
     { to: "/approvals",         key: "approvals",    feature: null,                 icon: ClipboardCheck },
+    { to: "/pwa-status",        key: "pwa_status",   feature: null,                 icon: Smartphone },
     { to: "/admin/permissions", key: "permissions",  feature: "page:users",         icon: ShieldCheck },
     { to: "/connectors",        key: "connectors",   feature: "page:integrations",  icon: Plug },
     { to: "/org/settings",      key: "org_settings", feature: "manager_only",       icon: SettingsIcon },

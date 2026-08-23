@@ -23,6 +23,7 @@ import { PermProvider } from "@/contexts/PermContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import UpdateBanner from "@/components/UpdateBanner";
 import PostHogConsent from "@/components/PostHogConsent";
+import PwaInstallBanner from "@/components/PwaInstallBanner";
 import Layout from "@/components/Layout";
 
 // Publiques : chargées immédiatement (petites, indispensables au démarrage)
@@ -88,6 +89,7 @@ const CompanyDetail = lazy(() => import("@/pages/CompanyDetail"));
 const ImportIntelligent = lazy(() => import("@/pages/ImportIntelligent"));
 const Portefeuilles = lazy(() => import("@/pages/Portefeuilles"));
 const Approvals = lazy(() => import("@/pages/Approvals"));
+const PwaDiagnostics = lazy(() => import("@/pages/PwaDiagnostics"));
 const LegalMentions = lazy(() => import("@/pages/LegalMentions"));
 const LegalCGV = lazy(() => import("@/pages/LegalCGV"));
 const LegalCGU = lazy(() => import("@/pages/LegalCGU"));
@@ -181,6 +183,7 @@ function App() {
                         <Route path="/import" element={<Protected><ImportIntelligent /></Protected>} />
                         <Route path="/portefeuilles" element={<Protected><Portefeuilles /></Protected>} />
                         <Route path="/approvals" element={<Protected><Approvals /></Protected>} />
+                        <Route path="/pwa-status" element={<Protected><PwaDiagnostics /></Protected>} />
                         <Route path="/activate/:token" element={<Activate />} />
                         <Route path="/legal/mentions-legales" element={<LegalMentions />} />
                         <Route path="/legal/cgv" element={<LegalCGV />} />
@@ -194,6 +197,7 @@ function App() {
                   <Toaster position="top-right" />
                   <UpdateBanner />
                   <PostHogConsent />
+                  <PwaInstallBanner />
                 </ConfirmProvider>
               </PermProvider>
             </AuthProvider>

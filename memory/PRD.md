@@ -1582,3 +1582,73 @@ Ajout complet des pages légales exigées pour la conformité française (RGPD, 
 - `digest-afternoon` : `0 14 * * *`
 - `approval-reminders` : `0 9,15 * * *`
 - `weekly-review-monday` : `0 7 * * 1`
+
+
+## Lot Travail en équipe · Item 8bis — Équilibrage charge portefeuille (23/02/2026)
+
+### Backend (append `_analyze_workload` dans `/api/portfolios`)
+- `workload_score` = `clients_count` (charge statique lisible sans context supplémentaire).
+- **Médiane** calculée sur les commerciaux avec ≥ 1 client (les nouveaux à 0 ne biaisent pas).
+- **Overload threshold** = `max(médiane × 1.5, médiane + 3)` — évite les faux positifs quand la médiane est basse.
+- **Underload threshold** = `médiane × 0.7` (capacité restante).
+- **Suggestions** algorithme greedy : pour chaque surchargé, cible le moins chargé avec capacité, `move_count = min(excès/2 + 1, capacité, cap dur 10)`.
+- Retourne `{median, overload_threshold, underload_threshold, overloaded_ids, underloaded_ids, suggestions[]}`.
+- **Endpoint `POST /api/portfolios/apply-suggestion`** — 1 clic : réattribue les N clients les plus récents du source vers la cible. Audit log inséré (`kind=portfolio_reassign_suggestion`).
+
+### Frontend `Portefeuilles.jsx`
+- Nouveau bandeau **« Charge d'équipe »** en tête : médiane, seuil, liste des suggestions avec bouton « Appliquer » (icône `Sparkles`).
+- **Heatmap** : chaque carte commercial reçoit un `bg` teinté selon la charge — bleu (capacité), vert (équilibré), ambre (au-dessus), rouge (surchargé). Barre horizontale de 4-100% de la charge maximale visible.
+- Icône `AlertTriangle` sur les cartes surchargées + label texte sous la barre.
+- Légende accessible en tête de section (aria-label).
+
+### Tests (2 nouveaux)
+- `test_portfolios_workload_analysis` : shape complète du champ `workload` dans /portfolios.
+- `test_workload_analysis_helper` : scénario contrôlé Alice=30/Bob=1/Charlie=10/David=10 → suggestion Alice→Bob avec `move_count > 0`.
+- `test_apply_workload_suggestion_authz` : commercial → 403.
+
+Tests suite complète : **14/14 pytest verts**.
+
+
+## Lot Fiabilité PWA (23/02/2026) — prioritaire, avant Travail équipe
+
+### 1. Stockage persistant (priorité 1)
+- **`lib/pwa.js`** : `requestPersistentStorage()`, `isPersistentStorage()`, `estimateQuota()`, `purgeIfQuotaHigh()`, `pwaDiagnostics()`.
+- **Enchaîné dans `AuthContext.login`/`register`** — appel non bloquant après connexion. Sur iOS, `persist()` refuse tant que la permission notification n'est pas accordée : l'UI `/pwa-status` guide l'enchaînement.
+- **Purge défensive à 80 % du quota** : supprime les `voice_recordings` déjà synchronisés + les `tour_briefs` datant de >7 jours. **File d'envoi (`sync_queue` pending + `message_outbox` pending) INTOUCHABLE** — c'est du travail non enregistré.
+
+### 2. Notifications terminées (VAPID auto-gen)
+- **`_ensure_vapid_keys()`** au démarrage : génère paire VAPID via `py_vapid` + `cryptography`, persiste dans `db.system_settings.key='vapid_keys'`. Idempotent. Zéro clé à demander à l'utilisateur.
+- **`GET /api/notifications/vapid-public-key`** : endpoint public retournant la clé publique base64url pour `pushManager.subscribe`.
+- **`POST /api/notifications/test-push`** : envoi test au user courant, ignore silence (déclenchement manuel).
+- **`_try_send_push` surchargée** : prend en compte les clés DB si les env `VAPID_PRIVATE_KEY` sont absentes. Priorité env > DB.
+- **`lib/push.js` refondu** : `subscribePush()` fetch la clé publique dynamiquement, réutilise l'abonnement navigateur existant, retombe en mode simulé si serveur sans VAPID.
+- **Désabonnement à la déconnexion** : `AuthContext.logout` appelle `unsubscribePush()` avant de purger la session → l'ancien appareil ne reçoit plus les notifs.
+
+### 3. Manifest — shortcuts + screenshots
+- **3 raccourcis** appui long sur l'icône : `/tournee` (Ma tournée), `/visit` (Nouvelle visite), `/scan` (Scanner).
+- **2 screenshots** au format `narrow` pour la fenêtre d'installation Android.
+- `orientation: "portrait"` conservé (adapté à la cible mobile — à évaluer si tablette devient un vrai cas d'usage).
+
+### 4. Rappel d'installation
+- **`PwaInstallBanner.jsx`** monté globalement dans `App.js`. S'affiche uniquement si `!isStandalone()` && `!installDismissed()`. Android/Chrome/Edge : bouton natif via `beforeinstallprompt`. iOS : instructions manuelles Partager → Sur l'écran d'accueil.
+- Persistance de refus dans `localStorage.bevid_install_dismissed`.
+
+### 5. Écran de diagnostic `/pwa-status`
+- **6 lignes lecture seule** avec pastille verte/rouge/grise :
+  - Application installée
+  - Stockage persistant accordé
+  - Notifications (Accordées / Refusées / Non demandées)
+  - Espace utilisé sur quota (Mo / Mo · %)
+  - Date du dernier instantané hors-ligne
+  - Nombre d'éléments en attente de synchronisation (dont messages)
+- **4 actions** : Demander le stockage persistant · Activer les notifications · Envoyer notification de test · Nettoyer les anciens instantanés (préserve la file).
+- Rafraîchissement automatique toutes les 30 s.
+- Accessible via nav sidebar section Administration (icône `Smartphone`).
+
+### Preuves runtime (23 août 2026)
+- `GET /api/notifications/vapid-public-key` : `{"public_key":"BP_UCARSE8xZM7F2ORkC1EwaxKjriWws0ttCs3mAiQDUg8VdUuviMKKle_qwr_VaR92aBQ69UdKnTkaSOTgA5PY"}` — clé bien générée en base
+- `POST /api/notifications/test-push` (sans subscription) : `{"ok":false,"reason":"push_disabled"}` — comportement attendu
+- pywebpush 2.4.0 + py-vapid 1.9.4 ajoutés à requirements.txt
+
+### Scénario critique (à valider par l'utilisateur sur un vrai iPhone)
+Installer via Partager → Sur l'écran d'accueil, se connecter, activer notifications + persist, couper le réseau, saisir une visite, fermer l'app, rouvrir hors réseau → **la visite doit être là et partir à la reconnexion**. La file `message_outbox` + `sync_queue` (Dexie IndexedDB) survit dès que le stockage persistant est accordé.

@@ -251,6 +251,7 @@ function wrapWith404AndHeaders(devServerConfig) {
     /^\/import$/,
     /^\/portefeuilles$/,
     /^\/approvals$/,
+    /^\/pwa-status$/,
     /^\/legal\/mentions-legales$/,
     /^\/legal\/cgv$/,
     /^\/legal\/cgu$/,

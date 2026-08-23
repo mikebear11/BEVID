@@ -171,6 +171,50 @@ def test_weekly_review_generate_and_patch(mgr_token):
         assert r2.json()["notes"] == "Semaine test"
 
 
+def test_portfolios_workload_analysis(mgr_token):
+    with httpx.Client(base_url=API, timeout=15.0) as c:
+        r = c.get("/portfolios", headers=_h(mgr_token))
+        assert r.status_code == 200
+        data = r.json()
+        assert "workload" in data
+        wl = data["workload"]
+        for k in ("median", "overload_threshold", "underload_threshold", "suggestions"):
+            assert k in wl, f"clé manquante {k}"
+
+
+def test_workload_analysis_helper():
+    """Test unitaire du _analyze_workload sur des scénarios contrôlés."""
+    import sys
+    sys.path.insert(0, "/app/backend")
+    from server import _analyze_workload
+
+    def mk(uid, name, count):
+        return {"user": {"id": uid, "name": name, "role": "commercial"}, "clients_count": count, "orders_last_30d": 0}
+
+    # Cas 1 : équilibré → pas de suggestion
+    ports = [mk("a", "A", 10), mk("b", "B", 12), mk("c", "C", 11)]
+    r = _analyze_workload(ports)
+    assert r["suggestions"] == [], f"Attendu 0 suggestion, reçu {r['suggestions']}"
+
+    # Cas 2 : Alice surchargée (30), Bob très sous-chargé (1), Charlie et David en équilibre (10)
+    ports2 = [mk("alice", "Alice", 30), mk("bob", "Bob", 1), mk("charlie", "Charlie", 10), mk("david", "David", 10)]
+    r2 = _analyze_workload(ports2)
+    assert len(r2["suggestions"]) >= 1, f"Attendu ≥1 suggestion, workload={r2}"
+    s = r2["suggestions"][0]
+    assert s["from_user_id"] == "alice"
+    assert s["to_user_id"] == "bob"  # le moins chargé
+    assert s["move_count"] > 0
+    assert "alice" in r2["overloaded_ids"]
+    assert "bob" in r2["underloaded_ids"]
+
+
+def test_apply_workload_suggestion_authz(com_token):
+    with httpx.Client(base_url=API, timeout=15.0) as c:
+        r = c.post("/portfolios/apply-suggestion", headers=_h(com_token),
+                    json={"from_user_id": "x", "to_user_id": "y", "move_count": 1})
+        assert r.status_code == 403
+
+
 def test_cron_endpoints_no_auth():
     """Les cron endpoints doivent répondre 200 sans auth (invoqués par la plateforme)."""
     with httpx.Client(base_url=API, timeout=15.0) as c:

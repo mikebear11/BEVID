@@ -1,0 +1,45 @@
+{
+  "summary": "E2E frontend test of teamwork Lot items (approvals + inbox + portefeuilles heatmap + notif prefs + weekly review). Result: 6/8 flows PASS, 1 FAIL (manager inbox mention missing), 1 partial (notif defaults differ from spec). CRITICAL INGRESS BUG DISCOVERED: /approvals and /portefeuilles return 404 on direct navigation (raw index.html shell without JS bundle) — only client-side <Link> navigation works, so any hard refresh / shared link / deep-link to those routes crashes UX. All other pages tested (/, /login, /tournee, /clients, /orders, /stock, /paiements, /settings, /profile, /reports, /products) return 200.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/approvals notification pipeline", "issue": "After commercial creates an approval, the target manager (Marie M., owner) sees NO inbox mention and NO unread badge, yet the approval is visible in /approvals pending. Panel shows 'Aucune mention en attente'. Spec expects mention '[Validation demandée · remise]'. Commercial DOES receive the return mention '[Validation approved · remise]' correctly, so the return leg works but the outbound-to-approver leg does not."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "InboxDropdown.jsx (line 76-78)", "issue": "React hydration warning: <a> nested inside <a>. inbox-item Link (li -> Link to='/') is rendered inside the profile nav Link (a href='/profile') — invalid HTML. Reproducible on every login when badge > 0.", "selector": "[data-testid^='inbox-item-']", "priority": "MEDIUM"},
+      {"component": "NotificationSettings defaults", "issue": "Spec: silence_start='20:00', silence_end='08:00'. Actual defaults observed for manager: silence_start='22:00', silence_end='07:00' (silence_sundays checked = OK). Persistence works (21:00 saved and reloaded correctly), only initial default values differ from PRD.", "selector": "[data-testid=notif-silence-start]", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Deep-link / hard-refresh navigation to /approvals and /portefeuilles", "issue": "GET /approvals and GET /portefeuilles from ingress return HTTP 404 with raw unprocessed index.html template (contains literal '%PUBLIC_URL%' placeholders, no /static/js/bundle.js script tag). Root cause: SPA history-fallback whitelist on the ingress/edge does not include these two new routes. Impact: users cannot reload the page, bookmark, or share a link to these views. Client-side <Link> navigation from a route that IS whitelisted works fine — that is how we validated all functional flows.", "affected_selectors": ["/approvals direct GET", "/portefeuilles direct GET"]},
+      {"flow": "Manager approval inbox mention", "issue": "See backend_issues.minor above — the outbound '[Validation demandée · remise]' mention is not delivered to the manager's inbox panel."}
+    ],
+    "design_issues": [
+      {"screen": "Portefeuilles heatmap", "issues": ["Legend renders all 4 keywords (Capacité/Équilibré/Au-dessus/Surchargé). With demo data (1 commercial has 4 clients, others 0) no overload → suggestions banner correctly hidden with message 'Portefeuilles équilibrés. Aucune suggestion.' as documented."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_24.json"],
+  "action_items": [
+    "P0 INGRESS: whitelist /approvals and /portefeuilles (and any future new routes) in the SPA history-fallback config so direct navigation / hard refresh return the full built index.html with the /static/js/bundle.js tag. Curl comparison: /tournee -> 200 (has bundle.js), /approvals -> 404 (raw template with %PUBLIC_URL%).",
+    "P1 BACKEND: investigate why /api/approvals POST does not create an inbox mention for the assigned approver (manager). The reverse path (approver -> requester on approve) works. Likely a missing @mention insert or a wrong recipient user_id when kind='remise' with no establishment_id (context.pct only).",
+    "P2 FRONTEND: fix InboxDropdown.jsx line 76-78 — the inbox-item <Link to='/'> is rendered as a descendant of the profile nav <a href='/profile'>. Move the InboxDropdown out of the profile Link OR change the profile wrapper from <a>/<Link> to a <button>.",
+    "P3 UX: align default notif silence window with PRD (start=20:00, end=08:00) OR update PRD to match current defaults (22:00/07:00)."
+  ],
+  "critical_code_review_comments": [
+    "SPA route whitelist should be dynamic (regex-based on any authenticated path) rather than a hand-maintained list — this is the second time a new route ships broken on direct navigation (see iteration_22 /paiements-related notes).",
+    "InboxDropdown is inserted inside a Link/anchor in Layout.jsx creating nested <a> — anchors should never contain other interactive anchors. Extract the dropdown to a sibling of the profile link.",
+    "Approvals mention creation should assert a mention row is created for the approver in the same transaction as the approval; a backend integration test with a fresh approval + inbox check would catch this regression."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only scope)", "frontend": "TEST1 PASS, TEST2 FAIL (mention not delivered), TEST3 PASS, TEST4 PASS, TEST5 PASS, TEST6 SKIPPED (no unassigned clients in demo data), TEST7 PASS (persistence OK; defaults differ from PRD), TEST8 PASS (page loads; card not visible = expected non-Monday). 6/8 flows fully green."},
+  "test_credentials": "manager.demo@bevidcrm.fr / Manager!2026Demo | commercial.demo@bevidcrm.fr / Commercial!2026Demo — both login OK",
+  "seed_data_creation": "Created 1 pending approval (kind=remise, pct=10, motif='Test E2E fidelite') then approved it during flow — leaves 4 approved '[Validation approved · remise]' in commercial inbox and 4 unassigned-list pending 'Avoir' approvals still En attente. Additional test data from prior runs already exists.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "IMPORTANT: /approvals and /portefeuilles cannot be reached by page.goto() — they return 404 with the raw index.html template (curl proves it). To test these routes with Playwright, use a client-side navigation trick: login/land on / (or /tournee), then execute `window.history.pushState({}, '', '/approvals'); window.dispatchEvent(new PopStateEvent('popstate'))`. That is what made the tests pass. Also, on first login as manager an onboarding tour modal appears and blocks approval-new-submit — dismiss it via the X button (svg.lucide-x inside a button) before interacting. Manager inbox showed 'Aucune mention en attente' even after commercial submitted a new remise approval — confirmed backend gap. Commercial return mention '[Validation approved · remise]' works fine (badge=4 after approve).",
+  "rca_of_the_issue": {
+    "route_404": "The frontend ingress (or webpack dev server historyApiFallback config) enumerates SPA routes explicitly. Routes /approvals and /portefeuilles were added to React Router (App.js lines 182-183) but not to the ingress whitelist. curl -s /approvals returns the raw public/index.html template (7572 bytes with literal '%PUBLIC_URL%' placeholders and NO /static/js/bundle.js) with HTTP 404. Fix: add these routes (or a wildcard/regex) to the ingress SPA fallback list so any unmatched authenticated path falls back to the compiled index.html with the bundle script tag injected.",
+    "manager_mention_missing": "After POST /approvals succeeds and creates the approval visible to the manager in /approvals list, no @mention row is inserted for that manager. Verified by checking [data-testid=inbox-badge] absent and panel innerText = 'Aucune mention en attente.' on Marie M. account. The reverse (approver -> requester on PATCH /approvals/{id} status=approved) does insert the mention correctly (commercial badge shows 4, panel lists the entries)."
+  }
+}

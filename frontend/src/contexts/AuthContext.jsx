@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { saveSnapshot, db } from "@/lib/db";
 import { startSyncListener, flushQueue } from "@/lib/syncQueue";
+import { requestPersistentStorage, purgeIfQuotaHigh } from "@/lib/pwa";
 
 const AuthContext = createContext(null);
 
@@ -103,6 +104,10 @@ export function AuthProvider({ children }) {
     await cacheUser(data.user);
     setOfflineMode(false);
     bootstrapOffline();
+    // Lot Fiabilité PWA — demande stockage persistant après connexion (non bloquant).
+    // Sur iOS le navigateur exigera aussi la permission notification ; l'UI /pwa-status
+    // guide l'enchaînement quand persist() renvoie false.
+    requestPersistentStorage().then(() => purgeIfQuotaHigh()).catch(() => {});
     return data.user;
   };
 
@@ -113,10 +118,17 @@ export function AuthProvider({ children }) {
     await cacheUser(data.user);
     setOfflineMode(false);
     bootstrapOffline();
+    requestPersistentStorage().then(() => purgeIfQuotaHigh()).catch(() => {});
     return data.user;
   };
 
   const logout = async () => {
+    // Désabonnement push propre : l'ancien appareil ne doit plus recevoir les
+    // notifications de ce compte.
+    try {
+      const { unsubscribePush } = await import("@/lib/push");
+      await unsubscribePush();
+    } catch { /* silencieux */ }
     try { await api.post("/auth/logout"); } catch { /* silencieux */ }
     clearSession();
     db.meta.delete("cached_user").catch(() => {});
