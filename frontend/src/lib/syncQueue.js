@@ -65,16 +65,46 @@ async function flushVoice() {
   return { flushed, failed };
 }
 
+async function flushMessageOutbox() {
+  const items = await db.message_outbox.where("status").equals("pending").toArray().catch(() => []);
+  let flushed = 0, failed = 0;
+  for (const m of items) {
+    try {
+      const { data } = await api.post("/messages", m.payload);
+      await db.message_outbox.update(m.id, {
+        status: "synced",
+        server_id: data?.id || null,
+        synced_at: new Date().toISOString(),
+      });
+      flushed++;
+      // Notifie l'UI qu'un message a été délivré (le fil peut se recharger)
+      try { window.dispatchEvent(new CustomEvent("bevid:message-delivered", { detail: { local_id: m.id, server_id: data?.id } })); } catch {}
+    } catch (err) {
+      const tries = (m.tries || 0) + 1;
+      if (tries >= 5) {
+        await db.message_outbox.update(m.id, { status: "failed", tries, last_error: err.message });
+        failed++;
+      } else {
+        await db.message_outbox.update(m.id, { tries, last_error: err.message });
+        break;
+      }
+    }
+  }
+  return { flushed, failed };
+}
+
 export async function flushQueue({ onProgress } = {}) {
   if (flushing || (typeof navigator !== "undefined" && !navigator.onLine)) return { flushed: 0 };
   flushing = true;
-  let result = { flushed: 0, failed: 0, conflict: 0, voice_flushed: 0, voice_failed: 0 };
+  let result = { flushed: 0, failed: 0, conflict: 0, voice_flushed: 0, voice_failed: 0, msg_flushed: 0, msg_failed: 0 };
   try {
     const m = await flushMutations();
     const v = await flushVoice();
+    const mo = await flushMessageOutbox();
     result = {
       flushed: m.flushed, failed: m.failed, conflict: m.conflict,
       voice_flushed: v.flushed, voice_failed: v.failed,
+      msg_flushed: mo.flushed, msg_failed: mo.failed,
     };
     onProgress?.(result);
   } finally {

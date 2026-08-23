@@ -1507,3 +1507,78 @@ Ajout complet des pages légales exigées pour la conformité française (RGPD, 
 - Item 4 : Hors-ligne + file d'envoi via Dexie
 - Item 5 : Notifications 3 niveaux + plage silence 20h-8h
 - Items 7-15 : Demandes/validations, portefeuilles, relais, planning équipe, revue hebdo composée, savoir partagé, recherche ⌘K, messages directs (dernier)
+
+
+## Lot Travail en équipe — Items 4, 5, 7, 8, 12 (23/02/2026)
+
+### Item 4 — Hors-ligne robuste (file d'envoi Dexie)
+- `db.js` v4 : nouveau store `message_outbox` (id, at, object_type, object_id, payload, status, tries).
+- **Horodatage capturé à la rédaction** (jamais réécrit à l'envoi). Champ `drafted_at` inséré dans le payload avant enqueue.
+- `MessageThread.jsx` : envoi passe toujours par `enqueueMessage` puis `flushQueue()` non-bloquant. Fil affiche les messages `pending`/`failed` avec badge `⏳ En attente d'envoi` (icône `CloudOff` amber). Rechargement automatique via `CustomEvent bevid:message-delivered` quand un message quitte la file.
+- `syncQueue.js` : nouvelle fonction `flushMessageOutbox` incorporée dans `flushQueue`. Retry auto au retour réseau + 60s interval, jamais perdu même app fermée.
+- `pendingCount` inclut désormais les 3 files (mutations + voix + messages).
+
+### Item 5 — Notifications 3 niveaux + plage silence
+- **3 niveaux configurables par utilisateur** (`GET/PUT /api/notifications/preferences`) :
+  - `mentions_immediate` : @user → notif temps réel (hors silence)
+  - `digest_owned_objects` : résumé 2×/jour (8h + 14h) sur activité de mes objets
+  - `inbox_only_rest` : le reste → inbox seulement, jamais de push
+- **Plage silence obligatoire par défaut** : 20h → 8h + dimanche entier. Personnalisable (`silence_start`, `silence_end`, `silence_sundays`). Fenêtre traversant minuit gérée. Fuseau Paris DST calculé sans pytz.
+- **Notification queue** : `notification_queue` collection. Si silence actif → différée avec `deliver_at` = prochain 8h non-dimanche.
+- **Cron `notifications-flush`** toutes les 30 min : distribue les notifs différées dont `deliver_at ≤ now`.
+- **Push navigateur opt-in** : `POST /api/notifications/push-subscribe` persiste subscription. `_try_send_push` utilise `pywebpush` si `VAPID_PRIVATE_KEY` env présent, sinon simulé silencieux (log info uniquement).
+- **Digest 2×/jour** : `POST /api/cron/digest-morning` (8h, depuis 14h veille) + `POST /api/cron/digest-afternoon` (14h, depuis 8h même jour). Agrège commandes/messages nouveaux sur les clients dont je suis assigned_to/owner_id.
+- **Hook mention** : `_dispatch_mention_notifs(msg)` appelé après création d'un message avec `mentions`. Respecte les prefs individuelles + silence.
+- **UI** : `NotificationSettings.jsx` intégré dans `/profile` sous le bloc rappels courriel. Toggles 3 niveaux, sliders temps silence, checkbox dimanche, bouton opt-in push (`subscribePush` → VAPID sinon simulé).
+
+### Item 7 — Demandes/validations généralisées
+- **Collection `approval_requests`** (db_raw, filtre org_id explicite).
+- **6 types** : `remise`, `avoir`, `prix_negocie`, `delai_paiement`, `derogation`, `autre`. Context libre (establishment_id, order_id, pct, amount, days…).
+- **Endpoints** :
+  - `POST /api/approvals` : commercial crée → manager par défaut approver → message + mention dans l'inbox du manager → push immédiat.
+  - `GET /api/approvals?status=pending|approved|rejected&mine=true|false` : manager voit tout, commercial voit ses demandes + celles où il est approver.
+  - `PATCH /api/approvals/{aid}` : manager approuve/refuse → mention au demandeur en retour.
+- **Cron `approval-reminders`** 2×/jour (9h + 15h) : rappelle le manager sur toute demande pending > 24h non déjà relancée (`reminded_at` marque idempotent).
+- **UI `/approvals`** : filtres (pending/approved/rejected/tous), badge statut coloré, actions ✓/✗ inline pour manager avec zone réponse optionnelle. Modal création avec 3 champs numériques (pct/amount/days) + motif obligatoire + lien optionnel fiche client.
+
+### Item 8 — Portefeuilles commerciaux
+- **Endpoints (manager/gerant/owner only)** :
+  - `GET /api/portfolios` : liste par commercial (nb clients + nb commandes 30j) + `unassigned_count`.
+  - `GET /api/portfolios/user/{uid}` : détail clients d'un commercial.
+  - `GET /api/portfolios/unassigned` : file des clients sans commercial attribué.
+  - `POST /api/portfolios/reassign` : `{client_ids, to_user_id}`, cap 500 par lot, audit log inséré (`kind=portfolio_reassign`).
+- **UI `/portefeuilles`** : grille commerciaux (nb clients + commandes 30j), fiche détail au clic, file non-attribués avec cases à cocher + dropdown cible + bouton « Attribuer (N) ». Sélection multi persistante entre listes (unassigned + détail).
+- Ajouté dans nav sidebar section Administration (`feature: manager_only`).
+
+### Item 12 — Revue hebdo composée
+- **Endpoints** :
+  - `GET /api/weekly-review/me` : renvoie le brouillon de la semaine courante (lundi calendaire Paris). Génère à la volée si inexistant.
+  - `PATCH /api/weekly-review/{wid}` : 2 champs libres (`notes`, `focus_next`). Auteur ou manager uniquement.
+- **Cron `weekly-review-monday`** lundi 7h : compose un brouillon pour chaque commercial actif (idempotent).
+- **KPIs composés** depuis la semaine passée (J-7 → J-1) : commandes, visites, mentions, engagements ouverts.
+- **UI `WeeklyReviewCard.jsx`** : affiché en haut de `/tournee` uniquement le lundi. Repliable. 4 KPIs en grille + 2 textarea + bouton Enregistrer.
+
+### Nouveaux fichiers
+- `/app/backend/tests/test_iter40_teamwork_items.py` — 11 tests pytest verts (defaults, silence window, push, approvals workflow, portfolios manager-only, weekly review, cron endpoints).
+- `/app/frontend/src/lib/push.js` — helper Web Push (subscribe/unsubscribe/pushSupported), retombe en simulé si `REACT_APP_VAPID_PUBLIC_KEY` absent.
+- `/app/frontend/src/components/NotificationSettings.jsx` — bloc réglages 3 niveaux + silence + push.
+- `/app/frontend/src/components/WeeklyReviewCard.jsx` — affichage revue lundi.
+- `/app/frontend/src/pages/Portefeuilles.jsx` — vue équipe manager.
+- `/app/frontend/src/pages/Approvals.jsx` — inbox validations.
+
+### Preuves runtime (curl, 23 août 2026)
+- `GET /notifications/preferences` : `{mentions_immediate:true, silence_start:"20:00", silence_end:"08:00", silence_sundays:true, push_enabled:false}`
+- `PUT /notifications/preferences {silence_start:"22:00"}` : silence_start=22:00 persisté
+- `POST /approvals {kind:"remise", reason:"…", context:{pct:15}}` : status=pending, message + mention créés, push simulé
+- `GET /portfolios` (manager) : 2 commerciaux, 4 clients pour le démo
+- `GET /weekly-review/me` (manager) : brouillon auto généré, KPIs {orders:3, visits:0, mentions:0, engagements_open:4}
+- `POST /cron/digest-morning` : `{"users_notified":1}`
+- `POST /cron/weekly-review-monday` : `{"drafts_created":35}`
+- **pytest** : 11/11 verts (4.3 s)
+
+### Cron ajoutés à `.emergent/crons.yml`
+- `notifications-flush` : `*/30 * * * *` (toutes 30 min)
+- `digest-morning` : `0 8 * * *`
+- `digest-afternoon` : `0 14 * * *`
+- `approval-reminders` : `0 9,15 * * *`
+- `weekly-review-monday` : `0 7 * * 1`

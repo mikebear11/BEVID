@@ -69,3 +69,38 @@ crons:
     endpoint: "{{BASE_URL}}/api/cron/enrichissement/comptes-annuels-rne"
     method: POST
     enabled: true
+  - name: notifications-flush
+    description: "Flush des notifications différées quand la plage silence se termine (toutes les 30 min)"
+    cron: "*/30 * * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/notifications-flush"
+    method: POST
+    enabled: true
+  - name: digest-morning
+    description: "Résumé matin 8h : activité sur mes objets depuis 14h la veille"
+    cron: "0 8 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/digest-morning"
+    method: POST
+    enabled: true
+  - name: digest-afternoon
+    description: "Résumé après-midi 14h : activité sur mes objets depuis 8h ce matin"
+    cron: "0 14 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/digest-afternoon"
+    method: POST
+    enabled: true
+  - name: approval-reminders
+    description: "Rappel manager si une demande de validation est pending depuis plus de 24h"
+    cron: "0 9,15 * * *"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/approval-reminders"
+    method: POST
+    enabled: true
+  - name: weekly-review-monday
+    description: "Compose un brouillon de revue hebdo pour chaque commercial le lundi à 7h"
+    cron: "0 7 * * 1"
+    timezone: "Europe/Paris"
+    endpoint: "{{BASE_URL}}/api/cron/weekly-review-monday"
+    method: POST
+    enabled: true

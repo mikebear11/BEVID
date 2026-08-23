@@ -85,6 +85,8 @@ const SECTIONS = [
   ]},
   { key: "section_admin", entries: [
     { to: "/admin/users",       key: "users",        feature: "page:users",         icon: Users },
+    { to: "/portefeuilles",     key: "portfolios",   feature: "manager_only",       icon: Users },
+    { to: "/approvals",         key: "approvals",    feature: null,                 icon: ClipboardCheck },
     { to: "/admin/permissions", key: "permissions",  feature: "page:users",         icon: ShieldCheck },
     { to: "/connectors",        key: "connectors",   feature: "page:integrations",  icon: Plug },
     { to: "/org/settings",      key: "org_settings", feature: "manager_only",       icon: SettingsIcon },

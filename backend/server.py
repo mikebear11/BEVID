@@ -11322,6 +11322,11 @@ async def create_message(data: MessageCreate, user=Depends(get_current_user)):
             "due_date": data.due_date,
             "status": "pending", "created_at": now_iso(),
         })
+    # Push immédiat aux mentionnés (respecte préférence individuelle + silence)
+    try:
+        await _dispatch_mention_notifs(doc)
+    except Exception as _e:
+        logger.warning("[notif] dispatch mention error: %s", str(_e)[:120])
     doc.pop("_id", None)
     return doc
 
@@ -11458,6 +11463,605 @@ async def tour_engagements(user=Depends(get_current_user)):
 
 
 # === Fin Lot Import + Travail équipe étendus ===
+
+
+# === Lot Travail en équipe — Items 4, 5, 7, 8, 12 (23/02/2026) ===
+# Item 4 : file offline gérée côté client (Dexie `message_outbox`) — cf. frontend.
+# Ici : hooks serveur pour la notif immédiate mention + digest 2×/jour + silence.
+
+import json as _json_notif
+
+DEFAULT_NOTIF_LEVEL_PREFS = {
+    "mentions_immediate": True,
+    "digest_owned_objects": True,
+    "inbox_only_rest": True,
+    "silence_start": "20:00",
+    "silence_end": "08:00",
+    "silence_sundays": True,
+    "push_enabled": False,
+}
+
+
+def _paris_now():
+    """Heure locale Paris sans dépendance à pytz : UTC+1 hiver, UTC+2 été (DST FR)."""
+    from datetime import date as _d, timedelta as _td
+    now_utc = datetime.now(timezone.utc)
+    y = now_utc.year
+
+    def _second_sunday(month):
+        d = _d(y, month, 1)
+        d += _td(days=(6 - d.weekday()) % 7)
+        return d + _td(days=7)
+
+    def _last_sunday(month):
+        d = _d(y, month, 31)
+        d -= _td(days=(d.weekday() - 6) % 7)
+        return d
+
+    dst_start = _second_sunday(3)
+    dst_end = _last_sunday(10)
+    today = now_utc.date()
+    offset = _td(hours=2) if dst_start <= today < dst_end else _td(hours=1)
+    return now_utc + offset
+
+
+def _is_in_silence(prefs: dict, now_paris=None) -> bool:
+    if now_paris is None:
+        now_paris = _paris_now()
+    if prefs.get("silence_sundays", True) and now_paris.weekday() == 6:
+        return True
+    start_str = prefs.get("silence_start") or "20:00"
+    end_str = prefs.get("silence_end") or "08:00"
+    try:
+        hh_s, mm_s = [int(x) for x in start_str.split(":")]
+        hh_e, mm_e = [int(x) for x in end_str.split(":")]
+    except Exception:
+        return False
+    start_min = hh_s * 60 + mm_s
+    end_min = hh_e * 60 + mm_e
+    cur_min = now_paris.hour * 60 + now_paris.minute
+    if start_min == end_min:
+        return False
+    if start_min > end_min:
+        return cur_min >= start_min or cur_min < end_min
+    return start_min <= cur_min < end_min
+
+
+@api_router.get("/notifications/preferences")
+async def get_notif_preferences(user=Depends(get_current_user)):
+    doc = await db_raw.users.find_one({"id": user["id"]}, {"_id": 0, "notif_level_prefs": 1})
+    prefs = (doc or {}).get("notif_level_prefs") or {}
+    return {**DEFAULT_NOTIF_LEVEL_PREFS, **{k: v for k, v in prefs.items() if k in DEFAULT_NOTIF_LEVEL_PREFS}}
+
+
+class NotifLevelPrefsUpdate(BaseModel):
+    mentions_immediate: Optional[bool] = None
+    digest_owned_objects: Optional[bool] = None
+    inbox_only_rest: Optional[bool] = None
+    silence_start: Optional[str] = None
+    silence_end: Optional[str] = None
+    silence_sundays: Optional[bool] = None
+    push_enabled: Optional[bool] = None
+
+
+@api_router.put("/notifications/preferences")
+async def update_notif_preferences(data: NotifLevelPrefsUpdate, user=Depends(get_current_user)):
+    updates = {}
+    for k in DEFAULT_NOTIF_LEVEL_PREFS.keys():
+        v = getattr(data, k, None)
+        if v is None:
+            continue
+        if k in ("silence_start", "silence_end"):
+            if not re.match(r"^\d{2}:\d{2}$", str(v)):
+                raise HTTPException(422, f"{k} doit être au format HH:MM")
+            hh, mm = [int(x) for x in v.split(":")]
+            if not (0 <= hh < 24 and 0 <= mm < 60):
+                raise HTTPException(422, f"{k} invalide")
+            updates[f"notif_level_prefs.{k}"] = v
+        else:
+            updates[f"notif_level_prefs.{k}"] = bool(v)
+    if not updates:
+        raise HTTPException(422, "Aucune préférence à modifier")
+    await db_raw.users.update_one({"id": user["id"]}, {"$set": updates})
+    return await get_notif_preferences(user)
+
+
+class PushSubscription(BaseModel):
+    endpoint: str
+    keys: dict
+
+
+@api_router.post("/notifications/push-subscribe")
+async def push_subscribe(data: PushSubscription, user=Depends(get_current_user)):
+    if not data.endpoint.startswith("https://"):
+        raise HTTPException(422, "endpoint invalide")
+    await db_raw.users.update_one(
+        {"id": user["id"]},
+        {"$set": {
+            "push_subscription": {"endpoint": data.endpoint, "keys": data.keys, "created_at": now_iso()},
+            "notif_level_prefs.push_enabled": True,
+        }},
+    )
+    return {"ok": True}
+
+
+@api_router.delete("/notifications/push-subscribe")
+async def push_unsubscribe(user=Depends(get_current_user)):
+    await db_raw.users.update_one(
+        {"id": user["id"]},
+        {"$unset": {"push_subscription": ""}, "$set": {"notif_level_prefs.push_enabled": False}},
+    )
+    return {"ok": True}
+
+
+async def _try_send_push(user_id: str, kind: str, payload: dict) -> dict:
+    u = await db_raw.users.find_one({"id": user_id}, {"_id": 0, "push_subscription": 1, "notif_level_prefs": 1})
+    prefs = ((u or {}).get("notif_level_prefs") or {})
+    if not prefs.get("push_enabled"):
+        return {"ok": False, "reason": "push_disabled"}
+    sub = (u or {}).get("push_subscription")
+    if not sub:
+        return {"ok": False, "reason": "no_subscription"}
+    vapid_priv = os.environ.get("VAPID_PRIVATE_KEY")
+    vapid_sub = os.environ.get("VAPID_SUBJECT", "mailto:noreply@bevidcrm.fr")
+    if not vapid_priv:
+        logger.info("[push] simulate → user=%s kind=%s", user_id[:8], kind)
+        return {"ok": True, "simulated": True}
+    try:
+        from pywebpush import webpush
+        webpush(
+            subscription_info={"endpoint": sub["endpoint"], "keys": sub["keys"]},
+            data=_json_notif.dumps({"kind": kind, **payload})[:4000],
+            vapid_private_key=vapid_priv,
+            vapid_claims={"sub": vapid_sub},
+        )
+        return {"ok": True}
+    except Exception as e:
+        logger.warning("[push] error user=%s: %s", user_id[:8], str(e)[:120])
+        return {"ok": False, "reason": str(e)[:200]}
+
+
+async def _queue_notification(user_id: str, org_id: str, kind: str, payload: dict,
+                              respect_silence: bool = True):
+    from datetime import timedelta as _td
+    now_p = _paris_now()
+    user_doc = await db_raw.users.find_one({"id": user_id}, {"_id": 0, "notif_level_prefs": 1})
+    prefs = {**DEFAULT_NOTIF_LEVEL_PREFS, **((user_doc or {}).get("notif_level_prefs") or {})}
+    deliver_at = None
+    status = "pending"
+    if respect_silence and _is_in_silence(prefs, now_p):
+        end_str = prefs.get("silence_end") or "08:00"
+        hh, mm = [int(x) for x in end_str.split(":")]
+        nxt = now_p.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if nxt <= now_p:
+            nxt = nxt + _td(days=1)
+        if prefs.get("silence_sundays", True):
+            while nxt.weekday() == 6:
+                nxt = nxt + _td(days=1)
+        deliver_at = nxt.isoformat()
+        status = "deferred"
+    doc = {
+        "id": str(uuid.uuid4()), "org_id": org_id, "user_id": user_id,
+        "kind": kind, "payload": payload, "status": status,
+        "created_at": now_iso(), "deliver_at": deliver_at,
+        "delivered_at": None, "push_result": None,
+    }
+    await db_raw.notification_queue.insert_one(doc.copy())
+    if status == "pending":
+        r = await _try_send_push(user_id, kind, payload)
+        await db_raw.notification_queue.update_one(
+            {"id": doc["id"]},
+            {"$set": {"status": "sent" if r.get("ok") else "failed",
+                      "delivered_at": now_iso(), "push_result": r}},
+        )
+    doc.pop("_id", None)
+    return doc
+
+
+async def _dispatch_mention_notifs(msg: dict):
+    for uid in msg.get("mentions") or []:
+        if uid == msg.get("author_id"):
+            continue
+        u = await db_raw.users.find_one({"id": uid}, {"_id": 0, "notif_level_prefs": 1, "org_id": 1})
+        if not u or u.get("org_id") != msg["org_id"]:
+            continue
+        prefs = {**DEFAULT_NOTIF_LEVEL_PREFS, **((u.get("notif_level_prefs") or {}))}
+        if not prefs.get("mentions_immediate"):
+            continue
+        await _queue_notification(
+            user_id=uid, org_id=msg["org_id"], kind="mention",
+            payload={"message_id": msg["id"], "author_name": msg.get("author_name"),
+                     "object_type": msg.get("object_type"), "object_id": msg.get("object_id"),
+                     "preview": (msg.get("text") or "")[:140], "due_date": msg.get("due_date")},
+        )
+
+
+@api_router.post("/cron/notifications-flush")
+async def cron_notif_flush(request: Request):
+    """Envoie les notifications différées dont deliver_at est atteint."""
+    now = datetime.now(timezone.utc).isoformat()
+    docs = await db_raw.notification_queue.find(
+        {"status": "deferred", "deliver_at": {"$lte": now}}
+    ).to_list(500)
+    sent = 0
+    for d in docs:
+        r = await _try_send_push(d["user_id"], d["kind"], d["payload"])
+        await db_raw.notification_queue.update_one(
+            {"id": d["id"]},
+            {"$set": {"status": "sent" if r.get("ok") else "failed",
+                      "delivered_at": now_iso(), "push_result": r}},
+        )
+        sent += 1
+    return {"flushed": sent}
+
+
+async def _compose_digest(user_id: str, org_id: str, since_iso: str) -> dict:
+    est = await db_raw.establishments.find(
+        {"org_id": org_id, "$or": [{"assigned_to": user_id}, {"owner_id": user_id}]},
+        {"_id": 0, "id": 1, "name": 1},
+    ).to_list(5000)
+    est_ids = [e["id"] for e in est]
+    items = []
+    if est_ids:
+        new_orders = await db_raw.orders.count_documents(
+            {"org_id": org_id, "client_id": {"$in": est_ids}, "created_at": {"$gte": since_iso}}
+        )
+        if new_orders:
+            items.append({"kind": "orders_new", "count": new_orders, "label": f"{new_orders} commande(s) nouvelle(s)"})
+        new_msgs = await db_raw.messages.count_documents(
+            {"org_id": org_id, "object_type": "establishment", "object_id": {"$in": est_ids},
+             "created_at": {"$gte": since_iso}, "author_id": {"$ne": user_id}},
+        )
+        if new_msgs:
+            items.append({"kind": "messages_new", "count": new_msgs, "label": f"{new_msgs} message(s) sur vos clients"})
+    return {"activity_count": sum(i["count"] for i in items), "items": items,
+            "establishments_count": len(est_ids)}
+
+
+async def _run_digest(kind: str, since_hours: int) -> dict:
+    from datetime import timedelta as _td
+    since = (datetime.now(timezone.utc) - _td(hours=since_hours)).isoformat()
+    total_sent = 0
+    users = await db_raw.users.find({"active": True},
+                                     {"_id": 0, "id": 1, "org_id": 1, "notif_level_prefs": 1}).to_list(10000)
+    for u in users:
+        prefs = {**DEFAULT_NOTIF_LEVEL_PREFS, **(u.get("notif_level_prefs") or {})}
+        if not prefs.get("digest_owned_objects"):
+            continue
+        if not u.get("org_id"):
+            continue
+        digest = await _compose_digest(u["id"], u["org_id"], since)
+        if digest["activity_count"] == 0:
+            continue
+        await _queue_notification(
+            user_id=u["id"], org_id=u["org_id"], kind=f"digest_{kind}",
+            payload={"summary": digest, "since": since},
+        )
+        total_sent += 1
+    return {"users_notified": total_sent}
+
+
+@api_router.post("/cron/digest-morning")
+async def cron_digest_morning(request: Request):
+    return await _run_digest("morning", 18)
+
+
+@api_router.post("/cron/digest-afternoon")
+async def cron_digest_afternoon(request: Request):
+    return await _run_digest("afternoon", 6)
+
+
+# --- Item 7 : Demandes/validations généralisées ---
+class ApprovalCreate(BaseModel):
+    kind: Literal["remise", "avoir", "prix_negocie", "delai_paiement", "derogation", "autre"]
+    context: dict
+    reason: str
+    approver_id: Optional[str] = None
+
+
+@api_router.post("/approvals")
+async def create_approval(data: ApprovalCreate, user=Depends(get_current_user)):
+    approver_id = data.approver_id
+    if not approver_id:
+        mgr = await db_raw.users.find_one(
+            {"org_id": user["org_id"], "role": {"$in": ["manager", "gerant", "owner"]}, "active": True},
+            {"_id": 0, "id": 1},
+        )
+        if not mgr:
+            raise HTTPException(422, "Aucun manager dans l'organisation")
+        approver_id = mgr["id"]
+    doc = {
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "kind": data.kind, "context": data.context or {},
+        "reason": (data.reason or "").strip()[:2000],
+        "requester_id": user["id"], "requester_name": user.get("name") or user.get("email"),
+        "approver_id": approver_id, "status": "pending",
+        "created_at": now_iso(), "reviewed_at": None, "reviewed_by": None, "response": None,
+        "reminded_at": None,
+    }
+    await db_raw.approval_requests.insert_one(doc.copy())
+    est_id = (data.context or {}).get("establishment_id")
+    msg = {
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "object_type": "establishment" if est_id else "team",
+        "object_id": est_id,
+        "author_id": user["id"], "author_name": user.get("name") or user.get("email"),
+        "text": f"[Validation demandée · {data.kind}] {doc['reason'][:180]}",
+        "voice_transcript": None, "voice_audio_id": None, "photos": [],
+        "mentions": [approver_id], "due_date": None,
+        "created_at": now_iso(), "updated_at": now_iso(), "edited": False, "read_by": {},
+        "approval_id": doc["id"],
+    }
+    await db_raw.messages.insert_one(msg.copy())
+    await db_raw.message_actions.insert_one({
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "message_id": msg["id"], "user_id": approver_id,
+        "object_type": msg["object_type"], "object_id": msg["object_id"],
+        "due_date": None, "status": "pending", "created_at": now_iso(),
+    })
+    await _dispatch_mention_notifs(msg)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/approvals")
+async def list_approvals(status: Optional[str] = None, mine: bool = False,
+                          user=Depends(get_current_user)):
+    q = {"org_id": user["org_id"]}
+    is_mgr = user["role"] in ("manager", "gerant", "owner")
+    if mine or not is_mgr:
+        q["$or"] = [{"requester_id": user["id"]}, {"approver_id": user["id"]}]
+    if status:
+        q["status"] = status
+    docs = await db_raw.approval_requests.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return docs
+
+
+class ApprovalReview(BaseModel):
+    status: Literal["approved", "rejected"]
+    response: Optional[str] = None
+
+
+@api_router.patch("/approvals/{aid}")
+async def review_approval(aid: str, data: ApprovalReview, user=Depends(get_current_user)):
+    a = await db_raw.approval_requests.find_one({"id": aid, "org_id": user["org_id"]}, {"_id": 0})
+    if not a:
+        raise HTTPException(404, "Demande introuvable")
+    if a["approver_id"] != user["id"] and user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Manager only")
+    await db_raw.approval_requests.update_one(
+        {"id": aid},
+        {"$set": {"status": data.status, "reviewed_at": now_iso(),
+                  "reviewed_by": user["id"], "response": (data.response or "").strip()[:1000]}},
+    )
+    fresh = await db_raw.approval_requests.find_one({"id": aid}, {"_id": 0})
+    est_id = (a.get("context") or {}).get("establishment_id")
+    msg = {
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "object_type": "establishment" if est_id else "team", "object_id": est_id,
+        "author_id": user["id"], "author_name": user.get("name") or user.get("email"),
+        "text": f"[Validation {data.status} · {a['kind']}] {(data.response or '').strip()[:200]}",
+        "voice_transcript": None, "voice_audio_id": None, "photos": [],
+        "mentions": [a["requester_id"]], "due_date": None,
+        "created_at": now_iso(), "updated_at": now_iso(), "edited": False, "read_by": {},
+        "approval_id": aid,
+    }
+    await db_raw.messages.insert_one(msg.copy())
+    await db_raw.message_actions.insert_one({
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "message_id": msg["id"], "user_id": a["requester_id"],
+        "object_type": msg["object_type"], "object_id": msg["object_id"],
+        "due_date": None, "status": "pending", "created_at": now_iso(),
+    })
+    await _dispatch_mention_notifs(msg)
+    return fresh
+
+
+@api_router.post("/cron/approval-reminders")
+async def cron_approval_reminders(request: Request):
+    from datetime import timedelta as _td
+    threshold = (datetime.now(timezone.utc) - _td(hours=24)).isoformat()
+    docs = await db_raw.approval_requests.find(
+        {"status": "pending", "created_at": {"$lte": threshold},
+         "$or": [{"reminded_at": None}, {"reminded_at": {"$exists": False}}]},
+    ).to_list(500)
+    for a in docs:
+        await _queue_notification(
+            user_id=a["approver_id"], org_id=a["org_id"], kind="approval_reminder",
+            payload={"approval_id": a["id"], "kind": a["kind"], "reason": (a.get("reason") or "")[:140]},
+        )
+        await db_raw.approval_requests.update_one(
+            {"id": a["id"]}, {"$set": {"reminded_at": now_iso()}},
+        )
+    return {"reminded": len(docs)}
+
+
+# --- Item 12 : Revue hebdo composée ---
+def _monday_iso(now_p=None):
+    from datetime import timedelta as _td
+    if now_p is None:
+        now_p = _paris_now()
+    monday = now_p - _td(days=now_p.weekday())
+    return monday.date().isoformat()
+
+
+async def _compose_weekly_review(user_id: str, org_id: str, week_start_iso: str) -> dict:
+    from datetime import timedelta as _td, date as _date
+    start = _date.fromisoformat(week_start_iso) - _td(days=7)
+    end = _date.fromisoformat(week_start_iso) - _td(days=1)
+    start_iso = start.isoformat()
+    end_iso = end.isoformat()
+    q_range = {"$gte": start_iso + "T00:00:00", "$lte": end_iso + "T23:59:59"}
+    orders_n = await db_raw.orders.count_documents({"org_id": org_id, "agent_id": user_id, "created_at": q_range})
+    visits_n = await db_raw.visits.count_documents({"org_id": org_id, "agent_id": user_id, "created_at": q_range})
+    mentions_n = await db_raw.message_actions.count_documents({"org_id": org_id, "user_id": user_id, "created_at": q_range})
+    try:
+        engagements_n = await db_raw.engagements.count_documents(
+            {"org_id": org_id, "owner_id": user_id, "status": "ouvert"}
+        )
+    except Exception:
+        engagements_n = 0
+    return {
+        "kpis": {"orders": orders_n, "visits": visits_n, "mentions": mentions_n, "engagements_open": engagements_n},
+        "range": {"start": start_iso, "end": end_iso},
+    }
+
+
+@api_router.get("/weekly-review/me")
+async def weekly_review_me(user=Depends(get_current_user)):
+    week = _monday_iso()
+    existing = await db_raw.weekly_reviews.find_one(
+        {"org_id": user["org_id"], "user_id": user["id"], "week_start": week}, {"_id": 0},
+    )
+    if existing:
+        return existing
+    composed = await _compose_weekly_review(user["id"], user["org_id"], week)
+    doc = {
+        "id": str(uuid.uuid4()), "org_id": user["org_id"], "user_id": user["id"],
+        "week_start": week, "composed_at": now_iso(),
+        "auto": composed, "notes": "", "focus_next": "",
+    }
+    await db_raw.weekly_reviews.insert_one(doc.copy())
+    doc.pop("_id", None)
+    return doc
+
+
+class WeeklyReviewPatch(BaseModel):
+    notes: Optional[str] = None
+    focus_next: Optional[str] = None
+
+
+@api_router.patch("/weekly-review/{wid}")
+async def patch_weekly_review(wid: str, data: WeeklyReviewPatch, user=Depends(get_current_user)):
+    doc = await db_raw.weekly_reviews.find_one({"id": wid, "org_id": user["org_id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Revue introuvable")
+    if doc["user_id"] != user["id"] and user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Auteur uniquement")
+    updates = {}
+    if data.notes is not None:
+        updates["notes"] = data.notes.strip()[:4000]
+    if data.focus_next is not None:
+        updates["focus_next"] = data.focus_next.strip()[:2000]
+    if not updates:
+        raise HTTPException(422, "Rien à modifier")
+    updates["updated_at"] = now_iso()
+    await db_raw.weekly_reviews.update_one({"id": wid}, {"$set": updates})
+    return await db_raw.weekly_reviews.find_one({"id": wid}, {"_id": 0})
+
+
+@api_router.post("/cron/weekly-review-monday")
+async def cron_weekly_review_monday(request: Request):
+    week = _monday_iso()
+    users = await db_raw.users.find({"active": True}, {"_id": 0, "id": 1, "org_id": 1}).to_list(10000)
+    n = 0
+    for u in users:
+        if not u.get("org_id"):
+            continue
+        exists = await db_raw.weekly_reviews.find_one(
+            {"user_id": u["id"], "week_start": week}, {"_id": 0, "id": 1},
+        )
+        if exists:
+            continue
+        composed = await _compose_weekly_review(u["id"], u["org_id"], week)
+        await db_raw.weekly_reviews.insert_one({
+            "id": str(uuid.uuid4()), "org_id": u["org_id"], "user_id": u["id"],
+            "week_start": week, "composed_at": now_iso(),
+            "auto": composed, "notes": "", "focus_next": "",
+        })
+        n += 1
+    return {"drafts_created": n}
+
+
+# --- Item 8 : Portefeuilles commerciaux ---
+@api_router.get("/portfolios")
+async def list_portfolios(user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Manager/gérant only")
+    org_id = user["org_id"]
+    users = await db_raw.users.find(
+        {"org_id": org_id, "active": True},
+        {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1, "display_name": 1},
+    ).to_list(500)
+    from datetime import timedelta as _td
+    since = (datetime.now(timezone.utc) - _td(days=30)).isoformat()
+    portfolios = []
+    for u in users:
+        clients_count = await db_raw.establishments.count_documents(
+            {"org_id": org_id, "assigned_to": u["id"]}
+        )
+        orders_last_30d = await db_raw.orders.count_documents(
+            {"org_id": org_id, "agent_id": u["id"], "created_at": {"$gte": since}}
+        )
+        portfolios.append({"user": u, "clients_count": clients_count, "orders_last_30d": orders_last_30d})
+    unassigned = await db_raw.establishments.count_documents(
+        {"org_id": org_id, "$or": [{"assigned_to": None}, {"assigned_to": {"$exists": False}}, {"assigned_to": ""}]},
+    )
+    return {"portfolios": portfolios, "unassigned_count": unassigned}
+
+
+@api_router.get("/portfolios/user/{uid}")
+async def portfolio_user_detail(uid: str, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Manager/gérant only")
+    org_id = user["org_id"]
+    target = await db_raw.users.find_one({"id": uid, "org_id": org_id},
+                                          {"_id": 0, "id": 1, "name": 1, "email": 1, "role": 1})
+    if not target:
+        raise HTTPException(404, "Utilisateur introuvable")
+    clients = await db_raw.establishments.find(
+        {"org_id": org_id, "assigned_to": uid},
+        {"_id": 0, "id": 1, "name": 1, "city": 1, "type": 1, "credit_status": 1,
+         "current_credit": 1, "overdue_amount": 1},
+    ).sort("name", 1).to_list(1000)
+    return {"user": target, "clients": clients}
+
+
+@api_router.get("/portfolios/unassigned")
+async def portfolios_unassigned(limit: int = 200, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Manager/gérant only")
+    org_id = user["org_id"]
+    docs = await db_raw.establishments.find(
+        {"org_id": org_id, "$or": [{"assigned_to": None}, {"assigned_to": {"$exists": False}}, {"assigned_to": ""}]},
+        {"_id": 0, "id": 1, "name": 1, "city": 1, "type": 1, "credit_status": 1},
+    ).sort("created_at", -1).to_list(min(limit, 500))
+    return {"clients": docs}
+
+
+class ReassignRequest(BaseModel):
+    client_ids: List[str]
+    to_user_id: str
+
+
+@api_router.post("/portfolios/reassign")
+async def portfolios_reassign(data: ReassignRequest, user=Depends(get_current_user)):
+    if user["role"] not in ("manager", "gerant", "owner"):
+        raise HTTPException(403, "Manager/gérant only")
+    if not data.client_ids:
+        raise HTTPException(422, "Aucun client sélectionné")
+    if len(data.client_ids) > 500:
+        raise HTTPException(422, "500 clients max par lot")
+    target = await db_raw.users.find_one(
+        {"id": data.to_user_id, "org_id": user["org_id"], "active": True},
+        {"_id": 0, "id": 1, "name": 1},
+    )
+    if not target:
+        raise HTTPException(404, "Utilisateur cible introuvable")
+    res = await db_raw.establishments.update_many(
+        {"id": {"$in": data.client_ids}, "org_id": user["org_id"]},
+        {"$set": {"assigned_to": data.to_user_id, "reassigned_by": user["id"], "reassigned_at": now_iso()}},
+    )
+    await db_raw.audit_logs.insert_one({
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "kind": "portfolio_reassign", "actor_id": user["id"],
+        "target_user_id": data.to_user_id, "count": res.modified_count,
+        "client_ids_sample": data.client_ids[:5], "at": now_iso(),
+    })
+    return {"reassigned": res.modified_count, "to": target}
+
+# === Fin Lot Travail équipe items 4/5/7/8/12 ===
+
 
 # === Lot 5 P4 — Phase 1 du découpage de server.py ===
 # Le routeur de télémétrie (/api/errors, /api/csp-report) vit maintenant dans

@@ -5,6 +5,7 @@ import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { User, Palette, Home, Bell, Globe } from "lucide-react";
 import { t as tt } from "@/lib/i18n";
+import NotificationSettings from "@/components/NotificationSettings";
 
 /**
  * Page « Mon profil » — préférences utilisateur (P3).
@@ -135,7 +136,7 @@ export default function Profile() {
       </section>
 
       <section className="card-crm p-6 space-y-4">
-        <p className="overline flex items-center gap-1"><Bell size={12} /> Notifications</p>
+        <p className="overline flex items-center gap-1"><Bell size={12} /> Rappels courriel</p>
         {[
           { k: "relance_reminders", l: "Rappels de relance" },
           { k: "unpaid_alerts",     l: "Alertes d'impayés" },
@@ -150,6 +151,8 @@ export default function Profile() {
           </label>
         ))}
       </section>
+
+      <NotificationSettings />
       {saving && <p className="text-xs text-stone-500">Enregistrement…</p>}
     </div>
   );

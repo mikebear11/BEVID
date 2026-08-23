@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, API } from "@/lib/api";
 import { toast } from "sonner";
-import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check, Mic, Square } from "lucide-react";
+import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check, Mic, Square, CloudOff } from "lucide-react";
+import { enqueueMessage, listOutboxForObject } from "@/lib/db";
+import { flushQueue } from "@/lib/syncQueue";
 
 /**
  * Fil de discussion rattaché à un objet.
@@ -17,6 +19,7 @@ import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check, Mic, Square } f
  */
 export default function MessageThread({ objectType, objectId, mentionsCatalog = [] }) {
   const [items, setItems] = useState([]);
+  const [outbox, setOutbox] = useState([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -75,15 +78,26 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
     setRecording(false);
   };
 
+  const loadOutbox = async () => {
+    try { setOutbox(await listOutboxForObject(objectType, objectId || "")); } catch {}
+  };
+
   const load = async () => {
     setLoading(true);
     try {
       const { data } = await api.get(`/messages?object_type=${objectType}&object_id=${encodeURIComponent(objectId)}`);
       setItems(data);
-    } catch { toast.error("Fil indisponible"); }
-    finally { setLoading(false); }
+    } catch { /* silencieux : hors-ligne on affiche uniquement l'outbox */ }
+    finally { setLoading(false); await loadOutbox(); }
   };
   useEffect(() => { if (objectId) load(); }, [objectType, objectId]);
+
+  // Rechargement quand un message quitte la file d'envoi
+  useEffect(() => {
+    const onDelivered = () => { load(); };
+    window.addEventListener("bevid:message-delivered", onDelivered);
+    return () => window.removeEventListener("bevid:message-delivered", onDelivered);
+  }, [objectType, objectId]);
 
   const parseMentions = (t) => {
     const found = [];
@@ -97,18 +111,23 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
   const send = async () => {
     if (!text.trim()) return;
     setBusy(true);
+    const payload = {
+      object_type: objectType, object_id: objectId,
+      text: text.trim(), mentions: parseMentions(text),
+      due_date: dueDate || undefined,
+    };
+    // Toujours enfiler d'abord dans l'outbox (horodatage à la rédaction). Le
+    // flush envoie immédiatement si en ligne, sinon retente au retour réseau.
     try {
-      const payload = {
-        object_type: objectType, object_id: objectId,
-        text: text.trim(), mentions: parseMentions(text),
-        due_date: dueDate || undefined,
-      };
-      await api.post("/messages", payload);
+      await enqueueMessage(payload);
       setText(""); setDueDate("");
-      load();
-      toast.success("Message envoyé");
-    } catch (e) { toast.error(e?.response?.data?.detail || "Envoi impossible"); }
-    finally { setBusy(false); }
+      await loadOutbox();
+      toast.success(navigator.onLine ? "Message envoyé" : "Message en file — envoi au retour réseau");
+      // Tentative de flush immédiate (non bloquante)
+      flushQueue().catch(() => {});
+    } catch (e) {
+      toast.error("File locale indisponible");
+    } finally { setBusy(false); }
   };
 
   const saveEdit = async (id) => {
@@ -132,6 +151,20 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
       <div className="space-y-3 max-h-96 overflow-y-auto pr-1" data-testid="message-list">
         {loading && <div className="text-center py-6"><Loader2 size={16} className="mx-auto animate-spin text-stone-400" /></div>}
         {!loading && items.length === 0 && <p className="text-center text-sm text-stone-500 py-6">Aucun message. Ouvrez le fil en écrivant une note ou en @mentionnant un collègue.</p>}
+        {outbox.filter(o => o.status === "pending" || o.status === "failed").map(o => (
+          <div key={"outbox-" + o.id} className="border-l-2 border-amber-300 pl-3 py-1 opacity-80" data-testid={`msg-outbox-${o.id}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-stone-800 dark:text-stone-200">Moi</span>
+                <span className="text-[10px] text-stone-400">{(o.at || "").slice(0, 16).replace("T", " ")}</span>
+                <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <CloudOff size={9} aria-hidden="true" /> {o.status === "failed" ? "Retenté au prochain envoi" : "En attente d'envoi"}
+                </span>
+              </div>
+            </div>
+            <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap">{o.payload?.text}</p>
+          </div>
+        ))}
         {items.map(m => (
           <div key={m.id} className="border-l-2 border-stone-200 dark:border-stone-700 pl-3 py-1" data-testid={`msg-${m.id}`}>
             <div className="flex items-center justify-between gap-2">
