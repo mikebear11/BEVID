@@ -1346,3 +1346,26 @@ Ajout complet des pages légales exigées pour la conformité française (RGPD, 
 
 ### À personnaliser par l'éditeur (placeholders)
 - Raison sociale exacte, SIREN, capital social, siège, RCS, TVA intracom, directeur publication — bloc "à compléter" dans `/legal/mentions-legales`. Aucune information inventée ; l'organisation utilisatrice doit renseigner avant mise en production commerciale.
+
+## Lot Compliance V2 — Identité éditeur + Cookies personnaliser (23/02/2026)
+
+### Backend
+- `OrgSettingsUpdate` model étendu de 9 champs : `legal_name`, `siren`, `rcs`, `capital_social`, `legal_address`, `director_publication`, `tva_intracom`, `legal_email`, `dpo_email`.
+- `GET /api/org/branding` : renvoie les 9 nouveaux champs.
+- `PUT /api/org/branding` : accepte les 9 nouveaux champs (manager only).
+- **NOUVEAU** `GET /api/config/legal-identity` (public, sans auth) : renvoie l'identité éditeur pour affichage sur les pages légales publiques. Fallback `{configured: false, commercial_name: "BEVID"}` si aucune org n'a rempli `legal_name`.
+
+### Frontend
+- **`OrgSettings.jsx`** : nouvelle section « Identité éditeur légale » avec 9 champs éditables (auto-save onBlur) + composant `SirenAutocomplete` existant réutilisé au top de la section pour remplir `legal_name` + `siren` + `legal_address` en un clic.
+- **`LegalMentions.jsx`** : fetch `/api/config/legal-identity` au mount, affiche les vraies infos si `configured=true`, sinon garde les placeholders « à compléter ». Email DPO dynamique.
+- **`PostHogConsent.jsx`** : troisième bouton **« Personnaliser »** (data-testid=`consent-customize`) → lien vers `/legal/cookies` où l'utilisateur voit le détail complet et peut accepter/révoquer séparément. Rendu vérifié via screenshot.
+
+### Vérifications
+- `curl /api/config/legal-identity` : `{"configured":false,"commercial_name":"BEVID"}` ✅
+- Screenshot Login : 3 boutons consent visibles (Accepter / Refuser / Personnaliser) ✅
+- Autocomplete SIREN branché sur `/api/enrichissement/autocomplete` (déjà existant, appelle Recherche-Entreprises API gouv).
+
+### Reste à faire (non traité par manque de contexte)
+- Lot 8 Devis/BC/Proforma/Feuille de dépôt : les `DOCUMENT_TYPES` sont déjà déclarés dans server.py L739-747 avec préfixes et flags fiscaux ; il reste à ajouter les endpoints CRUD + UI d'émission (voir `_allocate_document_number` L758 et le template Jinja WeasyPrint `document_pdf_template.py`).
+- Lot 9 Société hierarchy : à démarrer sur `db.companies` (nouvelle collection) reliée à `db.establishments.company_id`.
+- Legacy `db.clients` : suppression après migration des 6 clients restants.

@@ -131,6 +131,17 @@ export default function PostHogConsent() {
             fontSize: 14, fontWeight: 600, cursor: "pointer",
           }}
         >Refuser</button>
+        <a
+          href="/legal/cookies"
+          data-testid="consent-customize"
+          style={{
+            flex: 1, minHeight: 44, minWidth: 120, display: "inline-flex",
+            alignItems: "center", justifyContent: "center",
+            background: "transparent", color: "var(--ds-accent, #4A154B)",
+            border: "1px solid var(--ds-accent, #4A154B)", borderRadius: 8, padding: "10px 14px",
+            fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none",
+          }}
+        >Personnaliser</a>
       </div>
     </div>
   );

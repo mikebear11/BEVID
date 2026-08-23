@@ -712,6 +712,16 @@ class OrgSettingsUpdate(BaseModel):
     timezone: Optional[str] = None
     legal_notice: Optional[str] = None
     logo_url: Optional[str] = None
+    # Lot Compliance — identité éditeur légale (utilisée sur /legal/mentions-legales et CGV)
+    legal_name: Optional[str] = None
+    siren: Optional[str] = None
+    rcs: Optional[str] = None
+    capital_social: Optional[str] = None
+    legal_address: Optional[str] = None
+    director_publication: Optional[str] = None
+    tva_intracom: Optional[str] = None
+    legal_email: Optional[str] = None
+    dpo_email: Optional[str] = None
 
 
 ACCENT_PALETTE = {
@@ -2322,6 +2332,16 @@ async def get_org_branding(user=Depends(get_current_user)):
         "plan": org.get("plan"),
         "status": org.get("status"),
         "trial_ends_at": org.get("trial_ends_at"),
+        # Identité éditeur (Lot Compliance)
+        "legal_name": org.get("legal_name", ""),
+        "siren": org.get("siren", ""),
+        "rcs": org.get("rcs", ""),
+        "capital_social": org.get("capital_social", ""),
+        "legal_address": org.get("legal_address", ""),
+        "director_publication": org.get("director_publication", ""),
+        "tva_intracom": org.get("tva_intracom", ""),
+        "legal_email": org.get("legal_email", ""),
+        "dpo_email": org.get("dpo_email", ""),
     }
 
 
@@ -2333,7 +2353,9 @@ async def update_org_branding(data: OrgSettingsUpdate, user=Depends(get_current_
     if not org_id:
         raise HTTPException(404, "Aucune organisation")
     updates = {}
-    for f in ("name", "accent_color", "currency", "timezone", "legal_notice", "logo_url"):
+    for f in ("name", "accent_color", "currency", "timezone", "legal_notice", "logo_url",
+              "legal_name", "siren", "rcs", "capital_social", "legal_address",
+              "director_publication", "tva_intracom", "legal_email", "dpo_email"):
         v = getattr(data, f)
         if v is not None:
             updates[f] = v.strip() if isinstance(v, str) else v
@@ -2341,6 +2363,37 @@ async def update_org_branding(data: OrgSettingsUpdate, user=Depends(get_current_
         raise HTTPException(422, "Aucun champ à modifier")
     await db_raw.organizations.update_one({"id": org_id}, {"$set": updates})
     return await get_org_branding(user)
+
+
+@api_router.get("/config/legal-identity")
+async def public_legal_identity():
+    """Identité éditeur exposée publiquement pour les pages légales.
+
+    Sélectionne la 1ʳᵉ organisation avec un `legal_name` non vide. Cas mono-tenant
+    (déploiement dédié). Sur un environnement multi-tenant en production réelle,
+    prévoir un mapping domaine → org.
+    """
+    org = await db_raw.organizations.find_one(
+        {"legal_name": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "legal_name": 1, "siren": 1, "rcs": 1, "capital_social": 1,
+         "legal_address": 1, "director_publication": 1, "tva_intracom": 1,
+         "legal_email": 1, "dpo_email": 1, "name": 1},
+    )
+    if not org:
+        return {"configured": False, "commercial_name": "BEVID"}
+    return {
+        "configured": True,
+        "commercial_name": org.get("name") or "BEVID",
+        "legal_name": org.get("legal_name") or "",
+        "siren": org.get("siren") or "",
+        "rcs": org.get("rcs") or "",
+        "capital_social": org.get("capital_social") or "",
+        "legal_address": org.get("legal_address") or "",
+        "director_publication": org.get("director_publication") or "",
+        "tva_intracom": org.get("tva_intracom") or "",
+        "legal_email": org.get("legal_email") or "contact@bevid-crm.fr",
+        "dpo_email": org.get("dpo_email") or "dpo@bevid-crm.fr",
+    }
 
 
 # ---------- Multi-tenant : Organisations & Invitations ----------

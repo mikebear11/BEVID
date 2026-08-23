@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Building2, Palette, Coins, Globe, Sparkles, Loader2 } from "lucide-react";
 import { t as tt } from "@/lib/i18n";
+import SirenAutocomplete from "@/components/SirenAutocomplete";
 
 /**
  * Réglages entreprise (manager only).
@@ -92,6 +93,76 @@ export default function OrgSettings() {
           onBlur={(e) => e.target.value !== s.legal_notice && save({ legal_notice: e.target.value })}
           rows={4}
           className="input-crm" data-testid="orgsettings-legal" />
+      </section>
+
+      {/* Lot Compliance — Identité éditeur (affichée sur /legal/mentions-legales et /legal/cgv) */}
+      <section className="card-crm p-6 space-y-3" data-testid="orgsettings-editor-identity">
+        <p className="overline flex items-center gap-1"><Building2 size={12} aria-hidden="true" /> Identité éditeur légale</p>
+        <p className="text-xs text-stone-500">Ces informations sont reprises sur les pages Mentions légales, CGV et la Politique de confidentialité publiques. Requises pour la mise en production.</p>
+
+        <SirenAutocomplete onSelect={(pick) => save({
+          legal_name: pick.denomination || pick.nom_complet,
+          siren: pick.siren,
+          legal_address: [pick.adresse, pick.commune].filter(Boolean).join(", "),
+        })} />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="legal-name" className="text-xs text-stone-500 block">Raison sociale</label>
+            <input id="legal-name" defaultValue={s.legal_name || ""}
+              onBlur={(e) => e.target.value !== s.legal_name && save({ legal_name: e.target.value })}
+              className="input-crm min-h-[44px]" data-testid="orgsettings-legal-name" />
+          </div>
+          <div>
+            <label htmlFor="legal-siren" className="text-xs text-stone-500 block">SIREN (9 chiffres)</label>
+            <input id="legal-siren" defaultValue={s.siren || ""} inputMode="numeric" pattern="[0-9]{9}"
+              onBlur={(e) => e.target.value !== s.siren && save({ siren: e.target.value })}
+              className="input-crm min-h-[44px] font-mono" data-testid="orgsettings-siren" />
+          </div>
+          <div>
+            <label htmlFor="legal-rcs" className="text-xs text-stone-500 block">RCS (ville d'immatriculation + numéro)</label>
+            <input id="legal-rcs" defaultValue={s.rcs || ""} placeholder="Paris B 123 456 789"
+              onBlur={(e) => e.target.value !== s.rcs && save({ rcs: e.target.value })}
+              className="input-crm min-h-[44px]" data-testid="orgsettings-rcs" />
+          </div>
+          <div>
+            <label htmlFor="legal-capital" className="text-xs text-stone-500 block">Capital social</label>
+            <input id="legal-capital" defaultValue={s.capital_social || ""} placeholder="10 000 €"
+              onBlur={(e) => e.target.value !== s.capital_social && save({ capital_social: e.target.value })}
+              className="input-crm min-h-[44px]" data-testid="orgsettings-capital" />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="legal-address" className="text-xs text-stone-500 block">Adresse du siège</label>
+            <input id="legal-address" defaultValue={s.legal_address || ""}
+              onBlur={(e) => e.target.value !== s.legal_address && save({ legal_address: e.target.value })}
+              className="input-crm min-h-[44px]" data-testid="orgsettings-legal-address" />
+          </div>
+          <div>
+            <label htmlFor="legal-director" className="text-xs text-stone-500 block">Directeur de la publication</label>
+            <input id="legal-director" defaultValue={s.director_publication || ""}
+              onBlur={(e) => e.target.value !== s.director_publication && save({ director_publication: e.target.value })}
+              className="input-crm min-h-[44px]" data-testid="orgsettings-director" />
+          </div>
+          <div>
+            <label htmlFor="legal-tva" className="text-xs text-stone-500 block">Numéro TVA intracom</label>
+            <input id="legal-tva" defaultValue={s.tva_intracom || ""} placeholder="FR12345678901"
+              onBlur={(e) => e.target.value !== s.tva_intracom && save({ tva_intracom: e.target.value })}
+              className="input-crm min-h-[44px] font-mono" data-testid="orgsettings-tva" />
+          </div>
+          <div>
+            <label htmlFor="legal-email" className="text-xs text-stone-500 block">Email de contact public</label>
+            <input id="legal-email" type="email" defaultValue={s.legal_email || ""} placeholder="contact@…"
+              onBlur={(e) => e.target.value !== s.legal_email && save({ legal_email: e.target.value })}
+              className="input-crm min-h-[44px]" data-testid="orgsettings-legal-email" />
+          </div>
+          <div>
+            <label htmlFor="dpo-email" className="text-xs text-stone-500 block">Email du DPO (RGPD)</label>
+            <input id="dpo-email" type="email" defaultValue={s.dpo_email || ""} placeholder="dpo@…"
+              onBlur={(e) => e.target.value !== s.dpo_email && save({ dpo_email: e.target.value })}
+              className="input-crm min-h-[44px]" data-testid="orgsettings-dpo-email" />
+          </div>
+        </div>
+        <p className="text-[11px] text-stone-500">Une fois ces champs remplis, les pages publiques /legal/mentions-legales et /legal/cgv les affichent automatiquement à la place des placeholders.</p>
       </section>
 
       {/* Zone démo — purge les fake data et enrichit les vrais établissements
