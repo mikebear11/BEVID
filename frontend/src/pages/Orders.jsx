@@ -6,8 +6,10 @@ import SignaturePad from "@/components/SignaturePad";
 import PaymentModal from "@/components/PaymentModal";
 import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function Orders() {
+  usePageMeta({ title: `${t("orders")} · BEVID` });
   const [orders, setOrders] = useState([]);
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
@@ -83,23 +85,23 @@ export default function Orders() {
   return (
     <div className="space-y-6" data-testid="orders-page">
       <div className="flex justify-between items-center">
-        <div><p className="overline">Ventes</p><h1 className="font-display text-4xl">Commandes</h1></div>
+        <div><p className="overline">{t("sales")}</p><h1 className="font-display text-4xl">{t("orders")}</h1></div>
         <div className="flex gap-2">
           <XlsxIO kind="orders" label="Excel" />
-          <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2" data-testid="new-order-btn"><Plus size={16} /> Nouvelle commande</button>
+          <button onClick={() => setShow(true)} className="btn-primary flex items-center gap-2 min-h-[44px]" data-testid="new-order-btn"><Plus size={16} aria-hidden="true" /> {t("new_order")}</button>
         </div>
       </div>
 
-      <div className="card-crm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card-crm overflow-x-auto scroll-shadow">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="bg-stone-50 border-b border-stone-200 text-left overline">
-            <tr><th className="p-3">#</th><th className="p-3">Client</th><th className="p-3 hidden md:table-cell">Date</th><th className="p-3 hidden md:table-cell">Lignes</th><th className="p-3 text-right">Total</th><th className="p-3 text-right">Actions</th></tr>
+            <tr><th className="p-3 sticky left-0 bg-stone-50 z-10">#</th><th className="p-3">{t("column.client")}</th><th className="p-3 hidden md:table-cell">{t("column.date")}</th><th className="p-3 hidden md:table-cell">{t("column.lines")}</th><th className="p-3 text-right">{t("column.total")}</th><th className="p-3 text-right">{t("column.actions")}</th></tr>
           </thead>
           <tbody>
-            {orders.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-500">Aucune commande</td></tr>}
+            {orders.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-500">{t("empty.orders")}</td></tr>}
             {orders.map(o => (
               <tr key={o.id} className="border-b border-stone-100 hover:bg-stone-50" data-testid={`order-row-${o.id}`}>
-                <td className="p-3 font-mono text-xs">{o.id.slice(0,8)}</td>
+                <td className="p-3 font-mono text-xs sticky left-0 bg-white z-10">{o.id.slice(0,8)}</td>
                 <td className="p-3 font-medium">{o.client_name} {o.signature && <span className="text-[#2D5A4C] text-xs ml-1">· signée</span>}</td>
                 <td className="p-3 hidden md:table-cell text-stone-600">{o.created_at.slice(0,10)}</td>
                 <td className="p-3 hidden md:table-cell">{o.lines.length}</td>
@@ -146,7 +148,7 @@ export default function Orders() {
                   <button type="button" onClick={() => rmLine(i)} className="col-span-1 text-stone-400"><Trash2 size={14} /></button>
                 </div>
               ))}
-              {lines.length === 0 && <p className="text-xs text-stone-500">Aucune ligne. Cliquez sur "Ajouter".</p>}
+              {lines.length === 0 && <p className="text-xs text-stone-500">{t("empty.no_line")}</p>}
             </div>
             <div><label className="text-xs">Notes</label><textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className="input-crm mt-1" /></div>
             <div className="flex justify-between items-center border-t pt-3">

@@ -10190,7 +10190,7 @@ _PERMISSIONS_POLICY = ", ".join([
     "camera=(self)", "microphone=(self)", "geolocation=(self)",
     "fullscreen=(self)", "payment=()", "usb=()", "midi=()",
     "magnetometer=()", "gyroscope=()", "accelerometer=()",
-    "autoplay=()", "ambient-light-sensor=()",
+    "autoplay=()",
 ])
 
 # Endpoints publics (marketing) : Access-Control-Allow-Origin: * autorisé

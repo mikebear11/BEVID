@@ -7,11 +7,13 @@ import { useVoice } from "@/hooks/useVoice";
 import PuceEtat from "@/components/system/PuceEtat";
 import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 const TYPES = ["bar", "restaurant", "caviste", "supermarche", "hotel", "autre"];
 const STATUSES = ["prospect", "actif", "vip", "inactif"];
 
 export default function Clients() {
+  usePageMeta({ title: `${t("clients")} · BEVID` });
   const [items, setItems] = useState([]);
   const [q, setQ] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -73,49 +75,50 @@ export default function Clients() {
     <div className="space-y-6" data-testid="clients-page">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <p className="overline">Portefeuille</p>
-          <h1 className="font-display text-4xl">Clients</h1>
+          <p className="overline">{t("portfolio")}</p>
+          <h1 className="font-display text-4xl">{t("clients")}</h1>
         </div>
         <div className="flex gap-2 self-start flex-wrap">
-          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={importCsv} data-testid="csv-input" />
-          <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-ghost flex items-center gap-2" data-testid="csv-import-btn">
-            <Upload size={16} /> {importing ? "Import…" : "Importer CSV"}
+          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={importCsv} data-testid="csv-input" aria-label={t("import_csv")} />
+          <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="csv-import-btn">
+            <Upload size={16} aria-hidden="true" /> {importing ? t("importing") : t("import_csv")}
           </button>
           <XlsxIO kind="establishments" label="Excel" onImportDone={load} />
-          <Link to="/etab/new" className="btn-ghost flex items-center gap-2" data-testid="new-establishment-btn">
-            <Building2 size={16} /> Nouvel établissement
+          <Link to="/etab/new" className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="new-establishment-btn">
+            <Building2 size={16} aria-hidden="true" /> {t("new_establishment")}
           </Link>
-          <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2" data-testid="add-client-btn">
-            <Plus size={16} /> Nouveau client
+          <button onClick={() => setShowAdd(true)} className="btn-primary flex items-center gap-2 min-h-[44px]" data-testid="add-client-btn">
+            <Plus size={16} aria-hidden="true" /> {t("new_client")}
           </button>
         </div>
       </div>
 
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-        <input placeholder="Rechercher un client, ville, contact…" value={q} onChange={e => setQ(e.target.value)} className="input-crm pl-9" data-testid="clients-search" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" aria-hidden="true" />
+        <label htmlFor="clients-search-input" className="sr-only">{t("search")}</label>
+        <input id="clients-search-input" name="q" placeholder={t("search_client_placeholder")} value={q} onChange={e => setQ(e.target.value)} className="input-crm pl-9" data-testid="clients-search" autoComplete="off" />
       </div>
 
-      <div className="card-crm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card-crm overflow-x-auto scroll-shadow">
+        <table className="w-full text-sm min-w-[560px]">
           <thead className="bg-stone-50 border-b border-stone-200 text-left overline">
             <tr>
-              <th className="p-3">Nom</th>
-              <th className="p-3 hidden md:table-cell">Type</th>
-              <th className="p-3 hidden md:table-cell">Ville</th>
-              <th className="p-3 hidden lg:table-cell">Contact</th>
-              <th className="p-3">Statut</th>
-              <th className="p-3 text-right">Santé</th>
+              <th className="p-3 sticky left-0 bg-stone-50 z-10">{t("column.name")}</th>
+              <th className="p-3 hidden md:table-cell">{t("column.type")}</th>
+              <th className="p-3 hidden md:table-cell">{t("column.city")}</th>
+              <th className="p-3 hidden lg:table-cell">{t("column.contact")}</th>
+              <th className="p-3">{t("column.status")}</th>
+              <th className="p-3 text-right">{t("column.health")}</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-500">Aucun client. Cliquez sur "Nouveau client" ou utilisez la saisie vocale.</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-500">{t("empty.clients")}</td></tr>}
             {filtered.map(c => {
               const s = scores[c.id];
               const color = s ? (s.score >= 80 ? "#2D5A4C" : s.score >= 60 ? "#5C8A6A" : s.score >= 40 ? "#C78B3A" : "#8C2A2A") : "#8A8A8A";
               return (
                 <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50" data-testid={`client-row-${c.id}`}>
-                  <td className="p-3">
+                  <td className="p-3 sticky left-0 bg-white z-10">
                     <Link to={`/clients/${c.id}`} className="font-medium text-stone-800 hover:text-[#4A154B]">{c.name}</Link>
                   </td>
                   <td className="p-3 hidden md:table-cell text-stone-600 capitalize">{c.type}</td>

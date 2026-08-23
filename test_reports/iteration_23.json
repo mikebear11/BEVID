@@ -1,0 +1,34 @@
+{
+  "summary": "Retest ciblé P0 après fixes iteration_22 — TOUS LES 7 ITEMS DEMANDÉS PASSENT. /paiements rend sans ErrorBoundary (TDZ résolu), h2 'Bad payers/Mauvais payeurs' + aide 'Score composite' + KPI DSO visibles. H1 count = 1 sur les 10 pages testées (sidebar BEVID démoté en span). Tables /reports (min-w 640), /admin/users (min-w 720), /confidentialite (min-w 640) ont bien min-width appliqué et 1ère colonne position:sticky left:0px sur th ET td. Header Permissions-Policy /login ne contient plus ambient-light-sensor (curl + 0 warning console). i18n EN/FR aller-retour fonctionne (Low-stock alert ↔ Alerte stock bas). Login/nav OK. Aucune erreur console fatale (bruit résiduel = CSP Cloudflare Insights + quelques 404 d'assets, non P0).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global CSP (non-P0)", "issues": ["static.cloudflareinsights.com beacon toujours bloqué par CSP script-src — bruit console persistant, hors périmètre P0"]},
+      {"screen": "Assets 404 (non-P0)", "issues": ["Plusieurs 404 sur ressources statiques (probablement icônes/manifest) — non bloquant"]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_23.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Optionnel : ajouter CSP entry pour static.cloudflareinsights.com OU désactiver l'injection Cloudflare beacon pour supprimer le bruit console.",
+    "Optionnel : résoudre les 404 d'assets détectés lors de la navigation (favicon/manifest/icônes ?)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% (7/7 P0 retest items pass)"},
+  "test_credentials": "manager.demo@bevidcrm.fr / Manager!2026Demo — login OK",
+  "seed_data_creation": "aucun",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "p0_retest_matrix": {
+    "REGRESSION_paiements_TDZ": "PASS — page rend, pas d'ErrorBoundary, h2 'Bad payers (5)'/'Mauvais payeurs' visible, texte 'Score composite' présent, KPI DSO présent",
+    "P0-4.2_h1_uniques": "PASS — 1 h1 exactement sur /, /clients, /orders, /stock, /paiements, /settings, /team, /reports, /products, /containers (10/10)",
+    "P0-2_tables_sticky_minwidth": "PASS — /reports: min-w=640px, th/td sticky left:0 ✓ | /admin/users: min-w=720px, sticky ✓ | /confidentialite: min-w=640px, sticky ✓",
+    "P0-4.5_permissions_policy_frontend": "PASS — curl /login header: 'camera=(self), microphone=(self), geolocation=(self), fullscreen=(self), payment=(), usb=(), midi=(), magnetometer=(), gyroscope=(), accelerometer=(), autoplay=()' — plus d'ambient-light-sensor. Console : 0 warning 'Unrecognized feature'",
+    "P0-3_i18n_EN": "PASS — /products, /, /admin/users en EN : 0 leak FR détecté ; 'Low-stock alert' et 'Stock' présents en EN",
+    "P0-3_i18n_FR_return": "PASS — après rebasculement FR : 'Alerte stock bas' et 'Stock' présents sur / ; libellés FR restaurés",
+    "REGRESSION_login_nav_console": "PASS — login manager OK (redirige vers /tournee), navigation 10 pages sans erreur fatale, seul bruit = CSP Cloudflare Insights + 404 assets"
+  },
+  "context_for_next_testing_agent": "Tous les P0 du retest iteration_23 sont verts. Le seul bruit console résiduel = CSP Cloudflare Insights (bloqué correctement) + 404 assets — à trier hors P0. Note : le test H1 se lance en langue par défaut (FR pour /reports='Rapports', /products='Produits', /team='Mon équipe' ; EN pour les autres si l'utilisateur avait sélectionné EN antérieurement via localStorage — l'exigence 'exactement 1 h1' est respectée dans les 2 langues)."
+}

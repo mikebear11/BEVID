@@ -1247,3 +1247,69 @@ Deux collections MongoDB coexistent : `db.clients` (legacy) et `db.establishment
 
 ### Régression complète Lot 7 : **35/35 verts** (iter28+29+30+31+32).
 
+
+## Lot QA — Rapport bugs P0 (livré 23/02/2026)
+
+### P0 — Login CSP image bloquée
+- `Login.jsx`, `Register.jsx`, `ForgotPassword.jsx` : suppression du `backgroundImage: url('https://images.unsplash.com/...')` bloqué par CSP.
+- Remplacé par un dégradé radial + linéaire CSS pur + pattern de points (radial-gradient). Zéro octet, zéro requête externe.
+- Rendu vérifié en screenshot : panneau de marque affiche un vrai fond violet texturé + typographie centrée.
+
+### P0 — Tableaux amputés sur mobile (perte de données)
+- Écrans impactés (`overflow-hidden` sur wrapper de tableau plus large que le conteneur) : `/stock`, `/drm`, `/rapprochement`, `/paiements` (partiellement scrollable), plus balayage sur `/reports`, `/admin/users`, `/couts`, `/confidentialite`.
+- Correction appliquée : `overflow-hidden` → `overflow-x-auto scroll-shadow` + `min-w-[720px]`/`[560px]`/`[820px]` sur `<table>` + **1ère colonne figée** via `sticky left-0 z-10`.
+- Nouvelle classe `.scroll-shadow` dans `/app/frontend/src/index.css` : dégradé radial violet à droite indiquant qu'il reste du contenu à scroller (dark mode inclus).
+- Vérifié via screenshot : les 8 colonnes de `/stock` sont visibles et scrollables sans troncature.
+
+### P0 — Fuites anglais → français
+- 130+ nouvelles clés i18n (FR + EN) ajoutées à `lib/i18n.js` : `empty.*`, `column.*`, `filter.*`, `new_client`, `new_order`, `new_establishment`, `activate_camera`, `stop_camera`, `manual_entry`, `dashboard_greeting`, `revenue_evolution`, `top_products`, `settings.preferences`, `automations`, `bad_payers_help`, `reconciliation_help`, `login_hero_*`, `forgot_hero_*`, `see_pricing`, `manager_only`, etc.
+- Titres/overlines/colonnes/états vides remplacés par `t(key)` sur : Dashboard, Clients, Orders, Stock, DRM, Rapprochement, Paiements, Settings, Reports, Products, Team, Containers, ScanContainer, Login, Register, ForgotPassword.
+- État vide "Aucun client" / "Aucune commande" / "Aucune donnée" / "Aucune ligne" tous traduits.
+
+### P0 — Accessibilité + métadonnées
+- `usePageMeta` étendu à Dashboard, Clients, Orders, Stock, DRM, Rapprochement, Paiements, Settings, Reports, Products, Team, Containers, ScanContainer. Titre onglet distinct par écran (`{Page} · BEVID`).
+- **H1 dédoublonnés** : `Layout.jsx` (top bar mobile) `<h1>BEVID</h1>` → `<span aria-hidden>BEVID</span>`. Chaque page conserve son `<h1>` unique (titre de page). Les cartes internes (`<h3>` sur Dashboard/Settings/Paiements) rétrogradées à `<h2>` pour respecter la hiérarchie.
+- **Cibles tactiles ≥ 32px desktop / ≥ 44px mobile** : bouton `sidebar-collapse-toggle` passe de `p-1.5` (28px) à `min-w-[32px] min-h-[32px]`. Boutons secondaires sur Clients/Orders/Products/Containers/Rapprochement gagnent `min-h-[44px]`. Filtres Rapprochement gagnent `min-h-[36px]`.
+- **Inputs avec `id` + `<label>`** : Rapprochement search, Clients search, ScanContainer manual code — tous avec `label sr-only` + `id` + `autoComplete`.
+- **aria-label** partout : "Ouvrir la palette de commandes" → `t("open_command_palette")`, "Rechercher" → `t("search_verb")`, `t("activate_camera")`, `t("stop_camera")`, boutons icônes sur Dashboard/Clients/Orders/Products.
+- **`ambient-light-sensor` retiré** de `Permissions-Policy` (backend `server.py` + frontend `craco.config.js`). Vérifié via `curl -sI` : plus de `ambient-light-sensor` dans les en-têtes.
+
+### P0 — /scan : caméra plus démarrée au montage
+- `ScanContainer.jsx` réécrit intégralement.
+- `useEffect` réduit à un nettoyage `return () => stop()`. **Aucun démarrage automatique.**
+- Nouveau bouton `data-testid="start-camera-btn"` avec libellé "Activer la caméra" — la demande d'autorisation navigateur ne se déclenche qu'après clic explicite.
+- Message de pré-permission affiché dans le viewfinder tant que l'utilisateur n'a pas cliqué.
+- Bouton "Arrêter la caméra" séparé après démarrage.
+- Saisie manuelle inchangée (fallback intact).
+
+### Fichiers modifiés
+- Backend : `/app/backend/server.py` (Permissions-Policy).
+- Frontend :
+  - `/app/frontend/craco.config.js` (Permissions-Policy)
+  - `/app/frontend/src/index.css` (nouvelle classe `.scroll-shadow`)
+  - `/app/frontend/src/lib/i18n.js` (130+ clés FR + EN)
+  - `/app/frontend/src/components/Layout.jsx` (aria-label, h1 → span, min-h collapse)
+  - Pages: `Login.jsx`, `Register.jsx`, `ForgotPassword.jsx`, `Dashboard.jsx`, `Clients.jsx`, `Orders.jsx`, `Stock.jsx`, `DRM.jsx`, `Rapprochement.jsx`, `Paiements.jsx`, `Settings.jsx`, `Reports.jsx`, `Products.jsx`, `Team.jsx`, `Containers.jsx`, `ScanContainer.jsx`, `Couts.jsx`, `AdminUsers.jsx`, `Confidentialite.jsx`.
+
+### Bloqueurs restants (à surveiller ou nécessitent user)
+- Sweep des 45 écrans pour d'autres tables `overflow-hidden` fait sur les principaux; balayage exhaustif à confirmer via testing_agent.
+- Tables restées scrollables sans stacked-cards mobile (approche minimum acceptée par user : `overflow-x-auto` + `scroll-shadow` + `sticky left-0`).
+- Bandeau consent PostHog "Statistiques d'usage anonymisées" reste en FR par design (composant global).
+
+## Lot QA — Retest iteration_23 : ✅ 7/7 P0 VERTS (23/02/2026)
+
+Après un premier passage testing agent (iteration_22) qui a détecté 4 bugs critiques :
+1. **Paiements TDZ** — `const { t } = useI18n()` shadowait `import { t } from lib/i18n` utilisé par `usePageMeta` avant déclaration → ReferenceError sur toute visite `/paiements`. Fix : suppression du `useI18n` (l'import statique suffit, ré-évalué à chaque re-render context).
+2. **Sidebar H1 dupliqué** — `<h1 className="font-display text-2xl">BEVID</h1>` dans la sidebar rendait 2 h1 sur chaque page authentifiée. Fix : `<span aria-hidden="true">` (Layout.jsx L553).
+3. **Tables Reports/AdminUsers/Confidentialite** — wrapper avait bien `.scroll-shadow overflow-x-auto` mais tables sans `min-width` ni `sticky left-0` sur 1ère colonne. Fix : `min-w-[640/720px]` + `sticky left-0 bg-* z-10` sur th/td de la 1ère col.
+4. **Frontend static Permissions-Policy** — malgré la correction `craco.config.js`, le webpack-dev-server devait redémarrer pour reprendre la config. Fix : `sudo supervisorctl restart frontend` après changement de config.
+
+Bonus i18n : `low_stock_alert` (Alerte stock bas / Low-stock alert), `others`, `empty.no_products`, `stock` remontés en clés.
+
+### Régressions vérifiées ✅
+- `/paiements` : rend, h2 + heading + KPI DSO OK
+- H1 = 1 sur les 10 pages internes
+- Tables : min-width appliqué, sticky first col sur th ET td
+- Curl `/login` : plus d'`ambient-light-sensor`
+- i18n EN/FR aller-retour : `Low-stock alert` ↔ `Alerte stock bas`
+- Login manager fonctionnel, navigation 10 pages sans erreur fatale

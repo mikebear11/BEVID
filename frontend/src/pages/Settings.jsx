@@ -3,8 +3,10 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { MessageSquare, Percent, Save, Bell } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function SettingsPage() {
+  usePageMeta({ title: `${t("preferences")} · BEVID` });
   const [s, setS] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -17,14 +19,14 @@ export default function SettingsPage() {
     finally { setSaving(false); }
   };
 
-  if (!s) return <div className="text-stone-500">Chargement…</div>;
+  if (!s) return <div className="text-stone-500">{t("loading_ellipsis")}</div>;
 
   return (
     <div className="space-y-6 max-w-2xl" data-testid="settings-page">
-      <div><p className="overline">Automatisations</p><h1 className="font-display text-4xl">Préférences</h1></div>
+      <div><p className="overline">{t("automations")}</p><h1 className="font-display text-4xl">{t("preferences")}</h1></div>
 
       <div className="card-crm p-6">
-        <div className="flex items-center gap-2 mb-4"><Bell size={18} className="text-[#4A154B]" /><h3 className="font-display text-xl">Relances automatiques</h3></div>
+        <div className="flex items-center gap-2 mb-4"><Bell size={18} className="text-[#4A154B]" aria-hidden="true" /><h2 className="font-display text-xl">{t("auto_reminders")}</h2></div>
         <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-stone-50" data-testid="toggle-reminders">
           <input type="checkbox" checked={s.reminders_enabled} onChange={e => setS({...s, reminders_enabled: e.target.checked})} className="w-5 h-5 accent-[#4A154B]" />
           <div className="flex-1">
@@ -71,7 +73,7 @@ TWILIO_SMS_FROM=+33xxxxxxxxx</pre>
         <p className="text-xs text-stone-500 mt-2">Obtiens tes clés sur <a href="https://console.twilio.com" target="_blank" rel="noreferrer" className="text-[#4A154B] underline">console.twilio.com</a>. En sandbox WhatsApp, chaque destinataire doit d'abord envoyer "join &lt;code&gt;" au numéro sandbox.</p>
       </div>
 
-      <button onClick={save} disabled={saving} className="btn-primary flex items-center gap-2" data-testid="save-settings"><Save size={16} /> {saving ? "Enregistrement…" : "Enregistrer"}</button>
+      <button onClick={save} disabled={saving} className="btn-primary flex items-center gap-2 min-h-[44px]" data-testid="save-settings"><Save size={16} aria-hidden="true" /> {saving ? t("saving_ellipsis") : t("save")}</button>
     </div>
   );
 }

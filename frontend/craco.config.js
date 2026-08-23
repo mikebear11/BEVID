@@ -62,7 +62,6 @@ function makeDevServerV5Compatible(devServerConfig) {
     "gyroscope=()",
     "accelerometer=()",
     "autoplay=()",
-    "ambient-light-sensor=()",
   ].join(", ");
 
   compatibleConfig.headers = {

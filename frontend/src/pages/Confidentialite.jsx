@@ -199,16 +199,16 @@ export default function Confidentialite() {
 
       {/* Audit */}
       {isManager && (
-        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden" data-testid="audit-block">
+        <div className="bg-white rounded-2xl border border-stone-200 overflow-x-auto scroll-shadow" data-testid="audit-block">
           <div className="p-5 border-b border-stone-100">
             <h3 className="font-medium">Journal des accès (50 derniers)</h3>
             <p className="text-xs text-stone-500 mt-1">Traçabilité de toutes les actions sensibles.</p>
           </div>
-          <div className="max-h-96 overflow-y-auto">
-            <table className="w-full text-xs">
+          <div className="max-h-96 overflow-y-auto overflow-x-auto">
+            <table className="w-full text-xs min-w-[640px]">
               <thead className="bg-stone-50 sticky top-0">
                 <tr className="text-left text-stone-500">
-                  <th className="p-2">Quand</th>
+                  <th className="p-2 sticky left-0 bg-stone-50 z-10">Quand</th>
                   <th className="p-2">Utilisateur</th>
                   <th className="p-2">Action</th>
                   <th className="p-2">Détails</th>
@@ -217,7 +217,7 @@ export default function Confidentialite() {
               <tbody>
                 {audit.map(a => (
                   <tr key={a.id} className="border-t border-stone-100">
-                    <td className="p-2 text-stone-500">{a.at?.slice(0, 16).replace("T", " ")}</td>
+                    <td className="p-2 text-stone-500 sticky left-0 bg-white z-10">{a.at?.slice(0, 16).replace("T", " ")}</td>
                     <td className="p-2 font-mono">{(a.user_id || "").slice(0, 8)}</td>
                     <td className="p-2"><PuceEtat etat="info" variante="douce" libelle={a.action} /></td>
                     <td className="p-2 text-stone-500 truncate max-w-xs">{JSON.stringify(a.details)}</td>

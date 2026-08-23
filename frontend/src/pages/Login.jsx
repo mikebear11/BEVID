@@ -60,14 +60,15 @@ export default function Login() {
   return (
     <div className="min-h-screen flex">
       <div data-testid="brand-panel" className="hidden md:flex md:w-1/2 relative bg-[#4A154B] text-white p-12 flex-col justify-between overflow-hidden">
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1562601579-599dec564e06?w=1200')", backgroundSize: "cover", backgroundPosition: "center", mixBlendMode: "multiply" }} />
+        <div className="absolute inset-0 opacity-90" aria-hidden="true" style={{ background: "radial-gradient(circle at 20% 20%, #6B2470 0%, transparent 55%), radial-gradient(circle at 80% 70%, #B076B4 0%, transparent 45%), linear-gradient(135deg, #4A154B 0%, #2B0C2D 100%)" }} />
+        <div className="absolute inset-0 opacity-10" aria-hidden="true" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
         <div className="relative z-10 flex items-center gap-2">
           <BevidLogo size={28} />
           <span className="overline text-white/80">BEVID · CRM</span>
         </div>
         <div className="relative z-10">
-          <h1 className="font-display text-5xl leading-tight mb-4">La distribution de boissons,<br/>simplifiée.</h1>
-          <p className="text-white/80 max-w-md">Saisie vocale, hors-ligne, DRM douane, DSO temps réel. Vos commerciaux passent enfin plus de temps sur le terrain.</p>
+          <h1 className="font-display text-5xl leading-tight mb-4">{t("login_hero_title_line1")}<br/>{t("login_hero_title_line2")}</h1>
+          <p className="text-white/80 max-w-md">{t("login_hero_subtitle")}</p>
         </div>
         <div className="relative z-10 overline text-white/50">© 2026 BEVID</div>
       </div>
@@ -136,7 +137,7 @@ export default function Login() {
           <p className="text-sm text-stone-500 text-center">
             <Link to="/register" className="text-[#4A154B] font-medium">{t("register")}</Link>
             {" · "}
-            <Link to="/pricing" className="text-[#4A154B] font-medium" data-testid="login-pricing-link">Voir les tarifs</Link>
+            <Link to="/pricing" className="text-[#4A154B] font-medium" data-testid="login-pricing-link">{t("see_pricing")}</Link>
           </p>
         </form>
       </div>

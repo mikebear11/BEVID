@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { useI18n } from "@/contexts/I18nContext";
 import { toast } from "sonner";
 import { TrendingDown, TrendingUp, AlertTriangle, RefreshCw, Bell } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import PuceEtat from "@/components/system/PuceEtat";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function Paiements() {
+  usePageMeta({ title: `${t("payments")} · BEVID` });
   const { user } = useAuth();
-  const { t } = useI18n();
   const [dso, setDso] = useState(null);
   const [bad, setBad] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -53,7 +53,7 @@ export default function Paiements() {
   };
   const dismiss = async (aid) => { await api.post(`/alerts/bad-payers/${aid}/dismiss`); load(); };
 
-  if (user?.role !== "manager") return <div className="p-8 text-stone-500">Réservé au manager.</div>;
+  if (user?.role !== "manager") return <div className="p-8 text-stone-500">{t("manager_only")}</div>;
   if (loading || !settings) return <div className="p-8 text-stone-500">{t("loading")}</div>;
   const trendUp = dso && dso.trend > 0;
 
@@ -61,8 +61,8 @@ export default function Paiements() {
     <div className="space-y-6" data-testid="paiements-page">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <p className="overline">Pilotage</p>
-          <h2 className="font-display text-3xl mt-1">{t("payments")}</h2>
+          <p className="overline">{t("dashboard_overview")}</p>
+          <h1 className="font-display text-3xl mt-1">{t("payments")}</h1>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={scan} disabled={busy} className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="scan-badpayers-btn"><Bell size={16} className={busy ? "animate-pulse" : ""} /> Scanner alertes</button>
@@ -132,14 +132,14 @@ export default function Paiements() {
 
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
         <div className="p-5 border-b border-stone-100">
-          <h3 className="font-medium flex items-center gap-2"><AlertTriangle size={18} className="text-amber-600" />{t("bad_payers")} ({bad.length})</h3>
-          <p className="text-xs text-stone-500 mt-1">Score composite : retard moyen + ancienneté + montant.</p>
+          <h2 className="font-medium flex items-center gap-2"><AlertTriangle size={18} className="text-amber-600" aria-hidden="true" />{t("bad_payers")} ({bad.length})</h2>
+          <p className="text-xs text-stone-500 mt-1">{t("bad_payers_help") || "Score composite : retard moyen + ancienneté + montant."}</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto scroll-shadow">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-stone-50">
               <tr className="text-left text-stone-500 text-xs">
-                <th className="p-3">Client</th><th className="p-3">{t("payment_terms")}</th><th className="p-3">{t("actual_delay")}</th><th className="p-3">{t("overdue_amount")}</th><th className="p-3">{t("overdue_age")}</th><th className="p-3">Score</th>
+                <th className="p-3 sticky left-0 bg-stone-50 z-10">{t("column.client")}</th><th className="p-3">{t("payment_terms")}</th><th className="p-3">{t("actual_delay")}</th><th className="p-3">{t("overdue_amount")}</th><th className="p-3">{t("overdue_age")}</th><th className="p-3">Score</th>
               </tr>
             </thead>
             <tbody>
@@ -148,7 +148,7 @@ export default function Paiements() {
                 const gc = gap == null ? "text-stone-400" : gap > 15 ? "text-red-600 font-bold" : gap > 0 ? "text-amber-600" : "text-emerald-600";
                 return (
                   <tr key={b.client_id} className="border-t border-stone-100" data-testid={`bad-payer-${b.client_id}`}>
-                    <td className="p-3 font-medium">{b.name}</td>
+                    <td className="p-3 font-medium sticky left-0 bg-white z-10">{b.name}</td>
                     <td className="p-3 text-stone-600">{b.payment_terms_days}j</td>
                     <td className={`p-3 ${gc}`}>{gap == null ? "—" : `${gap > 0 ? "+" : ""}${gap}j`}</td>
                     <td className="p-3 font-medium">{b.overdue_amount.toFixed(2)} €</td>
@@ -157,7 +157,7 @@ export default function Paiements() {
                   </tr>
                 );
               })}
-              {bad.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-400">Aucun retard — bravo 🎉</td></tr>}
+              {bad.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-stone-400">{t("empty.no_late")}</td></tr>}
             </tbody>
           </table>
         </div>

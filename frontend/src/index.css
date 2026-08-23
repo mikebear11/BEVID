@@ -5,6 +5,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Lot QA — Table à défilement horizontal avec ombre de bord indicative.
+ * Signale à l'utilisateur qu'il reste du contenu à droite. */
+.scroll-shadow {
+  background:
+    linear-gradient(to right, #fff 30%, rgba(255,255,255,0)) left center / 24px 100% no-repeat,
+    linear-gradient(to left, #fff 30%, rgba(255,255,255,0)) right center / 24px 100% no-repeat,
+    radial-gradient(farthest-side at 0% 50%, rgba(74,21,75,0.15), rgba(0,0,0,0)) left center / 12px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, rgba(74,21,75,0.15), rgba(0,0,0,0)) right center / 12px 100% no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+.dark .scroll-shadow {
+  background:
+    linear-gradient(to right, rgb(28 25 23) 30%, rgba(28,25,23,0)) left center / 24px 100% no-repeat,
+    linear-gradient(to left, rgb(28 25 23) 30%, rgba(28,25,23,0)) right center / 24px 100% no-repeat,
+    radial-gradient(farthest-side at 0% 50%, rgba(176,118,180,0.2), rgba(0,0,0,0)) left center / 12px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, rgba(176,118,180,0.2), rgba(0,0,0,0)) right center / 12px 100% no-repeat;
+  background-attachment: local, local, scroll, scroll;
+}
+
+
 /* ZT Nature — police d'affichage (dafont) */
 @font-face {
   font-family: 'ZT Nature';

@@ -550,7 +550,7 @@ export default function Layout({ children }) {
               <BevidLogo size={collapsed ? 22 : 28} />
               {!collapsed && (
                 <div>
-                  <h1 className="font-display text-2xl leading-none">BEVID</h1>
+                  <span className="font-display text-2xl leading-none block" aria-hidden="true">BEVID</span>
                   <p className="overline mt-1">CRM Boisson · Pro</p>
                 </div>
               )}
@@ -565,7 +565,7 @@ export default function Layout({ children }) {
                     data-testid="sidebar-collapse-toggle"
                     aria-label={collapsed ? t("expand_sidebar") : t("collapse_sidebar")}
                     aria-pressed={collapsed ? "true" : "false"}
-                    className="p-1.5 rounded-md hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 dark:text-stone-400"
+                    className="min-w-[32px] min-h-[32px] flex items-center justify-center rounded-md hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 dark:text-stone-400"
                   >
                     {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
                   </button>
@@ -583,11 +583,11 @@ export default function Layout({ children }) {
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("bevid:open-palette"))}
               data-testid="palette-trigger"
-              className="mx-3 mt-3 flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-              aria-label="Ouvrir la palette de commandes"
+              className="mx-3 mt-3 flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors min-h-[40px]"
+              aria-label={t("open_command_palette")}
             >
               <Search size={14} aria-hidden="true" />
-              <span className="flex-1 text-left">Rechercher…</span>
+              <span className="flex-1 text-left">{t("search_verb")}…</span>
               <kbd className="text-[10px] px-1.5 py-0.5 border border-stone-300 dark:border-stone-600 rounded font-mono">⌘K</kbd>
             </button>
           ) : (
@@ -597,13 +597,13 @@ export default function Layout({ children }) {
                   type="button"
                   onClick={() => window.dispatchEvent(new CustomEvent("bevid:open-palette"))}
                   data-testid="palette-trigger"
-                  aria-label="Ouvrir la palette de commandes"
+                  aria-label={t("open_command_palette")}
                   className="mx-auto mt-3 flex items-center justify-center w-10 h-10 rounded-lg text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800"
                 >
-                  <Search size={16} />
+                  <Search size={16} aria-hidden="true" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">Rechercher · ⌘K</TooltipContent>
+              <TooltipContent side="right" className="text-xs">{t("search_verb")} · ⌘K</TooltipContent>
             </Tooltip>
           )}
 
@@ -774,7 +774,7 @@ export default function Layout({ children }) {
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 glass border-b border-stone-200 dark:border-stone-700 flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3 text-[#4A154B] dark:text-[#B076B4]">
             <BevidLogo size={22} />
-            <h1 className="font-display text-xl">BEVID</h1>
+            <span className="font-display text-xl" aria-hidden="true">BEVID</span>
             <SyncIndicator />
           </div>
           <div className="flex gap-1 items-center">
@@ -782,7 +782,7 @@ export default function Layout({ children }) {
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("bevid:open-palette"))}
               data-testid="palette-trigger-mobile"
-              aria-label="Rechercher"
+              aria-label={t("search_verb")}
               className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-700 dark:text-stone-300"
             >
               <Search size={18} aria-hidden="true" />

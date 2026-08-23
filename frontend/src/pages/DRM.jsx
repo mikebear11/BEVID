@@ -4,8 +4,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { FileDown, Calendar, AlertTriangle } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 export default function DRM() {
+  usePageMeta({ title: `DRM · BEVID` });
   const { user } = useAuth();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -35,15 +37,15 @@ export default function DRM() {
     URL.revokeObjectURL(url);
   };
 
-  if (user?.role !== "manager") return <div className="p-8 text-stone-500">Réservé au manager.</div>;
+  if (user?.role !== "manager") return <div className="p-8 text-stone-500">{t("manager_only")}</div>;
 
   return (
     <div className="space-y-6" data-testid="drm-page">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <p className="overline">Conformité fiscale</p>
-          <h1 className="font-display text-4xl">DRM — Déclaration Récapitulative Mensuelle</h1>
-          <p className="text-sm text-stone-500 mt-1">Aide à la préparation. À déclarer sur portailpro.douanes.gouv.fr.</p>
+          <p className="overline">{t("compliance_tax")}</p>
+          <h1 className="font-display text-4xl">{t("drm_page_title")}</h1>
+          <p className="text-sm text-stone-500 mt-1">{t("drm_help")}</p>
         </div>
       </div>
 
@@ -71,12 +73,12 @@ export default function DRM() {
             <div className="bg-white rounded-2xl p-5 border border-[#4A154B]/30 bg-[#4A154B]/5"><p className="overline">Alcool pur total sorti (L)</p><p className="font-display text-3xl mt-1 text-[#4A154B]" data-testid="drm-total-ap">{data.total_alcool_pur_l}</p></div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-x-auto scroll-shadow">
+            <table className="w-full text-sm min-w-[820px]">
               <thead className="bg-stone-50">
                 <tr className="text-left text-stone-500 text-xs">
-                  <th className="p-3">Produit</th>
-                  <th className="p-3">Type</th>
+                  <th className="p-3 sticky left-0 bg-stone-50 z-10">{t("column.product")}</th>
+                  <th className="p-3">{t("column.type")}</th>
                   <th className="p-3">°</th>
                   <th className="p-3">Entrées L</th>
                   <th className="p-3">Sorties L</th>
@@ -90,7 +92,7 @@ export default function DRM() {
               <tbody>
                 {data.lines.map(l => (
                   <tr key={l.product_id} className="border-t border-stone-100" data-testid={`drm-row-${l.product_id}`}>
-                    <td className="p-3 font-medium">{l.product_name}</td>
+                    <td className="p-3 font-medium sticky left-0 bg-white z-10">{l.product_name}</td>
                     <td className="p-3 text-stone-500">{l.alcohol_type}</td>
                     <td className="p-3">{l.abv_pct}%</td>
                     <td className="p-3">{l.entrees_l}</td>
@@ -102,7 +104,7 @@ export default function DRM() {
                     <td className="p-3 font-medium text-[#4A154B]">{l.alcool_pur_l}</td>
                   </tr>
                 ))}
-                {data.lines.length === 0 && <tr><td colSpan={10} className="p-6 text-center text-stone-400">Aucun mouvement sur produits alcoolisés ce mois-ci.</td></tr>}
+                {data.lines.length === 0 && <tr><td colSpan={10} className="p-6 text-center text-stone-400">{t("empty.no_movement")}</td></tr>}
               </tbody>
             </table>
           </div>

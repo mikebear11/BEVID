@@ -6,6 +6,7 @@ import {
   Loader2, TrendingUp, AlertCircle, X, Search,
 } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 const CONF_BADGE = {
   certain: { label: "Certaine", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
@@ -15,6 +16,7 @@ const CONF_BADGE = {
 };
 
 export default function Rapprochement() {
+  usePageMeta({ title: `${t("reconciliation")} · BEVID` });
   const [summary, setSummary] = useState(null);
   const [txs, setTxs] = useState([]);
   const [filter, setFilter] = useState("open");
@@ -86,80 +88,81 @@ export default function Rapprochement() {
     <div className="space-y-6" data-testid="rapprochement-page">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <p className="overline flex items-center gap-2"><Landmark size={12} /> Trésorerie</p>
-          <h1 className="font-display text-4xl">Rapprochement bancaire</h1>
-          <p className="text-xs text-stone-500 mt-1">Import CSV · CAMT.053 · CFONB 120 — moteur de lettrage à 4 niveaux de confiance</p>
+          <p className="overline flex items-center gap-2"><Landmark size={12} aria-hidden="true" /> {t("settlement")}</p>
+          <h1 className="font-display text-4xl">{t("reconciliation")}</h1>
+          <p className="text-xs text-stone-500 mt-1">{t("reconciliation_help")}</p>
         </div>
         <label className="btn-primary cursor-pointer flex items-center gap-2 min-h-[44px]" data-testid="import-btn">
-          {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-          {uploading ? "Import…" : "Importer un relevé"}
-          <input type="file" accept=".csv,.xml,.txt" onChange={upload} className="hidden" disabled={uploading} data-testid="import-file" />
+          {uploading ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}
+          {uploading ? t("importing") : t("action.import_statement")}
+          <input type="file" accept=".csv,.xml,.txt" onChange={upload} className="hidden" disabled={uploading} data-testid="import-file" aria-label={t("action.import_statement")} />
         </label>
       </div>
 
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi label="Écritures" value={summary.total_tx} />
-          <Kpi label="À lettrer" value={summary.open_tx} accent="#8C2A2A" />
-          <Kpi label="Lettrées" value={summary.matched_tx} accent="#2D5A4C" suffix={` · ${summary.matched_pct}%`} />
-          <Kpi label="Taux auto" value={`${summary.auto_rate_pct}%`} icon={<TrendingUp size={14} />} accent="#4A154B" />
+          <Kpi label={t("kpi_reconciliation_entries")} value={summary.total_tx} />
+          <Kpi label={t("kpi_to_letter")} value={summary.open_tx} accent="#8C2A2A" />
+          <Kpi label={t("kpi_lettered")} value={summary.matched_tx} accent="#2D5A4C" suffix={` · ${summary.matched_pct}%`} />
+          <Kpi label={t("kpi_auto_rate")} value={`${summary.auto_rate_pct}%`} icon={<TrendingUp size={14} aria-hidden="true" />} accent="#4A154B" />
         </div>
       )}
 
       <div className="flex gap-2 items-center flex-wrap">
         {["open", "matched", "partial", "all"].map(f => (
           <button key={f} onClick={() => setFilter(f)}
-            className={`text-xs px-3 py-1.5 rounded-full ${filter === f ? "bg-[#4A154B] text-white" : "bg-stone-100 text-stone-700"}`}
+            className={`text-xs px-3 py-1.5 rounded-full min-h-[36px] ${filter === f ? "bg-[#4A154B] text-white" : "bg-stone-100 text-stone-700"}`}
             data-testid={`filter-${f}`}>
-            {f === "open" ? "À lettrer" : f === "matched" ? "Lettrées" : f === "partial" ? "Partielles" : "Toutes"}
+            {t(`filter.${f}`)}
           </button>
         ))}
         <div className="relative ml-auto min-w-[240px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input placeholder="Filtrer libellé, contrepartie, montant…" value={query}
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" aria-hidden="true" />
+          <label htmlFor="rapp-search-input" className="sr-only">{t("search")}</label>
+          <input id="rapp-search-input" name="q" placeholder={t("search_reconciliation_placeholder")} value={query}
             onChange={e => setQuery(e.target.value)}
-            className="input-crm pl-9 h-9 text-sm" data-testid="rapp-search" />
+            className="input-crm pl-9 h-9 text-sm" data-testid="rapp-search" autoComplete="off" />
         </div>
       </div>
 
-      <div className="card-crm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card-crm overflow-x-auto scroll-shadow">
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-stone-50 border-b border-stone-200 text-left overline">
             <tr>
-              <th className="p-3">Date</th>
-              <th className="p-3">Contrepartie</th>
-              <th className="p-3">Libellé</th>
-              <th className="p-3 text-right">Montant</th>
-              <th className="p-3">Statut</th>
-              <th className="p-3 text-right">Action</th>
+              <th className="p-3 sticky left-0 bg-stone-50 z-10">{t("column.date")}</th>
+              <th className="p-3">{t("column.counterparty")}</th>
+              <th className="p-3">{t("column.label")}</th>
+              <th className="p-3 text-right">{t("column.amount")}</th>
+              <th className="p-3">{t("column.status")}</th>
+              <th className="p-3 text-right">{t("column.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr><td colSpan={6} className="p-8 text-center text-stone-500">
-                <FileSpreadsheet size={28} className="mx-auto text-stone-300 mb-2" />
-                Aucune écriture. Importez un relevé pour commencer.
+                <FileSpreadsheet size={28} className="mx-auto text-stone-300 mb-2" aria-hidden="true" />
+                {t("empty.no_reconciliation")}
               </td></tr>
             )}
-            {filtered.map(t => (
-              <tr key={t.id} className="border-b border-stone-100 hover:bg-stone-50" data-testid={`tx-${t.id}`}>
-                <td className="p-3 whitespace-nowrap text-stone-600">{(t.value_date || "").slice(0, 10)}</td>
-                <td className="p-3 text-stone-800 font-medium">{t.counterparty_name || "—"}</td>
-                <td className="p-3 text-stone-500 max-w-xs truncate" title={t.label}>{t.label}</td>
-                <td className={`p-3 text-right font-mono font-medium ${t.amount >= 0 ? "text-emerald-700" : "text-red-700"}`}>
-                  {t.amount >= 0 ? "+" : ""}{Number(t.amount).toFixed(2)} €
+            {filtered.map(tx => (
+              <tr key={tx.id} className="border-b border-stone-100 hover:bg-stone-50" data-testid={`tx-${tx.id}`}>
+                <td className="p-3 whitespace-nowrap text-stone-600 sticky left-0 bg-white z-10">{(tx.value_date || "").slice(0, 10)}</td>
+                <td className="p-3 text-stone-800 font-medium">{tx.counterparty_name || "—"}</td>
+                <td className="p-3 text-stone-500 max-w-xs truncate" title={tx.label}>{tx.label}</td>
+                <td className={`p-3 text-right font-mono font-medium ${tx.amount >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                  {tx.amount >= 0 ? "+" : ""}{Number(tx.amount).toFixed(2)} €
                 </td>
                 <td className="p-3">
-                  {t.status === "matched" && <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px]">Lettrée</span>}
-                  {t.status === "open" && <span className="badge bg-red-100 text-red-800 border border-red-300 text-[10px]">Ouverte</span>}
-                  {t.status === "partial" && <span className="badge bg-amber-100 text-amber-800 border border-amber-300 text-[10px]">Partielle</span>}
+                  {tx.status === "matched" && <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px]">{t("filter.matched")}</span>}
+                  {tx.status === "open" && <span className="badge bg-red-100 text-red-800 border border-red-300 text-[10px]">{t("filter.open")}</span>}
+                  {tx.status === "partial" && <span className="badge bg-amber-100 text-amber-800 border border-amber-300 text-[10px]">{t("filter.partial")}</span>}
                 </td>
                 <td className="p-3 text-right">
-                  {t.status !== "matched" && t.amount > 0 && (
-                    <button onClick={() => openPropose(t.id)}
+                  {tx.status !== "matched" && tx.amount > 0 && (
+                    <button onClick={() => openPropose(tx.id)}
                       className="text-xs bg-[#4A154B] text-white px-3 py-1.5 rounded-full min-h-[36px]"
-                      data-testid={`propose-${t.id}`}>
-                      Propositions
+                      data-testid={`propose-${tx.id}`}>
+                      {t("action.propositions")}
                     </button>
                   )}
                 </td>

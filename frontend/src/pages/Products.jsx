@@ -5,10 +5,12 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
 import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 const CATS = ["vin", "biere", "spiritueux", "soft", "eau", "autre"];
 
 export default function Products() {
+  usePageMeta({ title: `${t("products")} · BEVID` });
   const { confirm } = useConfirm();
   const [items, setItems] = useState([]);
   const [show, setShow] = useState(false);
@@ -54,7 +56,7 @@ export default function Products() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {items.length === 0 && <div className="col-span-full text-stone-500 text-sm">Aucun produit.</div>}
+        {items.length === 0 && <div className="col-span-full text-stone-500 text-sm">{t("empty.no_products")}.</div>}
         {items.map(p => {
           const isBiere = p.category === "biere";
           const hasTiers = (p.hecto_tiers || []).length > 0;
@@ -73,7 +75,7 @@ export default function Products() {
               </div>
               <div className="mt-4 flex items-end justify-between">
                 <div><p className="overline">Prix</p><p className="font-display text-2xl text-[#4A154B]">{p.price.toFixed(2)} €</p></div>
-                <div className="text-right"><p className="overline">Stock</p><p className={`font-display text-2xl ${p.stock < 20 ? 'text-[#8C2A2A]' : 'text-[#2D5A4C]'}`}>{p.stock}</p></div>
+                <div className="text-right"><p className="overline">{t("stock")}</p><p className={`font-display text-2xl ${p.stock < 20 ? 'text-[#8C2A2A]' : 'text-[#2D5A4C]'}`}>{p.stock}</p></div>
               </div>
               {(isBiere || hasTiers) && (
                 <div className="mt-3 pt-3 border-t border-stone-100">

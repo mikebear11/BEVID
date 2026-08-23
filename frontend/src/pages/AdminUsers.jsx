@@ -123,22 +123,22 @@ export default function AdminUsers() {
         </form>
       </div>
 
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-x-auto scroll-shadow">
+        <table className="w-full text-sm min-w-[720px]">
           <thead className="bg-stone-50">
             <tr className="text-left text-stone-500">
-              <th className="p-3">{t("name")}</th>
+              <th className="p-3 sticky left-0 bg-stone-50 z-10">{t("name")}</th>
               <th className="p-3">{t("email")}</th>
               <th className="p-3">{t("role")}</th>
-              <th className="p-3">Statut</th>
-              <th className="p-3">Créé</th>
-              <th className="p-3 text-right">Actions</th>
+              <th className="p-3">{t("column.status")}</th>
+              <th className="p-3">{t("column.date")}</th>
+              <th className="p-3 text-right">{t("column.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {users.map(u => (
               <tr key={u.id} className="border-t border-stone-100" data-testid={`user-row-${u.id}`}>
-                <td className="p-3 font-medium">{u.name}</td>
+                <td className="p-3 font-medium sticky left-0 bg-white z-10">{u.name}</td>
                 <td className="p-3 text-stone-600">{u.email}</td>
                 <td className="p-3"><PuceEtat etat="info" variante="douce" libelle={u.role} /></td>
                 <td className="p-3">

@@ -4,12 +4,14 @@ import { Link } from "react-router-dom";
 import { QrCode, Plus, MapPin, Package } from "lucide-react";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 const TYPES = ["fut", "carton", "palette", "bouteille", "autre"];
 const STATUS_LABEL = { en_stock: "En stock", sorti: "Sorti", chez_client: "Chez client", retour: "Retour", vide: "Vide", consigne_facturee: "Consigne facturée", casse: "Cassé" };
 const STATUS_COLOR = { en_stock: "bg-emerald-100 text-emerald-800", sorti: "bg-amber-100 text-amber-800", chez_client: "bg-amber-100 text-amber-800", retour: "bg-blue-100 text-blue-800", vide: "bg-stone-100 text-stone-700", consigne_facturee: "bg-purple-100 text-purple-800", casse: "bg-red-100 text-red-800" };
 
 export default function Containers() {
+  usePageMeta({ title: `${t("containers")} · BEVID` });
   const [items, setItems] = useState([]);
   const [products, setProducts] = useState([]);
   const [filter, setFilter] = useState({ status: "", type: "" });

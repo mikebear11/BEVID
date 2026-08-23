@@ -5,10 +5,12 @@ import { Download, Sparkles, Loader2, FileText, FileDown } from "lucide-react";
 import { API } from "@/lib/api";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 const COLORS = ["#4A154B", "#2D5A4C", "#C78B3A", "#8C2A2A", "#6B2D5C", "#0F766E", "#7C3AED", "#B45309", "#78716C"];
 
 export default function Reports() {
+  usePageMeta({ title: `${t("reports")} · BEVID` });
   const [perf, setPerf] = useState([]);
   const [kpis, setKpis] = useState(null);
   const [aiSummary, setAiSummary] = useState("");
@@ -43,7 +45,7 @@ export default function Reports() {
     toast.success(t("toast.rapport_exporte"));
   };
 
-  if (!kpis) return <div className="text-stone-500">Chargement…</div>;
+  if (!kpis) return <div className="text-stone-500">{t("loading_ellipsis")}</div>;
 
   return (
     <div className="space-y-6" data-testid="reports-page">
@@ -136,19 +138,19 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="card-crm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card-crm overflow-x-auto scroll-shadow">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="bg-stone-50 border-b border-stone-200 text-left overline">
-            <tr><th className="p-3">Agent</th><th className="p-3">CA</th><th className="p-3">Commandes</th><th className="p-3 hidden md:table-cell">Clients</th><th className="p-3 hidden md:table-cell">Panier moyen</th></tr>
+            <tr><th className="p-3 sticky left-0 bg-stone-50 z-10">Agent</th><th className="p-3">CA</th><th className="p-3">{t("orders")}</th><th className="p-3 hidden md:table-cell">{t("clients")}</th><th className="p-3 hidden md:table-cell">Panier moyen</th></tr>
           </thead>
           <tbody>
             {perf.map(a => (
               <tr key={a.agent_id} className="border-b border-stone-100" data-testid={`perf-row-${a.agent_id}`}>
-                <td className="p-3 font-medium">{a.name} <span className="text-xs text-stone-500">· {a.role}</span></td>
-                <td className="p-3 font-display text-[#2D5A4C]">{a.ca.toLocaleString('fr-FR')} €</td>
+                <td className="p-3 font-medium sticky left-0 bg-white z-10">{a.name} <span className="text-xs text-stone-500">· {a.role}</span></td>
+                <td className="p-3 font-display text-[#2D5A4C]">{a.ca.toLocaleString(undefined)} €</td>
                 <td className="p-3">{a.orders}</td>
                 <td className="p-3 hidden md:table-cell">{a.clients}</td>
-                <td className="p-3 hidden md:table-cell">{a.avg_order.toLocaleString('fr-FR')} €</td>
+                <td className="p-3 hidden md:table-cell">{a.avg_order.toLocaleString(undefined)} €</td>
               </tr>
             ))}
           </tbody>

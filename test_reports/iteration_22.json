@@ -1,0 +1,71 @@
+{
+  "summary": "Frontend QA P0 validation on preview URL. 8/13 P0 checks PASS. CRITICAL regression: /paiements page fully broken (TDZ ReferenceError due to variable shadow between `import { t } from lib/i18n` and `const { t } = useI18n()`). P0-4.2 fails on all pages (2 <h1> because sidebar 'BEVID' logo is <h1>). P0-2 partially applied — stock/drm/rapprochement OK, reports/admin/users/confidentialite missing min-width + sticky first col. Titles, aria-labels, touch sizes, /scan camera gating, brand-panel gradient (no unsplash), API Permissions-Policy all pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/health", "issue": "Returns 404 — endpoint does not exist (Permissions-Policy header still tested via /api/*, other endpoints)"},
+      {"endpoint": "Frontend HTML (non-/api)", "issue": "Permissions-Policy on / still contains `ambient-light-sensor=()` → browser console warning: 'Unrecognized feature: ambient-light-sensor'. Only backend /api/* was fixed; frontend static serving still emits legacy header."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Paiements.jsx", "issue": "CRITICAL: Page rendered inside ErrorBoundary. Root cause: `import { t } from '@/lib/i18n'` (line 9) is shadowed by `const { t } = useI18n()` (line 15), but `usePageMeta({ title: `${t('payments')} · BEVID` })` on line 13 references the shadowed identifier → 'ReferenceError: Cannot access `t` before initialization' (TDZ). Fix: rename static import to `tStatic` OR compute title inside effect after hook.", "selector": "[data-testid=paiements-page]", "priority": "CRITICAL"},
+      {"component": "Layout.jsx sidebar logo", "issue": "P0-4.2 FAIL — sidebar 'BEVID' brand is `<h1 class='font-display text-2xl leading-none'>` so every authenticated page has 2 visible <h1> (sidebar + page). Requirement: EXACTLY 1 <h1> per page. Top-bar mobile is correctly <span>; sidebar needs same treatment.", "selector": "[data-testid=sidebar] h1", "priority": "HIGH"},
+      {"component": "Reports.jsx / AdminUsers.jsx / Confidentialite.jsx tables", "issue": "P0-2 partial — wrapper has `.scroll-shadow` + `overflow-x-auto` but table has NO `min-width` (getComputedStyle returned '0px') and first column is NOT `position:sticky`. Result: on real mobile widths columns will compress instead of horizontal-scroll with sticky ID col.", "selector": "table (inside .scroll-shadow)", "priority": "HIGH"},
+      {"component": "Paiements.jsx tables (mobile)", "issue": "Cannot validate P0-2 mobile table for /paiements because whole page is broken (see TDZ above).", "selector": "n/a", "priority": "BLOCKED_BY_CRITICAL"}
+    ],
+    "integration_issues": [
+      {"flow": "Language switch → /clients still shows FR strings in some renders", "issue": "Immediately after `select_option('en')` on /clients some strings remained FR ('Nouveau client', 'Rechercher', 'Aucun client', 'Importer CSV', 'Nouvel établissement'). Subsequent full navigations rendered EN correctly (confirmed by /stock screenshot showing 'Stock status', 'In stock', etc.). Likely missing i18n keys for the primary CTAs on /clients that only rebind after navigation. Post-navigation full-page scan reported: /: ['Aucune'] (empty state), /products: ['Stock'] — 2 minor leaks total.", "affected_selectors": ["[data-testid=add-client-btn]", "[data-testid=new-establishment-btn]", "clients empty state"]}
+    ],
+    "design_issues": [
+      {"screen": "Login/Register/Forgot brand panel", "issues": ["Brand panel is now solid dark purple gradient (radial-gradient) — no external Unsplash request, no CSP block. Rendering OK ✅"]},
+      {"screen": "Global CSP", "issues": ["Cloudflare Insights beacon `static.cloudflareinsights.com` blocked by CSP script-src (not P0 scope but noisy in console)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_22.json"
+  ],
+  "action_items": [
+    "URGENT: Fix /app/frontend/src/pages/Paiements.jsx line 9/13/15 — rename `import { t } from '@/lib/i18n'` to `tStatic` (or move title into useEffect using hook `t`). Also clean the same shadow pattern in AdminUsers.jsx, ChangePassword.jsx, Confidentialite.jsx, Couts.jsx (currently harmless but dead code).",
+    "P0-4.2: change sidebar 'BEVID' from `<h1>` to `<span>` (or `<a>`) in Layout.jsx so pages have exactly 1 <h1>.",
+    "P0-2: apply `min-w-[XXXpx]` on <table> and `sticky left-0 bg-* z-10` on first `<th>/<td>` for /reports, /admin/users, /confidentialite tables (same pattern used successfully on /stock, /drm, /rapprochement).",
+    "P0-4.5 extended: add `ambient-light-sensor` removal to frontend static server response headers (currently only /api/* fixed).",
+    "Add /api/health endpoint or update spec — currently returns 404.",
+    "i18n polish: translate empty-state 'Aucune' (dashboard) and 'Stock' label on /products in EN. Verify /clients CTAs (`Nouveau client`, `Rechercher`, `Importer CSV`, `Nouvel établissement`) bind to i18n keys and re-render on language change without full navigation."
+  ],
+  "critical_code_review_comments": [
+    "Paiements.jsx: `import { t } from '@/lib/i18n'` + `const { t } = useI18n()` creates a `const` variable shadow with a same-name reference in `usePageMeta` above the redeclaration → guaranteed TDZ. Any linter with `no-shadow`/`no-use-before-define` would catch it. Recommend an ESLint rule to block this pattern project-wide.",
+    "Layout.jsx: single `<h1>` per document is a WCAG best practice; the sidebar brand should not use <h1> — reserve for page main heading.",
+    "Reports/AdminUsers/Confidentialite tables: inconsistent mobile-scroll implementation. Extract a `<ResponsiveTable>` wrapper enforcing min-width + sticky first col to avoid drift.",
+    "Frontend HTTP response headers appear to be set by a different middleware than /api — keep them in sync (single source of truth for security headers)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only pass, curl-only)", "frontend": "~62% (8/13 P0 items pass)"},
+  "test_credentials": "manager.demo@bevidcrm.fr / Manager!2026Demo (login OK, lands on /tournee)",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "p0_matrix": {
+    "P0-1_login_CSP_unsplash": "PASS — 0 external unsplash requests, brand-panel gradient renders (screenshot captured)",
+    "P0-1_register_forgot": "PASS — same as login",
+    "P0-2_mobile_tables_stock_drm_rapprochement": "PASS — wrapper .scroll-shadow, overflow-x-auto, min-width 720-820px, first col sticky",
+    "P0-2_paiements": "BLOCKED — page in error boundary (TDZ)",
+    "P0-2_reports_adminusers_confidentialite": "FAIL — wrapper OK but table min-width=0 and first col NOT sticky",
+    "P0-2_couts": "N/A — no <table> element",
+    "P0-3_i18n_leaks_EN": "MOSTLY PASS — 2 FR leaks total across 10 EN routes ('Aucune' on /, 'Stock' on /products); /stock screenshot fully EN",
+    "P0-4.1_document_title": "PASS when authenticated — Dashboard=Tableau de bord · BEVID, Clients=Clients · BEVID, Orders=Commandes · BEVID, Stock, Settings, Products, Team, DRM, Rapprochement, Containers all unique. /paiements title stuck (blocked by TDZ). /reports title = Rapports · BEVID (OK when logged in).",
+    "P0-4.2_h1_count": "FAIL — all authenticated pages have 2 <h1> (sidebar 'BEVID' + page H1). Requirement: exactly 1.",
+    "P0-4.3_aria_labels": "PASS — sidebar-collapse-toggle='Réduire la barre latérale', palette-trigger='Ouvrir la palette de commandes', palette-trigger-mobile='Rechercher', logout-mobile='Déconnexion', lang-select='Langue', lang-select-mobile='Langue'",
+    "P0-4.4_input_labels": "NOT VERIFIED — /clients, /rapprochement, /scan reported 0 inputs (default view is empty state; inputs likely appear only after opening dialogs). Requires modal-open audit.",
+    "P0-4.5_permissions_policy_api": "PASS — /api/health, /api/auth/me, /api/products no longer contain ambient-light-sensor; only standard tokens. NOTE: frontend HTML (non-/api) still emits ambient-light-sensor → browser console warning persists.",
+    "P0-4.6_touch_sizes": "PASS — sidebar-collapse-toggle 32x32 desktop; add-client-btn 44h, new-order-btn 44h, add-container 44h, start-camera-btn 48h on mobile.",
+    "P0-5_scan_camera_gated": "PASS — 0 getUserMedia calls on mount; [data-testid=start-camera-btn] present with label 'Activer la caméra'; hint text visible.",
+    "Regression_login": "PASS — manager credentials work",
+    "Regression_paiements_heading": "FAIL — page in error boundary, h2/help hidden",
+    "Regression_dashboard_kpi": "PASS — kpi-chiffre-d-affaires, kpi-commandes, kpi-clients-actifs, kpi-clients-vip present"
+  },
+  "context_for_next_testing_agent": "Login redirects to /tournee (not /). Language preference persists across navigations via localStorage. Mobile viewport (375) set via Playwright set_viewport_size sometimes not respected mid-session — clientWidth stayed at 1214 after some navigations; recommend reloading page after viewport change if you must test actual horizontal scroll behaviour. After main agent fixes the Paiements TDZ, retest: (a) /paiements loads without error boundary, (b) tables sticky+overflow on /paiements, /reports, /admin/users, /confidentialite, (c) H1 count = 1 on all pages after sidebar logo demoted, (d) frontend HTML Permissions-Policy no longer contains ambient-light-sensor.",
+  "rca_of_the_issue": {
+    "paiements_TDZ": "In Paiements.jsx: line 9 `import { t } from '@/lib/i18n'` brings a module-scope `t`. Line 15 `const { t } = useI18n()` DECLARES a block-scope const named `t`. In JS, once `const t` is declared in a block, ALL references to `t` in that block resolve to it — including line 13 which executes BEFORE line 15. Result: ReferenceError (TDZ). Fix: `import { t as tStatic } from '@/lib/i18n'` and use `tStatic('payments')` on line 13; OR move the title binding to a useEffect after the hook."
+  }
+}

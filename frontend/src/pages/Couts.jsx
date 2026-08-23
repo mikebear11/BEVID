@@ -110,7 +110,7 @@ export default function Couts() {
       </div>
 
       {/* Table produits */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-x-auto scroll-shadow">
         <table className="w-full text-sm">
           <thead className="bg-stone-50">
             <tr className="text-left text-stone-500 text-xs">

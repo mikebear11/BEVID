@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { UserPlus, Mail, Smartphone, QrCode, Trash2, Crown } from "lucide-react";
 import { t as tt } from "@/lib/i18n";
+import { usePageMeta } from "@/lib/pageMeta";
 
 /** Encode texte en URL de QR image (générateur public sans dépendance). */
 function qrDataUrl(text) {
@@ -11,6 +12,7 @@ function qrDataUrl(text) {
 }
 
 export default function Team() {
+  usePageMeta({ title: `${tt("team")} · BEVID` });
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [features, setFeatures] = useState({ sms_configured: false });
@@ -71,7 +73,7 @@ export default function Team() {
     }
   };
 
-  if (!data) return <div className="text-stone-500">{tt("loading")}</div>;
+  if (!data) return <div className="text-stone-500">{tt("loading_ellipsis")}</div>;
   const isManager = user?.role === "manager";
   const smsDisabled = !features.sms_configured;
 
