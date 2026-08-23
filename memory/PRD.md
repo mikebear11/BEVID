@@ -1313,3 +1313,36 @@ Bonus i18n : `low_stock_alert` (Alerte stock bas / Low-stock alert), `others`, `
 - Curl `/login` : plus d'`ambient-light-sensor`
 - i18n EN/FR aller-retour : `Low-stock alert` ↔ `Alerte stock bas`
 - Login manager fonctionnel, navigation 10 pages sans erreur fatale
+
+## Lot Compliance — Mise aux normes légales (23/02/2026)
+
+Ajout complet des pages légales exigées pour la conformité française (RGPD, LCEN, article 6 CNIL/CGV) :
+
+### Pages créées (5 nouvelles)
+- `/legal/mentions-legales` (`LegalMentions.jsx`) — éditeur, hébergeur, propriété intellectuelle, RGPD summary, contact DPO, CNIL.
+- `/legal/cgv` (`LegalCGV.jsx`) — Conditions Générales de Vente — 10 sections (objet, tarifs, souscription, paiement, résiliation, obligations, disponibilité, responsabilité, propriété données, loi applicable).
+- `/legal/cgu` (`LegalCGU.jsx`) — Conditions Générales d'Utilisation — 8 sections (acceptation, comptes, usage autorisé, contenu utilisateur, disponibilité, sécurité, suspension, modifications).
+- `/legal/cookies` (`LegalCookies.jsx`) — Politique cookies — table détaillée des traceurs (bevid_auth, bevid_session, ph_*, __cf_bm etc), boutons "Accepter"/"Refuser/révoquer" fonctionnels, statut courant affiché.
+- `/legal/politique-confidentialite` (`LegalPrivacy.jsx`) — RGPD complet — responsables, données collectées, finalités (art. 6 RGPD), sous-traitants (Emergent/Stripe/Twilio/Resend/PostHog/Anthropic-OpenAI/Pennylane), transferts hors UE, durées de conservation, 7 droits, sécurité.
+
+### Composant transverse
+- `LegalFooter.jsx` — pied de page avec 6 liens légaux, ajouté à Login, Pricing (+ page Register/Forgot conservent le layout brand-panel).
+
+### Intégrations
+- **App.js** : 5 routes lazy `/legal/*` enregistrées.
+- **craco.config.js KNOWN_ROUTES** : 5 regex ajoutés (le middleware 404 SPA reconnaît les nouvelles routes).
+- **robots.txt** : 6 `Allow: /legal/*` ajoutés pour indexation SEO.
+- **sitemap.xml** : 5 URLs légales ajoutées avec priority 0.4.
+- **PostHogConsent.jsx** : lien "Modifiable depuis Confidentialité" → "Politique cookies" (`/legal/cookies`).
+- **Register.jsx** : checkbox de consentement mise à jour — accepte CGU + CGV + politique de confidentialité (3 liens vers `/legal/*`).
+- **Login.jsx** : import `LegalFooter` + bandeau de 5 liens légaux en bas du formulaire.
+
+### Conformité couverte
+- **LCEN 2004-575** (mentions légales éditeur/hébergeur) ✓
+- **RGPD** (politique de confidentialité + droits + DPO + CNIL + sous-traitants art. 28) ✓
+- **Directive ePrivacy / recommandation CNIL cookies** (opt-in strict, révocable, détail des traceurs, durée ≤ 13 mois) ✓
+- **Code de commerce / art. L.441-1** (CGV professionnelles) ✓
+- **CGU** (usage acceptable, modération, résiliation) ✓
+
+### À personnaliser par l'éditeur (placeholders)
+- Raison sociale exacte, SIREN, capital social, siège, RCS, TVA intracom, directeur publication — bloc "à compléter" dans `/legal/mentions-legales`. Aucune information inventée ; l'organisation utilisatrice doit renseigner avant mise en production commerciale.

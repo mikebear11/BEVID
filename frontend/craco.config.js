@@ -245,6 +245,11 @@ function wrapWith404AndHeaders(devServerConfig) {
     /^\/org\/settings$/,
     /^\/billing$/,
     /^\/team$/,
+    /^\/legal\/mentions-legales$/,
+    /^\/legal\/cgv$/,
+    /^\/legal\/cgu$/,
+    /^\/legal\/cookies$/,
+    /^\/legal\/politique-confidentialite$/,
   ];
 
   const prevSetup = devServerConfig.setupMiddlewares;

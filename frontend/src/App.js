@@ -82,6 +82,11 @@ const Team = lazy(() => import("@/pages/Team"));
 const Activate = lazy(() => import("@/pages/Activate"));
 const Enrichissement = lazy(() => import("@/pages/Enrichissement"));
 const EstablishmentNew = lazy(() => import("@/pages/EstablishmentNew"));
+const LegalMentions = lazy(() => import("@/pages/LegalMentions"));
+const LegalCGV = lazy(() => import("@/pages/LegalCGV"));
+const LegalCGU = lazy(() => import("@/pages/LegalCGU"));
+const LegalCookies = lazy(() => import("@/pages/LegalCookies"));
+const LegalPrivacy = lazy(() => import("@/pages/LegalPrivacy"));
 
 function LazyFallback() {
   return (
@@ -165,6 +170,11 @@ function App() {
                         <Route path="/billing" element={<Protected><Billing /></Protected>} />
                         <Route path="/team" element={<Protected><Team /></Protected>} />
                         <Route path="/activate/:token" element={<Activate />} />
+                        <Route path="/legal/mentions-legales" element={<LegalMentions />} />
+                        <Route path="/legal/cgv" element={<LegalCGV />} />
+                        <Route path="/legal/cgu" element={<LegalCGU />} />
+                        <Route path="/legal/cookies" element={<LegalCookies />} />
+                        <Route path="/legal/politique-confidentialite" element={<LegalPrivacy />} />
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </Suspense>

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { WifiOff } from "lucide-react";
 import BevidLogo from "@/components/BevidLogo";
 import PasswordInput from "@/components/PasswordInput";
+import LegalFooter from "@/components/LegalFooter";
 import { t } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
 
@@ -139,6 +140,13 @@ export default function Login() {
             {" · "}
             <Link to="/pricing" className="text-[#4A154B] font-medium" data-testid="login-pricing-link">{t("see_pricing")}</Link>
           </p>
+          <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-stone-400" aria-label="Liens légaux">
+            <Link to="/legal/mentions-legales" className="hover:text-[#4A154B] hover:underline" data-testid="login-mentions">Mentions légales</Link>
+            <Link to="/legal/cgv" className="hover:text-[#4A154B] hover:underline" data-testid="login-cgv">CGV</Link>
+            <Link to="/legal/cgu" className="hover:text-[#4A154B] hover:underline" data-testid="login-cgu">CGU</Link>
+            <Link to="/legal/politique-confidentialite" className="hover:text-[#4A154B] hover:underline" data-testid="login-privacy">Confidentialité</Link>
+            <Link to="/legal/cookies" className="hover:text-[#4A154B] hover:underline" data-testid="login-cookies">Cookies</Link>
+          </div>
         </form>
       </div>
     </div>

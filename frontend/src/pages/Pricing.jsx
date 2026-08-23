@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import BevidLogo from "@/components/BevidLogo";
+import LegalFooter from "@/components/LegalFooter";
 import { Check, ArrowRight, Wifi, Mic, CornerDownRight } from "lucide-react";
 import { dict } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
@@ -204,6 +205,7 @@ export default function Pricing() {
           </dl>
         </div>
       </section>
+      <LegalFooter />
     </div>
   );
 }

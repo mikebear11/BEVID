@@ -12,6 +12,12 @@ Allow: /forgot-password
 Allow: /pricing
 Allow: /tarifs
 Allow: /plans
+Allow: /legal/
+Allow: /legal/mentions-legales
+Allow: /legal/cgv
+Allow: /legal/cgu
+Allow: /legal/cookies
+Allow: /legal/politique-confidentialite
 
 # Zones porteuses de jetons à usage unique — jamais indexer
 Disallow: /activate/

@@ -105,8 +105,10 @@ export default function PostHogConsent() {
       <p style={{ margin: 0, marginBottom: 10, fontWeight: 600 }}>Statistiques d'usage anonymisées ?</p>
       <p style={{ margin: 0, marginBottom: 14, color: "var(--ds-text-secondary, #56544d)" }}>
         Nous ne partageons pas vos données clients. Aucun enregistrement de session n'est fait
-        sur les pages authentifiées, même après acceptation. Modifiable depuis <a
-        href="/confidentialite" style={{ color: "var(--ds-accent, #4A154B)", textDecoration: "underline" }}>Confidentialité</a>.
+        sur les pages authentifiées, même après acceptation. Détail complet :{" "}
+        <a href="/legal/cookies" style={{ color: "var(--ds-accent, #4A154B)", textDecoration: "underline" }} data-testid="consent-cookie-policy-link">
+          Politique cookies
+        </a>.
       </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button

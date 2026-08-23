@@ -159,8 +159,8 @@ export default function Register() {
               style={{ width: 18, height: 18, marginTop: 2, accentColor: "var(--ds-accent)" }}
               data-testid="register-accept-terms" />
             <span style={{ color: "var(--ds-text-primary)" }}>
-              J'accepte les <Link to="/cgu" className="underline" style={{ color: "var(--ds-accent)" }}>CGU</Link> et la
-              {" "}<Link to="/confidentialite" className="underline" style={{ color: "var(--ds-accent)" }}>politique de confidentialité (RGPD)</Link>.
+              J'accepte les <Link to="/legal/cgu" className="underline" style={{ color: "var(--ds-accent)" }}>CGU</Link>, les <Link to="/legal/cgv" className="underline" style={{ color: "var(--ds-accent)" }}>CGV</Link> et la
+              {" "}<Link to="/legal/politique-confidentialite" className="underline" style={{ color: "var(--ds-accent)" }}>politique de confidentialité (RGPD)</Link>.
             </span>
           </label>
           {errors.accept_terms && <p id="err-terms" className="text-xs" style={{ color: "var(--ds-state-danger-text)" }}>{errors.accept_terms}</p>}

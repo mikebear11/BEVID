@@ -30,4 +30,29 @@
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
+  <url>
+    <loc>https://drink-sales-hub-8.preview.emergentagent.com/legal/mentions-legales</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://drink-sales-hub-8.preview.emergentagent.com/legal/cgv</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://drink-sales-hub-8.preview.emergentagent.com/legal/cgu</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://drink-sales-hub-8.preview.emergentagent.com/legal/cookies</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://drink-sales-hub-8.preview.emergentagent.com/legal/politique-confidentialite</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
 </urlset>
