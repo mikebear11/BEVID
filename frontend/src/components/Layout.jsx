@@ -543,10 +543,10 @@ export default function Layout({ children }) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex min-h-screen">
-        {/* Sidebar desktop */}
+      <div className="flex min-h-screen items-stretch">
+        {/* Sidebar desktop — sticky + hauteur d'écran + scroll indépendant du contenu */}
         <aside
-          className={`hidden md:flex md:flex-col border-r border-stone-200 dark:border-stone-700 bg-white/60 dark:bg-stone-900/60 backdrop-blur-md transition-[width] duration-200 ${collapsed ? "w-16" : "w-64"}`}
+          className={`hidden md:flex md:flex-col shrink-0 sticky top-0 h-screen border-r border-stone-300 dark:border-stone-700 bg-stone-100/95 dark:bg-stone-950/80 backdrop-blur-md shadow-[inset_-1px_0_0_rgba(74,21,75,0.08)] transition-[width] duration-200 z-30 ${collapsed ? "w-16" : "w-64"}`}
           data-testid="sidebar"
           data-collapsed={collapsed ? "1" : "0"}
         >
@@ -650,29 +650,35 @@ export default function Layout({ children }) {
               </div>
             )}
 
-            {/* Sections repliables */}
+            {/* Sections repliables (accordéon) */}
             {visibleSections.map(section => {
               const isOpen = collapsed || openSections.includes(section.key);
               return (
-                <div key={section.key} data-testid={`nav-section-${section.key}`}>
+                <div key={section.key} data-testid={`nav-section-${section.key}`}
+                  className={!collapsed ? "rounded-lg border border-stone-200/60 dark:border-stone-700/50 bg-white/50 dark:bg-stone-900/40 overflow-hidden" : ""}>
                   {!collapsed && (
                     <button
                       type="button"
                       onClick={() => toggleSection(section.key)}
-                      className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200"
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-wider transition-colors ${
+                        isOpen
+                          ? "text-[#4A154B] dark:text-[#B076B4] bg-stone-100/70 dark:bg-stone-800/40"
+                          : "text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800/30"
+                      }`}
                       aria-expanded={isOpen}
                       aria-controls={`section-body-${section.key}`}
                       data-testid={`nav-section-toggle-${section.key}`}
                     >
-                      <span>{t(section.key)}</span>
-                      <ChevronDown size={12} aria-hidden="true" style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }} />
+                      <span className="truncate">{t(section.key)}</span>
+                      <ChevronDown size={13} aria-hidden="true" className="shrink-0 opacity-70"
+                        style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s ease" }} />
                     </button>
                   )}
                   {collapsed && <div className="my-1 border-t border-stone-200/50 dark:border-stone-700/40" aria-hidden="true" />}
                   {isOpen && (
                     <div
                       id={`section-body-${section.key}`}
-                      className="mt-1 space-y-0.5"
+                      className={collapsed ? "space-y-0.5" : "p-1.5 space-y-0.5 border-t border-stone-200/50 dark:border-stone-700/40"}
                       onDragOver={(e) => {
                         if (dragCtx?.sectionKey === section.key) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }
                       }}
