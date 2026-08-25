@@ -1718,3 +1718,33 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 - `GET /notifications/history?kind=digest_morning,digest_afternoon` → items filtrés (2 kinds), unread total inchangé ✅
 - `POST /notifications/dnd {"until":"+10 jours"}` → HTTP 422 « DND cap à 48h » ✅
 - `DELETE /notifications/dnd` → `{ok:true}` ✅
+
+
+## Lot Paiement CB Stripe + Exemption Fondateur (23/02/2026 · nuit)
+
+### Backend
+- **Sandbox Stripe provisionné** (Flow A Emergent) — `sk_test_51U4QHz...`, catalogue à 6 prix synchronisé via `setup_stripe.py`.
+- Endpoints :
+  - `POST /payments/checkout` — abonnement SaaS (owner only, SMP France)
+  - `POST /payments/checkout-invoice` — règlement one-off d'une facture BEVID
+  - `POST /payments/pay-link/{document_id}` + `GET /payments/pay-link/resolve/{token}` + `POST /payments/pay-link/checkout` — lien public partageable (WhatsApp/email) pour qu'un CHR règle sa facture par CB sans compte
+  - `GET /payments/status/{sid}` — poll avec fallback Stripe direct
+  - `POST /stripe/webhook` — signature verified, side effects idempotents (SaaS active + facture payée)
+- **Exemption fondateur** (`billing_exempt=True` sur org) :
+  - `_compute_effective_status` retourne `active` en priorité si exempt
+  - `POST /billing/exempt/{org_id}` (fondateur only via `BEVID_FOUNDER_EMAILS` env)
+  - `DELETE /billing/exempt/{org_id}` (idem)
+  - Script CLI `/app/backend/scripts/grant_founder_exemption.py <email>`
+
+### Frontend
+- `/payment/success` + `/payment/cancel` + `/pay/:token` (page publique paiement) créés
+- `Billing.jsx` : clic sur un forfait → si Stripe branché → redirection Stripe Checkout, sinon simulation. **Bannière verte « Compte fondateur »** affichée si exempt.
+- `PwaInstallBanner`, `manifest.shortcuts`, `push` déjà couverts par le lot précédent.
+
+### Bug fix critique (résolvait /orders 500)
+- Header `X-BEVID-Deprecated` contenait le caractère `→` (U+2192) non encodable en latin-1 → Starlette crashait sur `/api/clients`, cascade sur Orders.jsx (Promise.all). Corrigé : `→` remplacé par `->`.
+
+### Pour activer votre exemption fondateur
+1. Ajoutez votre email à `BEVID_FOUNDER_EMAILS` dans `backend/.env` (séparés par virgule si plusieurs)
+2. **OU** lancez directement : `python /app/backend/scripts/grant_founder_exemption.py votre@email.fr`
+3. Vous verrez la bannière « 🎁 Compte fondateur » dans `/billing` et aucune facturation ne s'applique.

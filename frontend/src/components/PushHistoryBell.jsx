@@ -39,13 +39,31 @@ const FILTERS = [
 
 /** Calcule l'ISO UTC de « demain 8h Paris » depuis maintenant. */
 function tomorrow8amParisISO() {
-  // Approximation DST-aware minimale : on prend demain à 8h en date locale du navigateur,
-  // ce qui pour un user en France = 8h Paris. Le serveur cap à 48h de toute façon.
   const d = new Date();
   d.setDate(d.getDate() + 1);
   d.setHours(8, 0, 0, 0);
   return d.toISOString();
 }
+
+/** Calcule l'ISO UTC du « prochain lundi 8h Paris ». Si on est déjà lundi avant 8h, cible ce lundi. */
+function nextMonday8amISO() {
+  const d = new Date();
+  const day = d.getDay(); // 0=dim, 1=lun, ..., 6=sam
+  let daysToAdd;
+  if (day === 1 && d.getHours() < 8) daysToAdd = 0;
+  else daysToAdd = (8 - day) % 7 || 7;
+  d.setDate(d.getDate() + daysToAdd);
+  d.setHours(8, 0, 0, 0);
+  return d.toISOString();
+}
+
+// Presets DND — ordre d'affichage
+const DND_PRESETS = [
+  { key: "1h",     label: "1 h",             build: () => ({ hours: 1 }) },
+  { key: "4h",     label: "4 h",             build: () => ({ hours: 4 }) },
+  { key: "tmr",    label: "Demain 8 h",      build: () => ({ until: tomorrow8amParisISO() }) },
+  { key: "mon",    label: "Lundi 8 h",       build: () => ({ until: nextMonday8amISO() }) },
+];
 
 export default function PushHistoryBell() {
   const [open, setOpen] = useState(false);
@@ -98,12 +116,13 @@ export default function PushHistoryBell() {
     try { await api.post(`/notifications/${id}/mark-read`); load(filter); } catch {}
   };
 
-  const enableDnd = async () => {
+  const enableDnd = async (preset) => {
     setDndBusy(true);
     try {
-      const { data } = await api.post("/notifications/dnd", { until: tomorrow8amParisISO() });
+      const body = preset ? preset.build() : { until: tomorrow8amParisISO() };
+      const { data } = await api.post("/notifications/dnd", body);
       setDndUntil(data.dnd_until);
-      toast.success("Ne pas déranger jusqu'à demain 8h");
+      toast.success(`Ne pas déranger · ${preset?.label || "Demain 8 h"}`);
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Impossible d'activer");
     } finally { setDndBusy(false); }
@@ -180,15 +199,25 @@ export default function PushHistoryBell() {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={enableDnd}
-                disabled={dndBusy}
-                className="w-full px-4 py-2 text-left border-b border-stone-200 dark:border-stone-700 flex items-center gap-2 hover:bg-stone-50 dark:hover:bg-stone-800 min-h-[40px]"
-                data-testid="dnd-enable-btn"
-              >
-                {dndBusy ? <Loader2 size={13} className="animate-spin text-stone-500" /> : <Moon size={13} className="text-stone-500" aria-hidden="true" />}
-                <span className="text-xs text-stone-600 dark:text-stone-400">Ne pas déranger jusqu'à demain 8h</span>
-              </button>
+              <div className="px-4 py-2 border-b border-stone-200 dark:border-stone-700" data-testid="dnd-presets-row">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Moon size={12} className="text-stone-500" aria-hidden="true" />
+                  <span className="text-[11px] text-stone-500 font-medium">Ne pas déranger</span>
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {DND_PRESETS.map(p => (
+                    <button
+                      key={p.key}
+                      onClick={() => enableDnd(p)}
+                      disabled={dndBusy}
+                      className="min-h-[28px] px-2.5 text-[11px] rounded-full bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"
+                      data-testid={`dnd-preset-${p.key}`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Filter chips */}

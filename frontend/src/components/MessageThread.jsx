@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check, Mic, Square, CloudOff } from "lucide-react";
 import { enqueueMessage, listOutboxForObject } from "@/lib/db";
 import { flushQueue } from "@/lib/syncQueue";
+import ClientSnoozeButton from "@/components/ClientSnoozeButton";
 
 /**
  * Fil de discussion rattaché à un objet.
@@ -142,10 +143,13 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
 
   return (
     <section className="card-crm p-4" data-testid={`message-thread-${objectType}`}>
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <MessageSquare size={16} className="text-[#4A154B]" aria-hidden="true" />
         <h2 className="font-display text-lg">Discussion</h2>
-        <span className="text-xs text-stone-500">· visible par l'équipe qui a accès à cet objet</span>
+        <span className="text-xs text-stone-500 flex-1 min-w-[120px]">· visible par l'équipe qui a accès à cet objet</span>
+        {objectType === "establishment" && objectId && (
+          <ClientSnoozeButton establishmentId={objectId} establishmentName={null} />
+        )}
       </div>
 
       <div className="space-y-3 max-h-96 overflow-y-auto pr-1" data-testid="message-list">

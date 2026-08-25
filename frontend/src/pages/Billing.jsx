@@ -39,9 +39,22 @@ export default function Billing() {
   const status = STATUS_LABEL[current.effective_status] || STATUS_LABEL.trial;
 
   const changePlan = async (plan_id) => {
+    if (current.billing_exempt) {
+      toast.info("Compte fondateur — accès gratuit, aucun changement de forfait nécessaire");
+      return;
+    }
     if (!window.confirm(`Changer pour le forfait ${plan_id} en facturation ${billing} ?`)) return;
     setLoading(true);
     try {
+      if (current.stripe_configured) {
+        // Redirection vers Stripe Checkout hébergé
+        const lookup_key = `bevid_${plan_id}_${billing === "annual" ? "yearly" : "monthly"}`;
+        const { data } = await api.post("/payments/checkout", {
+          lookup_key, origin_url: window.location.origin,
+        });
+        window.location.href = data.checkout_url;
+        return;
+      }
       const { data } = await api.post("/billing/upgrade", { plan_id, billing_mode: billing });
       toast.success(data.mode === "simulation" ? "Simulation : abonnement changé" : "Abonnement changé");
       const r = await api.get("/billing/current"); setCurrent(r.data);
@@ -55,7 +68,14 @@ export default function Billing() {
       <div>
         <p className="overline flex items-center gap-1"><CreditCard size={12} /> Abonnement</p>
         <h1 className="font-display text-4xl">Facturation</h1>
-        {!current.stripe_configured && (
+        {current.billing_exempt && (
+          <div role="status" data-testid="billing-founder-banner"
+            className="mt-3 p-3 rounded-lg text-sm flex items-center gap-2"
+            style={{ background: "var(--ds-state-success-soft-bg)", color: "var(--ds-state-success-soft-fg)", border: "1px solid var(--ds-state-success)" }}>
+            🎁 <b>Compte fondateur</b> — accès gratuit illimité pour toute l'équipe. Aucune facturation.
+          </div>
+        )}
+        {!current.stripe_configured && !current.billing_exempt && (
           <div role="status" data-testid="billing-simulation-banner"
             className="mt-3 p-3 rounded-lg text-sm flex items-center gap-2"
             style={{ background: "var(--ds-state-warning-soft-bg)", color: "var(--ds-state-warning-soft-fg)", border: "1px solid var(--ds-state-warning)" }}>

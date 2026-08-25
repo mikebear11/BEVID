@@ -90,6 +90,9 @@ const ImportIntelligent = lazy(() => import("@/pages/ImportIntelligent"));
 const Portefeuilles = lazy(() => import("@/pages/Portefeuilles"));
 const Approvals = lazy(() => import("@/pages/Approvals"));
 const PwaDiagnostics = lazy(() => import("@/pages/PwaDiagnostics"));
+const PaymentSuccess = lazy(() => import("@/pages/PaymentSuccess"));
+const PaymentCancel = lazy(() => import("@/pages/PaymentCancel"));
+const PublicPay = lazy(() => import("@/pages/PublicPay"));
 const LegalMentions = lazy(() => import("@/pages/LegalMentions"));
 const LegalCGV = lazy(() => import("@/pages/LegalCGV"));
 const LegalCGU = lazy(() => import("@/pages/LegalCGU"));
@@ -184,6 +187,9 @@ function App() {
                         <Route path="/portefeuilles" element={<Protected><Portefeuilles /></Protected>} />
                         <Route path="/approvals" element={<Protected><Approvals /></Protected>} />
                         <Route path="/pwa-status" element={<Protected><PwaDiagnostics /></Protected>} />
+                        <Route path="/payment/success" element={<PaymentSuccess />} />
+                        <Route path="/payment/cancel" element={<PaymentCancel />} />
+                        <Route path="/pay/:token" element={<PublicPay />} />
                         <Route path="/activate/:token" element={<Activate />} />
                         <Route path="/legal/mentions-legales" element={<LegalMentions />} />
                         <Route path="/legal/cgv" element={<LegalCGV />} />

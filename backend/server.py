@@ -2618,6 +2618,403 @@ async def billing_webhook(request: Request):
 
 
 # ---------- Fin abonnements P4 ----------
+
+
+# === Lot Paiement CB (Stripe) — SaaS subscription + invoice one-off (23/02/2026) ===
+# Basé sur le playbook Stripe Emergent Flow A (claimable sandbox).
+_stripe_key = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+if _stripe_key:
+    stripe.api_key = _stripe_key
+_STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip()
+
+
+class SaasCheckoutRequest(BaseModel):
+    lookup_key: str  # ex: bevid_pro_monthly
+    origin_url: str
+
+
+@api_router.post("/payments/checkout")
+async def create_saas_checkout(data: SaasCheckoutRequest, user=Depends(get_current_user)):
+    """Crée une session Stripe Checkout pour l'abonnement BEVID de l'org courante.
+    Owner only. Redirection retour vers /payment/success?session_id=..."""
+    if not _stripe_key:
+        raise HTTPException(503, "Stripe non configuré")
+    org_id = user.get("org_id")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org or org.get("owner_user_id") != user["id"]:
+        raise HTTPException(403, "Seul l'owner peut souscrire")
+    prices = stripe.Price.list(lookup_keys=[data.lookup_key], active=True, limit=1).data
+    if not prices:
+        raise HTTPException(422, f"Prix inconnu: {data.lookup_key}")
+    price = prices[0]
+    seats = await _active_seats(org_id)
+    quantity = max(1, seats)
+    kwargs = dict(
+        line_items=[{"price": price.id, "quantity": quantity}],
+        mode="subscription",
+        success_url=f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{data.origin_url}/payment/cancel",
+        metadata={"org_id": org_id, "user_id": user["id"], "lookup_key": data.lookup_key, "kind": "saas"},
+        client_reference_id=org_id,
+    )
+    try:
+        # SaaS + France = éligible SMP (Stripe gère tax + compliance)
+        session = stripe.checkout.Session.create(**kwargs, managed_payments={"enabled": True})
+    except stripe.error.InvalidRequestError as e:
+        msg = (e.user_message or "").lower()
+        if "managed payments" in msg or "ineligible" in msg:
+            session = stripe.checkout.Session.create(
+                **kwargs, automatic_tax={"enabled": True},
+                billing_address_collection="required",
+            )
+        else:
+            raise HTTPException(400, str(e))
+    await db_raw.payment_transactions.insert_one({
+        "session_id": session.id, "user_id": user["id"], "org_id": org_id,
+        "kind": "saas", "lookup_key": data.lookup_key, "quantity": quantity,
+        "amount": (price.unit_amount or 0) * quantity, "currency": price.currency,
+        "status": "initiated", "payment_status": "pending",
+        "created_at": now_iso(), "updated_at": now_iso(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+class InvoiceCheckoutRequest(BaseModel):
+    document_id: str
+    origin_url: str
+
+
+@api_router.post("/payments/checkout-invoice")
+async def create_invoice_checkout(data: InvoiceCheckoutRequest, user=Depends(get_current_user)):
+    """Crée une session Stripe pour un règlement one-shot d'une facture.
+    L'org perçoit sur son compte Stripe plateforme (v1). Auth: any user avec accès au doc."""
+    if not _stripe_key:
+        raise HTTPException(503, "Stripe non configuré")
+    doc = await db_raw.documents.find_one(
+        {"id": data.document_id, "org_id": user["org_id"]}, {"_id": 0},
+    )
+    if not doc:
+        raise HTTPException(404, "Document introuvable")
+    amount_cents = int(round(float(doc.get("total_ttc") or 0) * 100))
+    if amount_cents <= 50:
+        raise HTTPException(422, "Montant trop faible (min 0,50 €)")
+    label = f"{doc.get('doc_type', 'facture')} {doc.get('number', doc['id'][:8])}"
+    session = stripe.checkout.Session.create(
+        line_items=[{
+            "price_data": {
+                "currency": "eur", "unit_amount": amount_cents,
+                "product_data": {"name": f"BEVID · {label}",
+                                  "metadata": {"document_id": data.document_id}},
+            }, "quantity": 1,
+        }],
+        mode="payment",
+        success_url=f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{data.origin_url}/payment/cancel",
+        metadata={"document_id": data.document_id, "org_id": user["org_id"],
+                   "user_id": user["id"], "kind": "invoice"},
+        client_reference_id=data.document_id,
+    )
+    await db_raw.payment_transactions.insert_one({
+        "session_id": session.id, "user_id": user["id"], "org_id": user["org_id"],
+        "kind": "invoice", "document_id": data.document_id,
+        "amount": amount_cents, "currency": "eur",
+        "status": "initiated", "payment_status": "pending",
+        "created_at": now_iso(), "updated_at": now_iso(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+class PayLinkCheckoutRequest(BaseModel):
+    token: str
+    origin_url: str
+
+
+@api_router.post("/payments/pay-link/checkout")
+async def pay_link_checkout(data: PayLinkCheckoutRequest):
+    """Public — crée une session Stripe depuis un token de paiement."""
+    if not _stripe_key:
+        raise HTTPException(503, "Stripe non configuré")
+    link = await db_raw.pay_links.find_one({"token": data.token}, {"_id": 0})
+    if not link:
+        raise HTTPException(404, "Lien invalide")
+    if link.get("expires_at") and link["expires_at"] < now_iso():
+        raise HTTPException(410, "Lien expiré")
+    doc = await db_raw.documents.find_one(
+        {"id": link["document_id"], "org_id": link["org_id"]}, {"_id": 0},
+    )
+    if not doc:
+        raise HTTPException(404, "Facture introuvable")
+    amount_cents = int(round(float(doc.get("total_ttc") or 0) * 100))
+    if amount_cents <= 50:
+        raise HTTPException(422, "Montant trop faible")
+    label = f"{doc.get('doc_type', 'facture')} {doc.get('number', doc['id'][:8])}"
+    session = stripe.checkout.Session.create(
+        line_items=[{
+            "price_data": {"currency": "eur", "unit_amount": amount_cents,
+                           "product_data": {"name": f"BEVID · {label}"}},
+            "quantity": 1,
+        }],
+        mode="payment",
+        success_url=f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{data.origin_url}/pay/{data.token}",
+        metadata={"document_id": link["document_id"], "org_id": link["org_id"],
+                   "kind": "invoice_pay_link", "token": data.token},
+    )
+    await db_raw.payment_transactions.insert_one({
+        "session_id": session.id, "org_id": link["org_id"],
+        "kind": "invoice_pay_link", "document_id": link["document_id"],
+        "token": data.token, "amount": amount_cents, "currency": "eur",
+        "status": "initiated", "payment_status": "pending",
+        "created_at": now_iso(), "updated_at": now_iso(),
+    })
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@api_router.post("/payments/pay-link/{document_id}")
+async def create_pay_link(document_id: str, user=Depends(get_current_user)):
+    """Génère un lien public partageable pour régler une facture."""
+    doc = await db_raw.documents.find_one(
+        {"id": document_id, "org_id": user["org_id"]}, {"_id": 0},
+    )
+    if not doc:
+        raise HTTPException(404, "Document introuvable")
+    from datetime import timedelta as _td
+    existing = await db_raw.pay_links.find_one({"document_id": document_id, "org_id": user["org_id"]}, {"_id": 0})
+    if existing and (existing.get("expires_at") or "9999") > now_iso():
+        return {"token": existing["token"], "expires_at": existing["expires_at"]}
+    token = uuid.uuid4().hex + uuid.uuid4().hex
+    expires = (datetime.now(timezone.utc) + _td(days=30)).isoformat()
+    await db_raw.pay_links.replace_one(
+        {"document_id": document_id, "org_id": user["org_id"]},
+        {"token": token, "document_id": document_id, "org_id": user["org_id"],
+         "created_by": user["id"], "created_at": now_iso(), "expires_at": expires},
+        upsert=True,
+    )
+    return {"token": token, "expires_at": expires}
+
+
+@api_router.get("/payments/pay-link/resolve/{token}")
+async def resolve_pay_link(token: str):
+    """Public — résout un token en aperçu de facture (client, montant). Aucune auth."""
+    link = await db_raw.pay_links.find_one({"token": token}, {"_id": 0})
+    if not link:
+        raise HTTPException(404, "Lien invalide")
+    if link.get("expires_at") and link["expires_at"] < now_iso():
+        raise HTTPException(410, "Lien expiré")
+    doc = await db_raw.documents.find_one(
+        {"id": link["document_id"], "org_id": link["org_id"]},
+        {"_id": 0, "id": 1, "number": 1, "doc_type": 1, "total_ttc": 1,
+         "client_name": 1, "client_id": 1, "issue_date": 1, "status": 1},
+    )
+    org = await db_raw.organizations.find_one(
+        {"id": link["org_id"]}, {"_id": 0, "id": 1, "name": 1},
+    )
+    if not doc:
+        raise HTTPException(404, "Facture introuvable")
+    return {
+        "token": token, "document": doc, "issuer": {"name": (org or {}).get("name") or "BEVID"},
+        "expires_at": link.get("expires_at"),
+    }
+
+
+@api_router.get("/payments/status/{session_id}")
+async def get_payment_status(session_id: str):
+    """Public — statut simple d'une session Stripe (poll depuis /payment/success)."""
+    record = await db_raw.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(404, "Session introuvable")
+    # Fallback si webhook lent : interroge Stripe et flippe la DB avec le même guard.
+    if record.get("payment_status") != "paid" and _stripe_key:
+        try:
+            s = stripe.checkout.Session.retrieve(session_id)
+            if s.payment_status == "paid" or s.status == "complete":
+                await db_raw.payment_transactions.update_one(
+                    {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+                    {"$set": {"status": "completed", "payment_status": "paid",
+                              "stripe_subscription_id": s.subscription,
+                              "stripe_payment_intent_id": s.payment_intent,
+                              "updated_at": now_iso()}},
+                )
+                await _apply_payment_side_effects({**record, "payment_status": "paid",
+                                                    "stripe_subscription_id": s.subscription})
+                record = await db_raw.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+        except Exception as e:
+            logger.warning("[stripe] status fallback error: %s", str(e)[:120])
+    return {
+        "session_id": record["session_id"],
+        "status": record["status"],
+        "payment_status": record["payment_status"],
+        "kind": record.get("kind"),
+        "amount": record.get("amount"),
+        "currency": record.get("currency"),
+    }
+
+
+async def _apply_payment_side_effects(record: dict):
+    """Effets de bord post-paiement : activer l'abonnement / marquer facture payée.
+    Idempotent : ne fait rien si déjà appliqué (garde payment_status == 'paid')."""
+    if record.get("payment_status") != "paid":
+        return
+    kind = record.get("kind")
+    if kind == "saas" and record.get("org_id"):
+        # Détermine plan depuis lookup_key: bevid_{plan}_{monthly|yearly}
+        lk = record.get("lookup_key") or ""
+        parts = lk.split("_")
+        plan_id = parts[1] if len(parts) >= 3 else None
+        mode = "annual" if parts[-1] == "yearly" else "monthly"
+        if plan_id in PLANS:
+            await db_raw.organizations.update_one(
+                {"id": record["org_id"]},
+                {"$set": {"plan": plan_id, "billing_mode": mode, "status": "active",
+                          "trial_ends_at": None,
+                          "stripe_subscription_id": record.get("stripe_subscription_id"),
+                          "billing_provider": "stripe",
+                          "billing_status_stripe": "active",
+                          "upgraded_at": now_iso()}},
+            )
+    elif kind in ("invoice", "invoice_pay_link") and record.get("document_id"):
+        await db_raw.documents.update_one(
+            {"id": record["document_id"], "org_id": record.get("org_id")},
+            {"$set": {"paid_at": now_iso(), "status": "paye",
+                       "payment_method": "stripe",
+                       "payment_session_id": record["session_id"]}},
+        )
+
+
+@api_router.post("/stripe/webhook")
+async def stripe_webhook_new(request: Request):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    if _STRIPE_WEBHOOK_SECRET:
+        try:
+            event = stripe.Webhook.construct_event(payload, sig, _STRIPE_WEBHOOK_SECRET)
+        except Exception:
+            raise HTTPException(400, "Invalid signature")
+    else:
+        try:
+            event = _json_notif.loads(payload)
+        except Exception:
+            raise HTTPException(400, "Payload invalide")
+    obj = event["data"]["object"]
+    t = event["type"]
+    if t == "checkout.session.completed":
+        # Guard idempotent
+        res = await db_raw.payment_transactions.find_one(
+            {"session_id": obj["id"]}, {"_id": 0},
+        )
+        if res and res.get("payment_status") != "paid":
+            await db_raw.payment_transactions.update_one(
+                {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
+                {"$set": {"status": "completed",
+                           "payment_status": obj.get("payment_status", "paid"),
+                           "stripe_subscription_id": obj.get("subscription"),
+                           "stripe_payment_intent_id": obj.get("payment_intent"),
+                           "updated_at": now_iso()}},
+            )
+            fresh = await db_raw.payment_transactions.find_one({"session_id": obj["id"]}, {"_id": 0})
+            await _apply_payment_side_effects(fresh)
+    elif t == "checkout.session.async_payment_succeeded":
+        await db_raw.payment_transactions.update_one(
+            {"session_id": obj["id"]},
+            {"$set": {"payment_status": "paid", "updated_at": now_iso()}},
+        )
+        fresh = await db_raw.payment_transactions.find_one({"session_id": obj["id"]}, {"_id": 0})
+        await _apply_payment_side_effects(fresh)
+    elif t == "checkout.session.async_payment_failed":
+        await db_raw.payment_transactions.update_one(
+            {"session_id": obj["id"]},
+            {"$set": {"status": "failed", "payment_status": "failed", "updated_at": now_iso()}},
+        )
+    elif t == "checkout.session.expired":
+        await db_raw.payment_transactions.update_one(
+            {"session_id": obj["id"]},
+            {"$set": {"status": "expired", "payment_status": "expired", "updated_at": now_iso()}},
+        )
+    elif t == "charge.refunded":
+        await db_raw.payment_transactions.update_one(
+            {"stripe_payment_intent_id": obj.get("payment_intent")},
+            {"$set": {"status": "refunded", "payment_status": "refunded", "updated_at": now_iso()}},
+        )
+    elif t in ("customer.subscription.updated", "customer.subscription.deleted"):
+        sub_id = obj.get("id")
+        status_str = obj.get("status")
+        if sub_id:
+            await db_raw.organizations.update_one(
+                {"stripe_subscription_id": sub_id},
+                {"$set": {"billing_status_stripe": status_str, "updated_at": now_iso()}},
+            )
+    return {"received": True}
+
+
+@api_router.get("/billing/checkout-lookup-keys")
+async def get_checkout_lookup_keys():
+    """Retourne les lookup keys disponibles pour le frontend Billing.jsx."""
+    return {
+        "plans": {
+            pid: {
+                "monthly": f"bevid_{pid}_monthly",
+                "yearly": f"bevid_{pid}_yearly",
+            } for pid in PLANS.keys()
+        },
+        "stripe_configured": bool(_stripe_key),
+    }
+
+
+# --- Exemption fondateur : accès gratuit illimité pour les orgs marquées ---
+# Utile pour le créateur de BEVID qui utilise sa propre app avec ses commerciaux
+# sans facturation. Contrôle via `organizations.billing_exempt = True`.
+FOUNDER_EMAILS = {e.strip().lower() for e in os.environ.get("BEVID_FOUNDER_EMAILS", "").split(",") if e.strip()}
+
+
+async def _ensure_founder_exemption(user_email: str, org_id: str) -> bool:
+    """Applique l'exemption fondateur si l'email du user (owner d'une org) est
+    listé dans BEVID_FOUNDER_EMAILS. Retourne True si l'exemption a été activée."""
+    if not user_email or not org_id:
+        return False
+    if user_email.lower() not in FOUNDER_EMAILS:
+        return False
+    await db_raw.organizations.update_one(
+        {"id": org_id, "$or": [{"billing_exempt": {"$ne": True}}, {"billing_exempt": {"$exists": False}}]},
+        {"$set": {"billing_exempt": True, "billing_exempt_reason": "founder",
+                  "status": "active", "trial_ends_at": None,
+                  "plan": "entreprise", "billing_mode": "monthly",
+                  "exempted_at": now_iso()}},
+    )
+    return True
+
+
+@api_router.post("/billing/exempt/{org_id}")
+async def admin_exempt_org(org_id: str, reason: Optional[str] = "founder",
+                            user=Depends(get_current_user)):
+    """Manuel : accorde l'exemption fondateur à une org (accès gratuit illimité).
+    Réservé aux users listés dans BEVID_FOUNDER_EMAILS. Idempotent."""
+    if (user.get("email") or "").lower() not in FOUNDER_EMAILS:
+        raise HTTPException(403, "Réservé au fondateur BEVID")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0, "id": 1, "name": 1})
+    if not org:
+        raise HTTPException(404, "Organisation introuvable")
+    await db_raw.organizations.update_one(
+        {"id": org_id},
+        {"$set": {"billing_exempt": True, "billing_exempt_reason": reason or "founder",
+                  "status": "active", "trial_ends_at": None,
+                  "plan": "entreprise", "exempted_at": now_iso(),
+                  "exempted_by": user["id"]}},
+    )
+    return {"ok": True, "org": org, "billing_exempt": True}
+
+
+@api_router.delete("/billing/exempt/{org_id}")
+async def admin_clear_exempt(org_id: str, user=Depends(get_current_user)):
+    if (user.get("email") or "").lower() not in FOUNDER_EMAILS:
+        raise HTTPException(403, "Réservé au fondateur BEVID")
+    await db_raw.organizations.update_one(
+        {"id": org_id},
+        {"$set": {"billing_exempt": False},
+         "$unset": {"billing_exempt_reason": "", "exempted_at": "", "exempted_by": ""}},
+    )
+    return {"ok": True}
+
+# === Fin Lot Paiement CB ===
 class OrgInvitationCreate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
@@ -2930,7 +3327,7 @@ async def me(user=Depends(get_current_user)):
 # ---------- CLIENTS (LEGACY — déprécié, à remplacer par /establishments) ----------
 # Header `X-BEVID-Deprecated` ajouté sur toutes les routes /clients pour signaler
 # aux consommateurs API. Migration en cours (Lot Legacy).
-_LEGACY_DEPRECATION_HEADER = {"X-BEVID-Deprecated": "db.clients → use /api/establishments"}
+_LEGACY_DEPRECATION_HEADER = {"X-BEVID-Deprecated": "db.clients -> use /api/establishments"}
 
 @api_router.get("/clients")
 async def list_clients(response: Response, user=Depends(get_current_user)):
@@ -11677,6 +12074,7 @@ async def _queue_notification(user_id: str, org_id: str, kind: str, payload: dic
 
 
 async def _dispatch_mention_notifs(msg: dict):
+    est_id = msg.get("object_id") if msg.get("object_type") == "establishment" else None
     for uid in msg.get("mentions") or []:
         if uid == msg.get("author_id"):
             continue
@@ -11685,6 +12083,10 @@ async def _dispatch_mention_notifs(msg: dict):
             continue
         prefs = {**DEFAULT_NOTIF_LEVEL_PREFS, **((u.get("notif_level_prefs") or {}))}
         if not prefs.get("mentions_immediate"):
+            continue
+        # Snooze par établissement : mention silencieuse (reste en inbox)
+        if est_id and await _is_client_snoozed(uid, msg["org_id"], est_id):  # noqa: F821
+            logger.info("[notif] mention silencée pour user=%s client=%s (snooze)", uid[:8], est_id[:8])
             continue
         await _queue_notification(
             user_id=uid, org_id=msg["org_id"], kind="mention",
@@ -12391,6 +12793,92 @@ async def clear_dnd(user=Depends(get_current_user)):
         {"id": user["id"]}, {"$unset": {"notif_level_prefs.dnd_until": ""}},
     )
     return {"ok": True}
+
+
+# --- Snooze par établissement (silencier un client bruyant sans toucher au DND global) ---
+class ClientSnoozeRequest(BaseModel):
+    hours: Optional[int] = None
+    until: Optional[str] = None
+
+
+@api_router.post("/snoozes/client/{eid}")
+async def snooze_client(eid: str, data: ClientSnoozeRequest, user=Depends(get_current_user)):
+    """Silencie un établissement précis pour l'utilisateur courant. Les mentions
+    et rappels concernant ce client n'envoient plus de push tant que le snooze
+    est actif, mais restent visibles dans l'inbox et l'historique."""
+    from datetime import timedelta as _td
+    est = await db_raw.establishments.find_one(
+        {"id": eid, "org_id": user["org_id"]}, {"_id": 0, "id": 1, "name": 1},
+    )
+    if not est:
+        raise HTTPException(404, "Client introuvable")
+    if data.until:
+        try:
+            dt = datetime.fromisoformat(data.until.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            max_dt = datetime.now(timezone.utc) + _td(days=7)
+            if dt > max_dt:
+                raise HTTPException(422, "Snooze cap à 7 jours")
+            snooze_iso = dt.isoformat()
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(422, "until doit être ISO 8601")
+    else:
+        hours = data.hours if data.hours is not None else 24
+        if hours <= 0 or hours > 168:
+            raise HTTPException(422, "hours entre 1 et 168")
+        snooze_iso = (datetime.now(timezone.utc) + _td(hours=hours)).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()), "org_id": user["org_id"],
+        "user_id": user["id"], "establishment_id": eid,
+        "establishment_name": est.get("name"),
+        "until": snooze_iso, "created_at": now_iso(),
+    }
+    # Upsert : un snooze par (user, client) — le nouveau remplace l'ancien
+    await db_raw.client_snoozes.replace_one(
+        {"user_id": user["id"], "establishment_id": eid, "org_id": user["org_id"]},
+        doc, upsert=True,
+    )
+    return {"ok": True, "until": snooze_iso, "establishment": est}
+
+
+@api_router.delete("/snoozes/client/{eid}")
+async def clear_client_snooze(eid: str, user=Depends(get_current_user)):
+    res = await db_raw.client_snoozes.delete_one(
+        {"user_id": user["id"], "establishment_id": eid, "org_id": user["org_id"]},
+    )
+    return {"ok": True, "cleared": res.deleted_count}
+
+
+@api_router.get("/snoozes/mine")
+async def list_my_snoozes(user=Depends(get_current_user)):
+    """Liste les snoozes actifs (until > now) pour l'utilisateur courant."""
+    now_iso_str = datetime.now(timezone.utc).isoformat()
+    docs = await db_raw.client_snoozes.find(
+        {"user_id": user["id"], "org_id": user["org_id"], "until": {"$gt": now_iso_str}},
+        {"_id": 0},
+    ).sort("until", 1).to_list(500)
+    return {"snoozes": docs}
+
+
+async def _is_client_snoozed(user_id: str, org_id: str, establishment_id: str) -> bool:
+    if not establishment_id:
+        return False
+    doc = await db_raw.client_snoozes.find_one(
+        {"user_id": user_id, "org_id": org_id, "establishment_id": establishment_id},
+        {"_id": 0, "until": 1},
+    )
+    if not doc:
+        return False
+    try:
+        dt = datetime.fromisoformat(doc["until"].replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) < dt
+    except Exception:
+        return False
 
 
 # === Fin Lot Fiabilité PWA ===
