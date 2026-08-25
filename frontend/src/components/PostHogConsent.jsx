@@ -92,56 +92,59 @@ export default function PostHogConsent() {
       aria-label="Consentement statistiques"
       data-testid="posthog-consent-banner"
       style={{
-        position: "fixed", left: 16, right: 16, bottom: 16,
-        // z-index > onboarding tour Radix Dialog (z-50) pour être atteignable au 1er login
-        zIndex: 200, maxWidth: 640, margin: "0 auto",
+        position: "fixed",
+        right: 16, bottom: 16,
+        // Sur desktop, on décale le bandeau à droite de la sidebar (256 px + 16)
+        // et on cape sa largeur pour éviter tout chevauchement avec la navigation.
+        left: "max(16px, 280px)",
+        zIndex: 200, maxWidth: 460, marginLeft: "auto",
         background: "var(--ds-bg-elevated, #fff)",
         color: "var(--ds-text-primary, #121210)",
         border: "1px solid var(--ds-border, #e3e1da)", borderRadius: 12,
         boxShadow: "0 20px 40px rgba(0,0,0,.15)",
-        padding: 16, fontSize: 14,
+        padding: 16, fontSize: 13,
       }}
     >
-      <p style={{ margin: 0, marginBottom: 10, fontWeight: 600 }}>Statistiques d'usage anonymisées ?</p>
-      <p style={{ margin: 0, marginBottom: 14, color: "var(--ds-text-secondary, #56544d)" }}>
-        Nous ne partageons pas vos données clients. Aucun enregistrement de session n'est fait
-        sur les pages authentifiées, même après acceptation. Détail complet :{" "}
+      <button
+        onClick={() => decide("denied")}
+        data-testid="consent-close"
+        aria-label="Fermer sans accepter"
+        style={{
+          position: "absolute", top: 8, right: 8,
+          width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "transparent", border: "none", borderRadius: 6,
+          color: "var(--ds-text-secondary, #56544d)", cursor: "pointer",
+          fontSize: 18, lineHeight: 1,
+        }}
+      >×</button>
+      <p style={{ margin: 0, marginBottom: 6, fontWeight: 600, paddingRight: 24 }}>Statistiques anonymes ?</p>
+      <p style={{ margin: 0, marginBottom: 12, color: "var(--ds-text-secondary, #56544d)", fontSize: 12 }}>
+        Aucune donnée client partagée, aucun enregistrement de session.{" "}
         <a href="/legal/cookies" style={{ color: "var(--ds-accent, #4A154B)", textDecoration: "underline" }} data-testid="consent-cookie-policy-link">
-          Politique cookies
+          Détails
         </a>.
       </p>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button
           onClick={() => decide("granted")}
           data-testid="consent-accept"
           style={{
-            flex: 1, minHeight: 44, minWidth: 120,
+            flex: 1, minHeight: 40, minWidth: 100,
             background: "var(--ds-accent, #4A154B)", color: "#fff",
-            border: "none", borderRadius: 8, padding: "10px 14px",
-            fontSize: 14, fontWeight: 600, cursor: "pointer",
+            border: "none", borderRadius: 8, padding: "8px 12px",
+            fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}
         >Accepter</button>
         <button
           onClick={() => decide("denied")}
           data-testid="consent-deny"
           style={{
-            flex: 1, minHeight: 44, minWidth: 120,
+            flex: 1, minHeight: 40, minWidth: 100,
             background: "var(--ds-bg-surface-alt, #f0eee8)", color: "var(--ds-text-primary, #121210)",
-            border: "1px solid var(--ds-border, #e3e1da)", borderRadius: 8, padding: "10px 14px",
-            fontSize: 14, fontWeight: 600, cursor: "pointer",
+            border: "1px solid var(--ds-border, #e3e1da)", borderRadius: 8, padding: "8px 12px",
+            fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}
         >Refuser</button>
-        <a
-          href="/legal/cookies"
-          data-testid="consent-customize"
-          style={{
-            flex: 1, minHeight: 44, minWidth: 120, display: "inline-flex",
-            alignItems: "center", justifyContent: "center",
-            background: "transparent", color: "var(--ds-accent, #4A154B)",
-            border: "1px solid var(--ds-accent, #4A154B)", borderRadius: 8, padding: "10px 14px",
-            fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none",
-          }}
-        >Personnaliser</a>
       </div>
     </div>
   );

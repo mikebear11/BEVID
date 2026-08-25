@@ -124,11 +124,27 @@ export default function Billing() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {plans.map(p => {
             const active = p.id === current.plan;
+            // Prix affiché selon toggle : annuel = 2 mois offerts (10 mois payés
+            // sur 12) — équivalent mensuel affiché pour rester comparable.
+            const displayCents = billing === "annual"
+              ? Math.round((p.price_per_seat_month_cents * 10) / 12)
+              : p.price_per_seat_month_cents;
+            const suffix = billing === "annual"
+              ? " / siège / mois (facturé annuellement)"
+              : " / siège / mois";
             return (
               <div key={p.id} data-testid={`plan-card-${p.id}`}
                 className={`card-crm p-5 ${active ? "ring-2 ring-[#4A154B]" : ""}`}>
                 <p className="overline">{p.name}</p>
-                <p className="font-display text-3xl mt-1">{eur(p.price_per_seat_month_cents)}<span className="text-sm text-stone-500 font-body"> / siège / mois</span></p>
+                <p className="font-display text-3xl mt-1" data-testid={`plan-price-${p.id}`}>
+                  {eur(displayCents)}
+                  <span className="text-sm text-stone-500 font-body">{suffix}</span>
+                </p>
+                {billing === "annual" && (
+                  <p className="text-xs text-emerald-700 mt-1" data-testid={`plan-annual-hint-${p.id}`}>
+                    Économie de {eur(p.price_per_seat_month_cents * 2)} sur l'année
+                  </p>
+                )}
                 <p className="text-sm text-stone-600 mt-2">{p.description}</p>
                 <ul className="mt-4 space-y-1 text-xs">
                   {p.features.slice(0, 6).map(f => (

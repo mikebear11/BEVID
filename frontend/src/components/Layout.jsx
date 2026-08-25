@@ -19,7 +19,7 @@ import {
 import NotificationBell from "@/components/NotificationBell";
 import PushHistoryBell from "@/components/PushHistoryBell";
 import InboxDropdown from "@/components/InboxDropdown";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/ThemeToggle"; // conservé pour la topbar mobile
 import PuceEtat from "@/components/system/PuceEtat";
 import OfflineBanner from "@/components/OfflineBanner";
 import CommandPalette from "@/components/CommandPalette";
@@ -30,6 +30,12 @@ import {
 import {
   Tooltip, TooltipTrigger, TooltipContent, TooltipProvider,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
+import { Sun, Moon, Sunrise, Monitor, MoreHorizontal, Languages } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
 
 /**
  * Sidebar intelligente (Lot 8 + suite) :
@@ -144,8 +150,86 @@ const OPEN_KEY = "bevid_nav_open_sections_v2";
 const PREFS_CACHE_KEY = "bevid_sidebar_prefs_v1";
 const COLLAPSED_KEY = "bevid_sidebar_collapsed_v1";
 
-function defaultOpenByRole(role) {
-  if (role === "manager" || role === "gerant" || role === "owner") return ["section_pilotage"];
+// Menu déroulant regroupant Thème + Langue + Déconnexion pour libérer 3 lignes
+// dans le pied de sidebar et rallonger la zone de navigation.
+function SidebarUserMenu({ theme, setTheme, resolvedTheme, lang, setLanguage, languages, onLogout, t, collapsed = false }) {
+  const themeItems = [
+    { v: "light", l: t("theme_light") || "Clair", Icon: Sun },
+    { v: "dark", l: t("theme_dark") || "Sombre", Icon: Moon },
+    { v: "sun", l: t("theme_sun") || "Soleil", Icon: Sunrise },
+    { v: "system", l: t("theme_system") || "Système", Icon: Monitor },
+  ];
+  const currentTheme = themeItems.find(x => x.v === theme) || themeItems[3];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-testid="sidebar-user-menu-trigger"
+          aria-label={t("user_menu") || "Menu utilisateur"}
+          className={`shrink-0 flex items-center justify-center rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors ${collapsed ? "w-10 h-10" : "w-9 h-9"}`}
+        >
+          <MoreHorizontal size={16} aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" className="w-56" data-testid="sidebar-user-menu-content">
+        <DropdownMenuLabel className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-stone-500">
+          <currentTheme.Icon size={12} aria-hidden="true" />
+          {t("theme") || "Thème"} · <span className="normal-case tracking-normal text-stone-700 dark:text-stone-300">{currentTheme.l}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+          {themeItems.map(({ v, l, Icon }) => (
+            <DropdownMenuRadioItem
+              key={v}
+              value={v}
+              data-testid={`sidebar-theme-${v}`}
+              className="cursor-pointer"
+            >
+              <Icon size={14} className="mr-2 opacity-70" aria-hidden="true" />
+              <span className="flex-1">{l}</span>
+              {theme === "system" && v === "system" && (
+                <span className="text-[10px] text-stone-400 ml-2">{resolvedTheme}</span>
+              )}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuLabel className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-stone-500">
+          <Languages size={12} aria-hidden="true" />
+          {t("language") || "Langue"}
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={lang} onValueChange={setLanguage}>
+          {languages.map(l => (
+            <DropdownMenuRadioItem
+              key={l.code}
+              value={l.code}
+              data-testid={`sidebar-lang-${l.code}`}
+              className="cursor-pointer"
+            >
+              <span className="mr-2" aria-hidden="true">{l.flag}</span>
+              <span className="flex-1">{l.label}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onSelect={onLogout}
+          data-testid="sidebar-menu-logout"
+          className="cursor-pointer text-red-700 dark:text-red-400 focus:text-red-700 dark:focus:text-red-400"
+        >
+          <LogOut size={14} className="mr-2" aria-hidden="true" />
+          {t("logout") || "Se déconnecter"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function defaultOpenByRole(role) {  if (role === "manager" || role === "gerant" || role === "owner") return ["section_pilotage"];
   return ["section_sales"];
 }
 
@@ -201,6 +285,7 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
   const { has, loading: permsLoading } = usePerms();
+  const { theme, resolved: resolvedTheme, setTheme } = useTheme();
   const loc = useLocation();
   const nav_ = useNavigate();
   const role = user?.role || "commercial";
@@ -706,80 +791,68 @@ export default function Layout({ children }) {
             )}
           </nav>
 
-          {/* Zone d'identité en bas */}
-          <div className={`border-t border-stone-200 dark:border-stone-700 ${collapsed ? "p-2 space-y-2" : "p-3 space-y-2"}`}>
+          {/* Zone d'identité en bas — compacte, un seul rang avec menu déroulant */}
+          <div className={`border-t border-stone-200 dark:border-stone-700 ${collapsed ? "p-2" : "p-3"}`}>
             {!collapsed ? (
-              <Link
-                to="/profile"
-                data-testid="nav-profile-identity"
-                className={`flex items-center gap-3 px-2 py-2 min-h-[52px] rounded-lg text-sm transition-colors ${isActive("/profile") ? "bg-[#4A154B]/10 dark:bg-[#B076B4]/20" : "hover:bg-stone-100 dark:hover:bg-stone-800"}`}
-              >
-                <div className="w-9 h-9 rounded-full bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900 flex items-center justify-center font-medium text-sm shrink-0" aria-hidden="true">
-                  {(user?.name || user?.email || "?")[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-stone-800 dark:text-stone-100 truncate">{user?.name || user?.email}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {user?.org_name && <span className="text-[11px] text-stone-500 truncate">{user.org_name}</span>}
-                    <PuceEtat etat="info" variante="douce" libelle={role} />
-                  </div>
-                </div>
-                <InboxDropdown />
-                <PushHistoryBell />
-                <NotificationBell />
-              </Link>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    to="/profile"
-                    data-testid="nav-profile-identity"
-                    className="flex items-center justify-center w-10 h-10 mx-auto rounded-full bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900 font-medium text-sm"
-                  >
-                    {(user?.name || user?.email || "?")[0].toUpperCase()}
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">{user?.name || user?.email}</TooltipContent>
-              </Tooltip>
-            )}
-            {!collapsed && (
               <div className="flex items-center gap-2">
-                <ThemeToggle variant="sidebar" />
+                <Link
+                  to="/profile"
+                  data-testid="nav-profile-identity"
+                  className={`flex items-center gap-2 flex-1 min-w-0 px-2 py-2 min-h-[48px] rounded-lg text-sm transition-colors ${isActive("/profile") ? "bg-[#4A154B]/10 dark:bg-[#B076B4]/20" : "hover:bg-stone-100 dark:hover:bg-stone-800"}`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900 flex items-center justify-center font-medium text-sm shrink-0" aria-hidden="true">
+                    {(user?.name || user?.email || "?")[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-stone-800 dark:text-stone-100 truncate text-[13px] leading-tight">{user?.name || user?.email}</div>
+                    <div className="flex items-center gap-1.5">
+                      {user?.org_name && <span className="text-[10px] text-stone-500 truncate">{user.org_name}</span>}
+                      <PuceEtat etat="info" variante="douce" libelle={role} />
+                    </div>
+                  </div>
+                </Link>
+                <div className="flex items-center">
+                  <InboxDropdown />
+                  <PushHistoryBell />
+                  <NotificationBell />
+                  <SidebarUserMenu
+                    theme={theme}
+                    setTheme={setTheme}
+                    resolvedTheme={resolvedTheme}
+                    lang={lang}
+                    setLanguage={setLanguage}
+                    languages={languages}
+                    onLogout={logout}
+                    t={t}
+                  />
+                </div>
               </div>
-            )}
-            {!collapsed && (
-              <select
-                value={lang}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full text-sm border border-stone-300 dark:border-stone-600 rounded-lg px-2 py-1.5 min-h-[36px] bg-white dark:bg-stone-800 dark:text-stone-200"
-                data-testid="lang-select"
-                aria-label={t("language")}
-              >
-                {languages.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
-              </select>
-            )}
-            {collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={logout}
-                    data-testid="logout-btn"
-                    aria-label={t("logout")}
-                    className="w-10 h-10 mx-auto flex items-center justify-center rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300"
-                  >
-                    <LogOut size={16} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="text-xs">{t("logout")}</TooltipContent>
-              </Tooltip>
             ) : (
-              <button
-                onClick={logout}
-                data-testid="logout-btn"
-                className="btn-ghost w-full flex items-center gap-2 text-sm justify-center min-h-[40px]"
-              >
-                <LogOut size={16} aria-hidden="true" /> {t("logout")}
-              </button>
+              <div className="flex flex-col items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      to="/profile"
+                      data-testid="nav-profile-identity"
+                      className="flex items-center justify-center w-10 h-10 rounded-full bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900 font-medium text-sm"
+                    >
+                      {(user?.name || user?.email || "?")[0].toUpperCase()}
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">{user?.name || user?.email}</TooltipContent>
+                </Tooltip>
+                <SidebarUserMenu
+                  theme={theme}
+                  setTheme={setTheme}
+                  resolvedTheme={resolvedTheme}
+                  lang={lang}
+                  setLanguage={setLanguage}
+                  languages={languages}
+                  onLogout={logout}
+                  t={t}
+                  collapsed
+                />
+              </div>
             )}
           </div>
         </aside>
