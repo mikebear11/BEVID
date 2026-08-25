@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { MessageSquare, Percent, Save, Bell, Palette, RotateCcw } from "lucide-react";
+import { MessageSquare, Percent, Save, Bell, Palette, RotateCcw, Download } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
 import StorageQuotaBanner from "@/components/StorageQuotaBanner";
@@ -38,6 +38,44 @@ export default function SettingsPage() {
       } catch {}
       toast.success("Thème appliqué — rechargez pour voir");
     } catch { toast.error(t("toast.erreur")); }
+  };
+
+  // Toggle « Afficher les fonctions avancées » — Section 1 lot recentrage
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  useEffect(() => {
+    api.get("/me/sidebar-prefs").then(r => setShowAdvanced(!!r.data?.show_advanced)).catch(() => {});
+  }, []);
+  const toggleAdvanced = async (v) => {
+    setShowAdvanced(v);
+    try {
+      await api.put("/me/sidebar-prefs", { show_advanced: v });
+      try {
+        const raw = localStorage.getItem("bevid_sidebar_prefs_v1");
+        const cur = raw ? JSON.parse(raw) : {};
+        localStorage.setItem("bevid_sidebar_prefs_v1", JSON.stringify({ ...cur, show_advanced: v }));
+      } catch {}
+      toast.success(v ? "Fonctions avancées affichées" : "Interface simplifiée activée");
+    } catch { toast.error(t("toast.erreur")); }
+  };
+
+  // Bouton « Exporter toutes mes données » — Section 5 lot recentrage
+  const [exporting, setExporting] = useState(false);
+  const doExport = async () => {
+    setExporting(true);
+    try {
+      const { data } = await api.get("/export/all-data");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.download = `bevid-export-${stamp}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Archive téléchargée");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Export impossible");
+    } finally { setExporting(false); }
   };
   const resetMenu = async () => {
     if (!window.confirm("Réinitialiser l'ordre des sections et les épingles ? Le thème sera conservé.")) return;
@@ -81,16 +119,43 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
-        <div className="mt-4 pt-4 border-t border-stone-200 dark:border-stone-700">
-          <p className="text-xs font-medium mb-2">Réinitialiser mon menu</p>
-          <p className="text-[11px] text-stone-500 mb-3">Efface toutes les épingles et remet l'ordre par défaut des sections. Le thème choisi ci-dessus est conservé.</p>
-          <button onClick={resetMenu} disabled={resetting}
-            data-testid="reset-menu-btn"
-            className="btn-ghost flex items-center gap-2 min-h-[40px] text-sm">
-            <RotateCcw size={14} aria-hidden="true" className={resetting ? "animate-spin" : ""} />
-            Réinitialiser mon menu
-          </button>
+        <div className="mt-4 pt-4 border-t border-stone-200 dark:border-stone-700 space-y-4">
+          <div>
+            <p className="text-xs font-medium mb-2">Réinitialiser mon menu</p>
+            <p className="text-[11px] text-stone-500 mb-3">Efface toutes les épingles et remet l'ordre par défaut des sections. Le thème choisi ci-dessus est conservé.</p>
+            <button onClick={resetMenu} disabled={resetting}
+              data-testid="reset-menu-btn"
+              className="btn-ghost flex items-center gap-2 min-h-[40px] text-sm">
+              <RotateCcw size={14} aria-hidden="true" className={resetting ? "animate-spin" : ""} />
+              Réinitialiser mon menu
+            </button>
+          </div>
+          <div className="pt-4 border-t border-stone-200 dark:border-stone-700">
+            <label className="flex items-start gap-3 cursor-pointer p-2 rounded hover:bg-stone-50 dark:hover:bg-stone-800" data-testid="show-advanced-toggle-label">
+              <input type="checkbox" checked={showAdvanced}
+                onChange={e => toggleAdvanced(e.target.checked)}
+                className="w-5 h-5 accent-[#4A154B] mt-0.5"
+                data-testid="show-advanced-toggle" />
+              <div>
+                <p className="text-sm font-medium">Afficher les fonctions avancées</p>
+                <p className="text-[11px] text-stone-500">Rapprochement, DRM, prospection, radar, veille, bouclier, revue mensuelle, objectifs… Sinon, elles apparaissent automatiquement à l'usage ou via ⌘K.</p>
+              </div>
+            </label>
+          </div>
         </div>
+      </div>
+
+      <div className="card-crm p-6" data-testid="settings-export">
+        <div className="flex items-center gap-2 mb-4"><Download size={18} className="text-[#4A154B]" aria-hidden="true" /><h2 className="font-display text-xl">Exporter toutes mes données</h2></div>
+        <p className="text-xs text-stone-500 mb-4">
+          Vos données vous appartiennent. Téléchargez à tout moment une archive complète JSON (établissements, contacts, commandes, documents, historique). Y compris après résiliation.
+        </p>
+        <button onClick={doExport} disabled={exporting}
+          data-testid="export-all-btn"
+          className="btn-primary flex items-center gap-2 min-h-[44px]">
+          <Download size={14} aria-hidden="true" className={exporting ? "animate-pulse" : ""} />
+          {exporting ? "Préparation…" : "Télécharger l'archive JSON"}
+        </button>
       </div>
 
       <div className="card-crm p-6">

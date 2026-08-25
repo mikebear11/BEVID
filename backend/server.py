@@ -600,7 +600,9 @@ async def update_my_profile(data: ProfileUpdate, user=Depends(get_current_user))
 class SidebarPrefsUpdate(BaseModel):
     pinned_user: Optional[List[str]] = None      # max 3 clés user, en plus des 3 fixes
     section_order: Optional[Dict[str, List[str]]] = None  # {section_key: [entry_keys]}
-    theme: Optional[Literal["sobre", "vibrant", "contrast"]] = None  # 3 looks visuels de sidebar
+    theme: Optional[Literal["sobre", "vibrant", "contrast"]] = None  # 3 looks visuels
+    show_advanced: Optional[bool] = None         # afficher toutes les fonctions avancées
+    visited_features: Optional[List[str]] = None  # clés de pages déjà ouvertes (débloquées)
 
 
 def _clean_key(k, maxlen: int = 40) -> Optional[str]:
@@ -622,6 +624,8 @@ async def get_sidebar_prefs(user=Depends(get_current_user)):
         "pinned_user": prefs.get("pinned_user") or [],
         "section_order": prefs.get("section_order") or {},
         "theme": prefs.get("theme") or "sobre",
+        "show_advanced": bool(prefs.get("show_advanced", False)),
+        "visited_features": prefs.get("visited_features") or [],
     }
 
 
@@ -657,6 +661,11 @@ async def update_sidebar_prefs(data: SidebarPrefsUpdate, user=Depends(get_curren
         updates["sidebar_prefs.section_order"] = cleaned_sections
     if data.theme is not None:
         updates["sidebar_prefs.theme"] = data.theme
+    if data.show_advanced is not None:
+        updates["sidebar_prefs.show_advanced"] = bool(data.show_advanced)
+    if data.visited_features is not None:
+        cleaned = [str(x) for x in data.visited_features if isinstance(x, str) and x][:200]
+        updates["sidebar_prefs.visited_features"] = list(dict.fromkeys(cleaned))
     if not updates:
         raise HTTPException(422, "Aucun champ à modifier")
     await db_raw.users.update_one({"id": user["id"]}, {"$set": updates})
@@ -820,8 +829,151 @@ def motor_return_document_after():
     return ReturnDocument.AFTER
 
 
+@api_router.post("/me/visit-feature")
+async def visit_feature(data: dict, user=Depends(get_current_user)):
+    """Marque une feature comme visitée par l'utilisateur → déverrouille dans la sidebar.
+
+    Appelé au montage des pages « avancées » côté client. Idempotent :
+    la clé n'est ajoutée que si absente. Limite douce à 200 clés.
+    """
+    key = (data or {}).get("key")
+    if not key or not isinstance(key, str):
+        raise HTTPException(422, "clé manquante")
+    key = key.strip()[:80]
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$addToSet": {"sidebar_prefs.visited_features": key}},
+    )
+    return {"ok": True, "key": key}
+
+
+async def _unlock_feature(user_id: str, key: str) -> None:
+    """Débloque une feature pour un user sans erreur si elle l'est déjà."""
+    if not user_id or not key:
+        return
+    try:
+        await db_raw.users.update_one(
+            {"id": user_id},
+            {"$addToSet": {"sidebar_prefs.visited_features": key}},
+        )
+    except Exception:  # noqa: BLE001 — jamais casser le flux métier
+        pass
+
+
+async def _unlock_org_feature(org_id: str, key: str) -> None:
+    """Débloque une feature pour tous les users d'une org (usage : trigger DRM
+    au premier mouvement de stock, rapprochement au premier paiement, etc.)."""
+    if not org_id or not key:
+        return
+    try:
+        await db_raw.users.update_many(
+            {"org_id": org_id},
+            {"$addToSet": {"sidebar_prefs.visited_features": key}},
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
 # ==========================================================
-# Documents légaux entreprise (CGV, RIB, Logo, Kbis, Assurance, …)
+# Export archive complète (Lot recentrage — Section 5)
+# ==========================================================
+@api_router.get("/export/all-data")
+async def export_all_data(user=Depends(get_current_user)):
+    """Renvoie une archive JSON complète de toutes les données de l'organisation.
+
+    Objectif : liberté de partir affichée comme argument commercial.
+    Collections exportées : establishments, clients (legacy), orders,
+    products, business_documents, containers, stock_movements, users, roles,
+    legal_documents, payments, competitors, prospects.
+    """
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    export: dict = {
+        "exported_at": now_iso(),
+        "org_id": user.get("org_id"),
+        "exported_by": user.get("email"),
+        "collections": {},
+    }
+    collections = [
+        "establishments", "clients", "orders", "products",
+        "business_documents", "containers", "stock_movements",
+        "users", "roles", "legal_documents", "payments",
+        "competitors", "prospects", "visits", "tours", "documents_events",
+    ]
+    for coll in collections:
+        try:
+            docs = await getattr(db, coll).find({}, {"_id": 0, "password": 0}).to_list(50000)
+            export["collections"][coll] = docs
+        except Exception:  # noqa: BLE001
+            export["collections"][coll] = []
+    await audit_log(user["id"], "export_all_data", {"collections": list(export["collections"].keys())})
+    return export
+
+
+# ==========================================================
+# Calculateur DRM public (Lot recentrage — Section 2.2)
+# ==========================================================
+# Barème simplifié 2026 (à valider auprès de la DGDDI avant usage réel).
+# Source : Article 178 CGI / arrêté DGDDI. Ces montants sont donnés à titre
+# indicatif : le calculateur affiche un avertissement de conformité.
+DRM_TARIFS_HL_ALCOOL_PUR = {
+    # €/hL d'alcool pur
+    "biere_petite_brasserie": 380.0,  # < 200 000 hL/an
+    "biere_standard":        760.0,   # ≥ 200 000 hL/an
+    "vin_tranquille":         0.0,    # non soumis à accise en France (droits circulation seuls)
+    "vin_mousseux":          10.0,    # taxe forfaitaire
+    "spiritueux":            1866.52,
+    "cidre_poire":           14.06,
+}
+
+
+@api_router.get("/public/drm-calculator")
+async def public_drm_calculator(
+    volume_l: float, degree: float, category: str = "biere_petite_brasserie",
+):
+    """Calculateur d'accise DRM public — aucun token requis.
+
+    Paramètres :
+    - volume_l : volume produit en litres
+    - degree : degré alcoolique en % vol (ex : 5.5 pour une IPA à 5,5°)
+    - category : biere_petite_brasserie | biere_standard | vin_tranquille |
+                 vin_mousseux | spiritueux | cidre_poire
+
+    Retour : calcul détaillé (volume alcool pur en hL, tarif appliqué,
+    droits d'accise en €, étapes de calcul textuelles).
+    """
+    if category not in DRM_TARIFS_HL_ALCOOL_PUR:
+        raise HTTPException(422, "Catégorie inconnue. Valeurs : "
+                             + ", ".join(DRM_TARIFS_HL_ALCOOL_PUR.keys()))
+    if volume_l < 0 or degree < 0 or degree > 100:
+        raise HTTPException(422, "Volume ou degré invalide")
+    tarif = DRM_TARIFS_HL_ALCOOL_PUR[category]
+    volume_hl = volume_l / 100.0
+    alcool_pur_hl = volume_hl * (degree / 100.0)
+    accise_eur = alcool_pur_hl * tarif
+    return {
+        "input": {"volume_l": volume_l, "degree": degree, "category": category},
+        "computed": {
+            "volume_hl": round(volume_hl, 4),
+            "alcool_pur_hl": round(alcool_pur_hl, 4),
+            "tarif_eur_hl_alcool_pur": tarif,
+            "accise_eur": round(accise_eur, 2),
+        },
+        "steps": [
+            f"1) Volume {volume_l} L = {volume_hl:.4f} hL",
+            f"2) Volume × degré ({degree}%) = {alcool_pur_hl:.4f} hL d'alcool pur",
+            f"3) Alcool pur × tarif ({tarif} €/hL) = {accise_eur:.2f} €",
+        ],
+        "disclaimer": (
+            "Barème indicatif 2026 basé sur les valeurs DGDDI publiées. "
+            "Toute déclaration officielle doit être validée auprès de la "
+            "DGDDI avant dépôt. BEVID n'engage pas sa responsabilité sur la "
+            "conformité du format ou l'exactitude des tarifs applicables."
+        ),
+    }
+
+
+
 # ==========================================================
 # Un utilisateur manager gère des variantes de chaque type de document
 # (ex : CGV Pro vs CGV Particulier, plusieurs RIB par banque, plusieurs logos).
@@ -9413,6 +9565,8 @@ async def create_container(data: dict, user=Depends(get_current_user)):
         to_location=c.current_location, note="Création contenant",
         agent_id=user["id"], owner_id=user["id"],
     ).model_dump())
+    await _unlock_org_feature(user.get("org_id"), "drm")
+    await _unlock_org_feature(user.get("org_id"), "containers")
     return c.model_dump()
 
 @api_router.get("/containers/{cid}")

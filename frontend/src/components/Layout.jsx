@@ -57,6 +57,22 @@ const PINNED_FIXED = [
 
 const HOME_ENTRY = { to: "/", key: "dashboard", feature: "page:dashboard", icon: LayoutDashboard };
 
+const CORE_KEYS = new Set([
+  // Fixed pins (always visible)
+  "tournee", "new_visit", "scan",
+  // Home
+  "dashboard",
+  // Core operations (visible for a new manager account)
+  "clients", "orders", "products", "stock",
+]);
+
+// Entrées considérées « avancées » — masquées par défaut sur un nouveau compte.
+// Débloquées :
+//   1) automatiquement sur usage (facture encaissée, mouvement stock, concurrent) — voir `_unlock_org_feature` backend
+//   2) via la palette ⌘K (qui trouve toujours tout)
+//   3) via le toggle « Afficher les fonctions avancées » dans Réglages
+const isAdvancedEntry = (k) => !CORE_KEYS.has(k);
+
 const SECTIONS = [
   { key: "section_sales", icon: Wallet, entries: [
     { to: "/clients",  key: "clients",  feature: "page:clients", icon: Users },
@@ -249,14 +265,16 @@ function loadOpenSections(role) {
 function loadCachedPrefs() {
   try {
     const raw = localStorage.getItem(PREFS_CACHE_KEY);
-    if (!raw) return { pinned_user: [], section_order: {}, theme: "sobre" };
+    if (!raw) return { pinned_user: [], section_order: {}, theme: "sobre", show_advanced: false, visited_features: [] };
     const p = JSON.parse(raw);
     return {
       pinned_user: Array.isArray(p.pinned_user) ? p.pinned_user : [],
       section_order: (p.section_order && typeof p.section_order === "object") ? p.section_order : {},
       theme: typeof p.theme === "string" ? p.theme : "sobre",
+      show_advanced: !!p.show_advanced,
+      visited_features: Array.isArray(p.visited_features) ? p.visited_features : [],
     };
-  } catch { return { pinned_user: [], section_order: {}, theme: "sobre" }; }
+  } catch { return { pinned_user: [], section_order: {}, theme: "sobre", show_advanced: false, visited_features: [] }; }
 }
 
 function loadCollapsed() {
@@ -310,6 +328,17 @@ export default function Layout({ children }) {
   const [stopsToday, setStopsToday] = useState(null);
   const [prefs, setPrefs] = useState(loadCachedPrefs);
   const sidebarTheme = VALID_SIDEBAR_THEMES.has(prefs.theme) ? prefs.theme : "sobre";
+  const showAdvanced = !!prefs.show_advanced;
+  const visitedFeatures = useMemo(() => new Set(prefs.visited_features || []), [prefs.visited_features]);
+  // Une entrée avancée est visible si : mode avancé activé, feature déjà visitée,
+  // ou pin utilisateur explicite.
+  const isEntryVisible = (entryKey) => {
+    if (!isAdvancedEntry(entryKey)) return true;
+    if (showAdvanced) return true;
+    if (visitedFeatures.has(entryKey)) return true;
+    if ((prefs.pinned_user || []).includes(entryKey)) return true;
+    return false;
+  };
   const [dragCtx, setDragCtx] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [collapsed, setCollapsed] = useState(loadCollapsed);
@@ -364,6 +393,8 @@ export default function Layout({ children }) {
           pinned_user: Array.isArray(data?.pinned_user) ? data.pinned_user : [],
           section_order: (data?.section_order && typeof data.section_order === "object") ? data.section_order : {},
           theme: typeof data?.theme === "string" ? data.theme : "sobre",
+          show_advanced: !!data?.show_advanced,
+          visited_features: Array.isArray(data?.visited_features) ? data.visited_features : [],
         };
         setPrefs(next);
         try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch {}
@@ -432,11 +463,14 @@ export default function Layout({ children }) {
       const withEval = ordered.map(e => {
         const ev = evalEntry(e);
         return { ...e, _visible: ev.visible, _locked: ev.lockedPlan };
-      }).filter(e => e._visible);
+      })
+      .filter(e => e._visible)
+      // Filtre « mode débutant » : masque les entrées avancées non débloquées.
+      .filter(e => isEntryVisible(e.key));
       return { ...s, entries: withEval };
     }).filter(s => s.entries.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs.section_order, has, permsLoading, role, planFeatures]);
+  }, [prefs.section_order, prefs.show_advanced, prefs.visited_features, prefs.pinned_user, has, permsLoading, role, planFeatures]);
 
   const homeEval = evalEntry(HOME_ENTRY);
   const homeVisible = homeEval.visible;
@@ -451,15 +485,53 @@ export default function Layout({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.pathname]);
 
+  // Tracker de visite : quand un user ouvre une page avancée via ⌘K ou une URL
+  // directe, on la débloque pour la sidebar. Débounce serveur : 1 appel/route.
+  useEffect(() => {
+    const path = loc.pathname;
+    if (!path || path === "/") return;
+    // Cherche l'entrée qui matche l'URL
+    let matched = null;
+    for (const s of SECTIONS) {
+      for (const e of s.entries) {
+        if (path === e.to || (e.to !== "/" && path.startsWith(e.to))) {
+          matched = e; break;
+        }
+      }
+      if (matched) break;
+    }
+    if (!matched || !isAdvancedEntry(matched.key)) return;
+    if (visitedFeatures.has(matched.key)) return;
+    // Optimistic update + PUT en fond
+    const nextVisited = Array.from(new Set([...(prefs.visited_features || []), matched.key]));
+    const next = { ...prefs, visited_features: nextVisited };
+    setPrefs(next); savePrefs(next);
+    api.post("/me/visit-feature", { key: matched.key }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loc.pathname]);
+
   const paletteItems = useMemo(() => {
+    // La palette ⌘K liste TOUTES les pages accessibles (même les avancées masquées).
     const items = [];
     if (homeVisible) items.push({ to: HOME_ENTRY.to, key: HOME_ENTRY.key, label: t(HOME_ENTRY.key), section: t("dashboard") });
     for (const e of visiblePinned) items.push({ to: e.to, key: e.key, label: t(e.key), section: t("section_today") });
-    for (const s of visibleSections) for (const e of s.entries) {
-      items.push({ to: e.to, key: e.key, label: t(e.key), section: t(s.key) });
+    for (const s of SECTIONS) {
+      const userOrder = prefs.section_order?.[s.key];
+      const ordered = applySectionOrder(s.entries, userOrder);
+      for (const e of ordered) {
+        const ev = evalEntry(e);
+        if (!ev.visible) continue;
+        const advanced = isAdvancedEntry(e.key) && !visitedFeatures.has(e.key) && !showAdvanced;
+        items.push({
+          to: e.to, key: e.key,
+          label: advanced ? `${t(e.key)} · avancé` : t(e.key),
+          section: t(s.key),
+        });
+      }
     }
     return items;
-  }, [visibleSections, visiblePinned, homeVisible, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeVisible, visiblePinned, prefs.section_order, prefs.visited_features, prefs.show_advanced, t]);
 
   const isActive = (to) => loc.pathname === to || (to !== "/" && loc.pathname.startsWith(to));
 
@@ -815,42 +887,49 @@ export default function Layout({ children }) {
             )}
           </nav>
 
-          {/* Zone d'identité en bas — compacte, un seul rang avec menu déroulant */}
-          <div className={`border-t border-stone-200 dark:border-stone-700 ${collapsed ? "p-2" : "p-3"}`}>
+          {/* Zone d'identité en bas — 2 rangs aérés : identité, puis notifs + menu */}
+          <div className={`border-t border-stone-200 dark:border-stone-700 ${collapsed ? "p-2 space-y-2" : "p-3 space-y-2"}`}>
             {!collapsed ? (
-              <div className="flex items-center gap-2">
+              <>
                 <Link
                   to="/profile"
                   data-testid="nav-profile-identity"
-                  className={`flex items-center gap-2 flex-1 min-w-0 px-2 py-2 min-h-[48px] rounded-lg text-sm transition-colors ${isActive("/profile") ? "bg-[#4A154B]/10 dark:bg-[#B076B4]/20" : "hover:bg-stone-100 dark:hover:bg-stone-800"}`}
+                  className={`flex items-center gap-3 min-w-0 px-2 py-2 min-h-[52px] rounded-lg text-sm transition-colors ${isActive("/profile") ? "bg-[#4A154B]/10 dark:bg-[#B076B4]/20" : "hover:bg-stone-100 dark:hover:bg-stone-800"}`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900 flex items-center justify-center font-medium text-sm shrink-0" aria-hidden="true">
+                  <div className="w-9 h-9 rounded-full bg-[#4A154B] dark:bg-[#B076B4] text-white dark:text-stone-900 flex items-center justify-center font-medium text-sm shrink-0" aria-hidden="true">
                     {(user?.name || user?.email || "?")[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-stone-800 dark:text-stone-100 truncate text-[13px] leading-tight">{user?.name || user?.email}</div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 mt-0.5">
                       {user?.org_name && <span className="text-[10px] text-stone-500 truncate">{user.org_name}</span>}
                       <PuceEtat etat="info" variante="douce" libelle={role} />
                     </div>
                   </div>
                 </Link>
-                <div className="flex items-center">
-                  <InboxDropdown />
-                  <PushHistoryBell />
-                  <NotificationBell />
-                  <SidebarUserMenu
-                    theme={theme}
-                    setTheme={setTheme}
-                    resolvedTheme={resolvedTheme}
-                    lang={lang}
-                    setLanguage={setLanguage}
-                    languages={languages}
-                    onLogout={logout}
-                    t={t}
-                  />
+                <div
+                  className="flex items-center justify-between gap-1 px-1 pt-1 border-t border-stone-100 dark:border-stone-800/50"
+                  data-testid="sidebar-quick-actions"
+                >
+                  <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-center w-9 h-9" data-testid="qa-inbox"><InboxDropdown /></div>
+                    <div className="flex items-center justify-center w-9 h-9" data-testid="qa-push"><PushHistoryBell /></div>
+                    <div className="flex items-center justify-center w-9 h-9" data-testid="qa-notifs"><NotificationBell /></div>
+                  </div>
+                  <div className="flex items-center justify-center" data-testid="qa-menu">
+                    <SidebarUserMenu
+                      theme={theme}
+                      setTheme={setTheme}
+                      resolvedTheme={resolvedTheme}
+                      lang={lang}
+                      setLanguage={setLanguage}
+                      languages={languages}
+                      onLogout={logout}
+                      t={t}
+                    />
+                  </div>
                 </div>
-              </div>
+              </>
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <Tooltip>

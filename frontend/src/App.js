@@ -30,6 +30,7 @@ import Layout from "@/components/Layout";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
 import Pricing from "@/pages/Pricing";
+import PublicDRMCalculator from "@/pages/PublicDRMCalculator";
 
 // Toutes les autres pages : chargées à la demande via React.lazy pour réduire
 // significativement la taille du bundle initial.
@@ -136,6 +137,7 @@ function App() {
                         <Route path="/pricing" element={<Pricing />} />
                         <Route path="/tarifs" element={<Pricing />} />
                         <Route path="/plans" element={<Pricing />} />
+                        <Route path="/calculateur-drm" element={<PublicDRMCalculator />} />
                         <Route path="/change-password" element={<Protected><ChangePassword /></Protected>} />
                         <Route path="/admin/users" element={<Protected><AdminUsers /></Protected>} />
                         <Route path="/admin/couts" element={<Protected><Couts /></Protected>} />

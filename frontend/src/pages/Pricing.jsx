@@ -32,9 +32,9 @@ const PLAN_ORDER = ["terrain", "pro", "entreprise"];
 
 export default function Pricing() {
   usePageMeta({
-    title: "Tarifs · BEVID — CRM pour la distribution de boissons",
+    title: "Tarifs · BEVID — Le CRM des brasseurs",
     canonical: "/pricing",
-    description: "3 formules : Terrain, Pro, Entreprise. Essai 7 jours sans carte. Facturation par siège, résiliable à tout moment.",
+    description: "Le CRM des brasseurs : votre DRM, vos fûts, vos tournées — même sans réseau. 3 formules, essai 7 jours sans carte. Vos données restent les vôtres, export en un clic.",
   });
   const [plans, setPlans] = useState(null);
   const [mode, setMode] = useState("annual");

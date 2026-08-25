@@ -12,9 +12,9 @@ import { usePageMeta } from "@/lib/pageMeta";
 
 export default function Login() {
   usePageMeta({
-    title: "Connexion · BEVID",
+    title: "Connexion · BEVID — Le CRM des brasseurs",
     canonical: "/login",
-    description: "Accédez à votre CRM BEVID — distribution de boissons, tournée terrain, prise de commande hors-ligne.",
+    description: "Le CRM des brasseurs : votre DRM, vos fûts, vos tournées — même sans réseau.",
   });
   const { login } = useAuth();
   const { t, lang, setLanguage, languages } = useI18n();
@@ -68,8 +68,8 @@ export default function Login() {
           <span className="overline text-white/80">BEVID · CRM</span>
         </div>
         <div className="relative z-10">
-          <h1 className="font-display text-5xl leading-tight mb-4">{t("login_hero_title_line1")}<br/>{t("login_hero_title_line2")}</h1>
-          <p className="text-white/80 max-w-md">{t("login_hero_subtitle")}</p>
+          <h1 className="font-display text-5xl leading-tight mb-4">Le CRM des brasseurs.<br/>Votre DRM, vos fûts, vos tournées.</h1>
+          <p className="text-white/80 max-w-md">Même sans réseau. Terrain, DRM automatique depuis vos stocks, tournées optimisées, prise de commande hors-ligne.</p>
         </div>
         <div className="relative z-10 overline text-white/50">© 2026 BEVID</div>
       </div>

@@ -1,6 +1,7 @@
 {
   "short_name": "BEVID",
-  "name": "BEVID · CRM Boisson",
+  "name": "BEVID — Le CRM des brasseurs",
+  "description": "Le CRM des brasseurs : votre DRM, vos fûts, vos tournées — même sans réseau.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F7F5F2",
