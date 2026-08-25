@@ -33,7 +33,7 @@ const HOME_SCREENS = [
   { value: "/products", label: "Catalogue" },
   { value: "/stock", label: "Stock" },
   { value: "/reports", label: "Rapports" },
-  { value: "/pipeline", label: "Cycle client" },
+  { value: "/reports", label: "Cycle client" },
   { value: "/deals", label: "Opportunités" },
   { value: "/paiements", label: "Paiements" },
 ];

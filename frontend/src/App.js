@@ -46,15 +46,10 @@ const Products = lazy(() => import("@/pages/Products"));
 const Orders = lazy(() => import("@/pages/Orders"));
 const Tours = lazy(() => import("@/pages/Tours"));
 const Reports = lazy(() => import("@/pages/Reports"));
-const Agents = lazy(() => import("@/pages/Agents"));
 const VisitReport = lazy(() => import("@/pages/VisitReport"));
-const Planning = lazy(() => import("@/pages/Planning"));
-const MonthlyReview = lazy(() => import("@/pages/MonthlyReview"));
-const Pipeline = lazy(() => import("@/pages/Pipeline"));
 const Deals = lazy(() => import("@/pages/Deals"));
 const Connectors = lazy(() => import("@/pages/Connectors"));
 const SettingsPage = lazy(() => import("@/pages/Settings"));
-const SmartGoals = lazy(() => import("@/pages/SmartGoals"));
 const Tournee = lazy(() => import("@/pages/Tournee"));
 const Livreur = lazy(() => import("@/pages/Livreur"));
 const Etablissement360 = lazy(() => import("@/pages/Etablissement360"));
@@ -70,11 +65,7 @@ const ScanContainer = lazy(() => import("@/pages/ScanContainer"));
 const DRM = lazy(() => import("@/pages/DRM"));
 const QRLabels = lazy(() => import("@/pages/QRLabels"));
 const Rapprochement = lazy(() => import("@/pages/Rapprochement"));
-const SourcesDonnees = lazy(() => import("@/pages/SourcesDonnees"));
 const Prospection = lazy(() => import("@/pages/Prospection"));
-const Radar = lazy(() => import("@/pages/Radar"));
-const Veille = lazy(() => import("@/pages/Veille"));
-const Bouclier = lazy(() => import("@/pages/Bouclier"));
 const AdminPermissions = lazy(() => import("@/pages/AdminPermissions"));
 const DesignSystem = lazy(() => import("@/pages/DesignSystem"));
 const Profile = lazy(() => import("@/pages/Profile"));
@@ -150,15 +141,10 @@ function App() {
                         <Route path="/orders" element={<Protected><Orders /></Protected>} />
                         <Route path="/tours" element={<Protected><Tours /></Protected>} />
                         <Route path="/reports" element={<Protected><Reports /></Protected>} />
-                        <Route path="/agents" element={<Protected><Agents /></Protected>} />
                         <Route path="/visit" element={<Protected><VisitReport /></Protected>} />
-                        <Route path="/planning" element={<Protected><Planning /></Protected>} />
-                        <Route path="/monthly-review" element={<Protected><MonthlyReview /></Protected>} />
-                        <Route path="/pipeline" element={<Protected><Pipeline /></Protected>} />
                         <Route path="/deals" element={<Protected><Deals /></Protected>} />
                         <Route path="/connectors" element={<Protected><Connectors /></Protected>} />
                         <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
-                        <Route path="/smart-goals" element={<Protected><SmartGoals /></Protected>} />
                         <Route path="/tournee" element={<Protected><Tournee /></Protected>} />
                         <Route path="/livreur" element={<Protected><Livreur /></Protected>} />
                         <Route path="/etab/:id" element={<Protected><Etablissement360 /></Protected>} />
@@ -172,11 +158,7 @@ function App() {
                         <Route path="/containers/labels" element={<Protected><QRLabels /></Protected>} />
                         <Route path="/drm" element={<Protected><DRM /></Protected>} />
                         <Route path="/rapprochement" element={<Protected><Rapprochement /></Protected>} />
-                        <Route path="/sources-donnees" element={<Protected><SourcesDonnees /></Protected>} />
                         <Route path="/prospection" element={<Protected><Prospection /></Protected>} />
-                        <Route path="/radar" element={<Protected><Radar /></Protected>} />
-                        <Route path="/veille" element={<Protected><Veille /></Protected>} />
-                        <Route path="/bouclier" element={<Protected><Bouclier /></Protected>} />
                         <Route path="/admin/permissions" element={<Protected><AdminPermissions /></Protected>} />
                         <Route path="/design-system" element={<Protected><DesignSystem /></Protected>} />
                         <Route path="/profile" element={<Protected><Profile /></Protected>} />

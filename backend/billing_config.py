@@ -22,8 +22,7 @@ ALL_FEATURES = {
     "page:stock", "page:drm", "page:reports", "page:paiements",
     "page:rapprochement",
     # Entreprise
-    "page:prospection", "page:radar", "page:veille", "page:bouclier",
-    "page:sources-donnees", "page:users", "page:integrations",
+    "page:prospection", "page:users", "page:integrations",
     "product:view_cost", "ai:coach", "ai:voice",
 }
 
@@ -36,8 +35,7 @@ _PRO = _TERRAIN | {
     "page:rapprochement",
 }
 _ENTREPRISE = _PRO | {
-    "page:prospection", "page:radar", "page:veille", "page:bouclier",
-    "page:sources-donnees", "page:users", "page:integrations",
+    "page:prospection", "page:users", "page:integrations",
     "product:view_cost", "ai:coach", "ai:voice",
 }
 
@@ -61,7 +59,7 @@ PLANS = {
         "name": "Entreprise",
         "price_per_seat_month_cents": 4900,   # 49,00 €
         "features": _ENTREPRISE,
-        "description": "Tout Pro + prospection, radar CHR, veille, bouclier mauvais payeurs, coûts et marges, IA, administration fine.",
+        "description": "Tout Pro + prospection, coûts et marges, IA (copilote et dictée), administration fine et intégrations.",
     },
 }
 

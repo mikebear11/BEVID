@@ -78,7 +78,6 @@ const SECTIONS = [
     { to: "/clients",  key: "clients",  feature: "page:clients", icon: Users },
     { to: "/orders",   key: "orders",   feature: "page:orders",  icon: ShoppingCart },
     { to: "/products", key: "products", feature: "page:products", icon: Wine },
-    { to: "/pipeline", key: "pipeline", feature: "manager_only", icon: Columns },
     { to: "/deals",    key: "deals",    feature: "manager_only", icon: Target },
   ]},
   { key: "section_logistics", icon: Truck, entries: [
@@ -86,7 +85,6 @@ const SECTIONS = [
     { to: "/livreur",            key: "livreur",    feature: null,          icon: Truck },
     { to: "/stock",              key: "stock",      feature: "page:stock", icon: Warehouse },
     { to: "/containers",         key: "containers", feature: "page:stock", icon: QrCode },
-    { to: "/containers/labels",  key: "qr_labels",  feature: "page:stock", icon: QrCode },
     { to: "/drm",                key: "drm",        feature: "page:drm",   icon: FileText },
   ]},
   { key: "section_finance", icon: Banknote, entries: [
@@ -99,17 +97,10 @@ const SECTIONS = [
     { to: "/pack-legal", key: "pack_legal", feature: "manager_only", icon: ShieldCheck },
   ]},
   { key: "section_pilotage", icon: BarChart3, entries: [
-    { to: "/reports",        key: "reports", feature: "page:reports",    icon: BarChart3 },
-    { to: "/monthly-review", key: "monthly", feature: "page:reports",    icon: Trophy },
-    { to: "/smart-goals",    key: "smart",   feature: "page:dashboard",  icon: Sparkles },
-    { to: "/agents",         key: "agents",  feature: "page:users",      icon: UserCog },
+    { to: "/reports", key: "reports", feature: "page:reports", icon: BarChart3 },
   ]},
   { key: "section_growth", icon: Rocket, entries: [
-    { to: "/prospection",     key: "prospecting", feature: "page:prospection",     icon: Compass },
-    { to: "/radar",           key: "radar",       feature: "page:radar",           icon: Radio },
-    { to: "/bouclier",        key: "bouclier",    feature: "page:bouclier",        icon: Shield },
-    { to: "/veille",          key: "veille",      feature: "page:veille",          icon: AlertOctagon },
-    { to: "/sources-donnees", key: "sources",     feature: "page:sources-donnees", icon: Database },
+    { to: "/prospection", key: "prospecting", feature: "page:prospection", icon: Compass },
   ]},
   { key: "section_admin", icon: Building2, entries: [
     { to: "/admin/users",       key: "users",        feature: "page:users",         icon: Users },

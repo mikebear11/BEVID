@@ -12,6 +12,7 @@ import OverdueBanner from "@/components/OverdueBanner";
 import CashflowWidget from "@/components/CashflowWidget";
 import MorningChecklist from "@/components/MorningChecklist";
 import AnniversariesWidget from "@/components/AnniversariesWidget";
+import DepositCapitalWidget from "@/components/DepositCapitalWidget";
 import SyncFeed from "@/components/SyncFeed";
 import { t } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
@@ -80,6 +81,7 @@ export default function Dashboard() {
 
       <MorningChecklist />
       <OverdueBanner />
+      {user?.role === "manager" && <DepositCapitalWidget />}
       {user?.role === "manager" && <SyncFeed />}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
