@@ -157,6 +157,7 @@ DOCUMENT_HTML = r"""
 <div class="header">
   <div class="emitter">
     <div class="section-title">Émetteur</div>
+    {% if doc.variant_logo_url %}<img src="{{ doc.variant_logo_url }}" style="max-height:36pt; max-width:120pt; margin-bottom:4pt" alt="Logo"/><br>{% endif %}
     <strong style="font-size:11pt">{{ legal.legal_name or "—" }}</strong><br>
     {% if legal.legal_form %}{{ legal.legal_form }}{% if legal.capital_eur %} au capital de {{ "%.2f"|format(legal.capital_eur) }} €{% endif %}<br>{% endif %}
     {{ legal.address_line1 or "" }}{% if legal.address_line2 %}, {{ legal.address_line2 }}{% endif %}<br>
@@ -304,6 +305,15 @@ DOCUMENT_HTML = r"""
 {% endif %}
 
 <div class="legal-footer">
+  {% if doc.variant_rib_text %}
+  <p><strong>Coordonnées bancaires :</strong><br>{{ doc.variant_rib_text|replace('\n','<br>')|safe }}</p>
+  {% endif %}
+  {% if doc.variant_delivery_terms %}
+  <p><strong>Conditions de livraison :</strong> {{ doc.variant_delivery_terms }}</p>
+  {% endif %}
+  {% if doc.variant_cgv_text %}
+  <p><strong>Conditions générales de vente :</strong><br>{{ doc.variant_cgv_text|replace('\n','<br>')|safe }}</p>
+  {% endif %}
   {% if legal.reserve_of_property %}<p><strong>Clause de réserve de propriété :</strong> {{ legal.reserve_of_property }}</p>{% endif %}
   {% if legal.invoice_footer_extra %}<p>{{ legal.invoice_footer_extra }}</p>{% endif %}
   {% if doc.doc_type in ("facture", "avoir") %}

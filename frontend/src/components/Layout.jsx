@@ -14,7 +14,7 @@ import {
   Sparkles, Banknote, ShieldCheck, Coins, Warehouse, QrCode, FileText, Landmark, Compass,
   Radio, AlertOctagon, Shield, Database, Search, ChevronDown, Truck, Pin, PinOff,
   User as UserIcon, RotateCcw, GripVertical, PanelLeftClose, PanelLeftOpen, Lock,
-  Smartphone,
+  Smartphone, Wallet, Rocket, Building2,
 } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import PushHistoryBell from "@/components/PushHistoryBell";
@@ -58,14 +58,14 @@ const PINNED_FIXED = [
 const HOME_ENTRY = { to: "/", key: "dashboard", feature: "page:dashboard", icon: LayoutDashboard };
 
 const SECTIONS = [
-  { key: "section_sales", entries: [
+  { key: "section_sales", icon: Wallet, entries: [
     { to: "/clients",  key: "clients",  feature: "page:clients", icon: Users },
     { to: "/orders",   key: "orders",   feature: "page:orders",  icon: ShoppingCart },
     { to: "/products", key: "products", feature: "page:products", icon: Wine },
     { to: "/pipeline", key: "pipeline", feature: "manager_only", icon: Columns },
     { to: "/deals",    key: "deals",    feature: "manager_only", icon: Target },
   ]},
-  { key: "section_logistics", entries: [
+  { key: "section_logistics", icon: Truck, entries: [
     { to: "/tours",              key: "tours",      feature: "page:tours", icon: RouteIcon },
     { to: "/livreur",            key: "livreur",    feature: null,          icon: Truck },
     { to: "/stock",              key: "stock",      feature: "page:stock", icon: Warehouse },
@@ -73,25 +73,29 @@ const SECTIONS = [
     { to: "/containers/labels",  key: "qr_labels",  feature: "page:stock", icon: QrCode },
     { to: "/drm",                key: "drm",        feature: "page:drm",   icon: FileText },
   ]},
-  { key: "section_finance", entries: [
+  { key: "section_finance", icon: Banknote, entries: [
     { to: "/paiements",     key: "payments",       feature: "page:paiements",     icon: Banknote },
     { to: "/rapprochement", key: "reconciliation", feature: "page:rapprochement", icon: Landmark },
     { to: "/admin/couts",   key: "costs",          feature: "product:view_cost",  icon: Coins },
   ]},
-  { key: "section_pilotage", entries: [
+  { key: "section_documents", icon: FileText, entries: [
+    { to: "/documents",  key: "documents",  feature: null, icon: FileText },
+    { to: "/pack-legal", key: "pack_legal", feature: "manager_only", icon: ShieldCheck },
+  ]},
+  { key: "section_pilotage", icon: BarChart3, entries: [
     { to: "/reports",        key: "reports", feature: "page:reports",    icon: BarChart3 },
     { to: "/monthly-review", key: "monthly", feature: "page:reports",    icon: Trophy },
     { to: "/smart-goals",    key: "smart",   feature: "page:dashboard",  icon: Sparkles },
     { to: "/agents",         key: "agents",  feature: "page:users",      icon: UserCog },
   ]},
-  { key: "section_growth", entries: [
+  { key: "section_growth", icon: Rocket, entries: [
     { to: "/prospection",     key: "prospecting", feature: "page:prospection",     icon: Compass },
     { to: "/radar",           key: "radar",       feature: "page:radar",           icon: Radio },
     { to: "/bouclier",        key: "bouclier",    feature: "page:bouclier",        icon: Shield },
     { to: "/veille",          key: "veille",      feature: "page:veille",          icon: AlertOctagon },
     { to: "/sources-donnees", key: "sources",     feature: "page:sources-donnees", icon: Database },
   ]},
-  { key: "section_admin", entries: [
+  { key: "section_admin", icon: Building2, entries: [
     { to: "/admin/users",       key: "users",        feature: "page:users",         icon: Users },
     { to: "/portefeuilles",     key: "portfolios",   feature: "manager_only",       icon: Users },
     { to: "/approvals",         key: "approvals",    feature: null,                 icon: ClipboardCheck },
@@ -245,18 +249,29 @@ function loadOpenSections(role) {
 function loadCachedPrefs() {
   try {
     const raw = localStorage.getItem(PREFS_CACHE_KEY);
-    if (!raw) return { pinned_user: [], section_order: {} };
+    if (!raw) return { pinned_user: [], section_order: {}, theme: "sobre" };
     const p = JSON.parse(raw);
     return {
       pinned_user: Array.isArray(p.pinned_user) ? p.pinned_user : [],
       section_order: (p.section_order && typeof p.section_order === "object") ? p.section_order : {},
+      theme: typeof p.theme === "string" ? p.theme : "sobre",
     };
-  } catch { return { pinned_user: [], section_order: {} }; }
+  } catch { return { pinned_user: [], section_order: {}, theme: "sobre" }; }
 }
 
 function loadCollapsed() {
   try { return localStorage.getItem(COLLAPSED_KEY) === "1"; } catch { return false; }
 }
+
+// 3 looks visuels de la sidebar. `sobre` = défaut, palette actuelle.
+// `vibrant` = accent aubergine plein sur sections actives + gradient discret.
+// `contrast` = fond quasi-noir + texte blanc, cible malvoyance / plein soleil.
+const SIDEBAR_THEME_CLASSES = {
+  sobre:    "bg-stone-100/95 dark:bg-stone-950/80 backdrop-blur-md",
+  vibrant:  "bg-gradient-to-b from-[#F0EAF0] via-white to-[#F0EAF0] dark:from-[#2A0F2C] dark:via-stone-950 dark:to-[#2A0F2C]",
+  contrast: "bg-stone-950 text-stone-50 dark:bg-black",
+};
+const VALID_SIDEBAR_THEMES = new Set(Object.keys(SIDEBAR_THEME_CLASSES));
 
 function applySectionOrder(entries, userOrder) {
   if (!Array.isArray(userOrder) || userOrder.length === 0) return entries;
@@ -294,6 +309,7 @@ export default function Layout({ children }) {
   const [openSections, setOpenSections] = useState(() => loadOpenSections(role));
   const [stopsToday, setStopsToday] = useState(null);
   const [prefs, setPrefs] = useState(loadCachedPrefs);
+  const sidebarTheme = VALID_SIDEBAR_THEMES.has(prefs.theme) ? prefs.theme : "sobre";
   const [dragCtx, setDragCtx] = useState(null);
   const [dragOver, setDragOver] = useState(null);
   const [collapsed, setCollapsed] = useState(loadCollapsed);
@@ -347,6 +363,7 @@ export default function Layout({ children }) {
         const next = {
           pinned_user: Array.isArray(data?.pinned_user) ? data.pinned_user : [],
           section_order: (data?.section_order && typeof data.section_order === "object") ? data.section_order : {},
+          theme: typeof data?.theme === "string" ? data.theme : "sobre",
         };
         setPrefs(next);
         try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch {}
@@ -631,9 +648,10 @@ export default function Layout({ children }) {
       <div className="flex min-h-screen items-stretch">
         {/* Sidebar desktop — sticky + hauteur d'écran + scroll indépendant du contenu */}
         <aside
-          className={`hidden md:flex md:flex-col shrink-0 sticky top-0 h-screen border-r border-stone-300 dark:border-stone-700 bg-stone-100/95 dark:bg-stone-950/80 backdrop-blur-md shadow-[inset_-1px_0_0_rgba(74,21,75,0.08)] transition-[width] duration-200 z-30 ${collapsed ? "w-16" : "w-64"}`}
+          className={`hidden md:flex md:flex-col shrink-0 sticky top-0 h-screen border-r border-stone-300 dark:border-stone-700 ${SIDEBAR_THEME_CLASSES[sidebarTheme]} shadow-[inset_-1px_0_0_rgba(74,21,75,0.08)] transition-[width] duration-200 z-30 ${collapsed ? "w-16" : "w-64"}`}
           data-testid="sidebar"
           data-collapsed={collapsed ? "1" : "0"}
+          data-sidebar-theme={sidebarTheme}
         >
           {/* Header : logo + toggle collapse + sync */}
           <div className={`border-b border-stone-200 dark:border-stone-700 flex items-center ${collapsed ? "flex-col gap-2 p-3" : "justify-between p-6"}`}>
@@ -738,6 +756,7 @@ export default function Layout({ children }) {
             {/* Sections repliables (accordéon) */}
             {visibleSections.map(section => {
               const isOpen = collapsed || openSections.includes(section.key);
+              const SectionIcon = section.icon || FileText;
               return (
                 <div key={section.key} data-testid={`nav-section-${section.key}`}
                   className={!collapsed ? "rounded-lg border border-stone-200/60 dark:border-stone-700/50 bg-white/50 dark:bg-stone-900/40 overflow-hidden" : ""}>
@@ -745,7 +764,7 @@ export default function Layout({ children }) {
                     <button
                       type="button"
                       onClick={() => toggleSection(section.key)}
-                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-wider transition-colors ${
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-wider transition-colors ${
                         isOpen
                           ? "text-[#4A154B] dark:text-[#B076B4] bg-stone-100/70 dark:bg-stone-800/40"
                           : "text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800/30"
@@ -754,12 +773,17 @@ export default function Layout({ children }) {
                       aria-controls={`section-body-${section.key}`}
                       data-testid={`nav-section-toggle-${section.key}`}
                     >
-                      <span className="truncate">{t(section.key)}</span>
+                      <SectionIcon size={13} strokeWidth={2} aria-hidden="true" className="shrink-0 opacity-80" />
+                      <span className="truncate flex-1 text-left">{t(section.key)}</span>
                       <ChevronDown size={13} aria-hidden="true" className="shrink-0 opacity-70"
                         style={{ transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s ease" }} />
                     </button>
                   )}
-                  {collapsed && <div className="my-1 border-t border-stone-200/50 dark:border-stone-700/40" aria-hidden="true" />}
+                  {collapsed && (
+                    <div className="my-1 flex items-center justify-center py-1" aria-hidden="true">
+                      <SectionIcon size={14} className="opacity-40" />
+                    </div>
+                  )}
                   {isOpen && (
                     <div
                       id={`section-body-${section.key}`}

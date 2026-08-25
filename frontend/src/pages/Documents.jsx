@@ -38,6 +38,7 @@ export default function Documents() {
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [emitting, setEmitting] = useState(null);
+  const [legalDocs, setLegalDocs] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -52,6 +53,7 @@ export default function Documents() {
 
   useEffect(() => {
     api.get("/documents/types").then(r => setTypes(r.data.types || []));
+    api.get("/legal-documents").then(r => setLegalDocs(r.data || [])).catch(() => setLegalDocs([]));
   }, []);
   useEffect(() => { load(); }, [filter]);
 
@@ -171,12 +173,12 @@ export default function Documents() {
         </table>
       </div>
 
-      {showCreate && <CreateDocumentModal types={types} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />}
+      {showCreate && <CreateDocumentModal types={types} legalDocs={legalDocs} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />}
     </div>
   );
 }
 
-function CreateDocumentModal({ types, onClose, onCreated }) {
+function CreateDocumentModal({ types, legalDocs, onClose, onCreated }) {
   const [docType, setDocType] = useState("devis");
   const [clients, setClients] = useState([]);
   const [clientId, setClientId] = useState("");
@@ -185,6 +187,18 @@ function CreateDocumentModal({ types, onClose, onCreated }) {
   const [validityDays, setValidityDays] = useState(30);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
+  // Variantes légales : par défaut on prend le is_default de chaque kind
+  const LEGAL_KINDS_FOR_PDF = ["logo", "cgv", "rib", "conditions_livraison"];
+  const [legalVariants, setLegalVariants] = useState({});
+  useEffect(() => {
+    const init = {};
+    for (const k of LEGAL_KINDS_FOR_PDF) {
+      const def = (legalDocs || []).find(d => d.kind === k && d.is_default);
+      if (def) init[k] = def.id;
+    }
+    setLegalVariants(init);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legalDocs]);
 
   useEffect(() => {
     api.get("/establishments").then(r => setClients(r.data || [])).catch(() => {});
@@ -207,6 +221,7 @@ function CreateDocumentModal({ types, onClose, onCreated }) {
         lines: cleanLines,
         notes,
         validity_days: docType === "devis" ? Number(validityDays) : undefined,
+        legal_variants: legalVariants,
       };
       await api.post("/documents", payload);
       toast.success("Brouillon créé");
@@ -278,6 +293,38 @@ function CreateDocumentModal({ types, onClose, onCreated }) {
             <label htmlFor="doc-notes" className="text-xs text-stone-500 block">Notes</label>
             <textarea id="doc-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={2} className="input-crm" data-testid="doc-notes" />
           </div>
+
+          {/* Variantes légales appliquées au PDF */}
+          {(legalDocs || []).length > 0 && (
+            <div className="border-t border-stone-200 pt-3 space-y-2" data-testid="doc-legal-variants">
+              <p className="text-xs text-stone-500 uppercase tracking-wider">Variantes appliquées au PDF</p>
+              {LEGAL_KINDS_FOR_PDF.map(kind => {
+                const variants = (legalDocs || []).filter(d => d.kind === kind);
+                if (variants.length === 0) return null;
+                const kindLabel = { logo: "Logo", cgv: "CGV", rib: "RIB", conditions_livraison: "Conditions livraison" }[kind];
+                return (
+                  <div key={kind} className="grid grid-cols-3 gap-2 items-center">
+                    <label htmlFor={`variant-${kind}`} className="text-xs text-stone-600">{kindLabel}</label>
+                    <select id={`variant-${kind}`}
+                      value={legalVariants[kind] || ""}
+                      onChange={e => setLegalVariants({ ...legalVariants, [kind]: e.target.value })}
+                      className="input-crm min-h-[36px] col-span-2 text-xs"
+                      data-testid={`variant-select-${kind}`}>
+                      <option value="">— Aucune —</option>
+                      {variants.map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.variant_name}{v.is_default ? " (défaut)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+              <p className="text-[10px] text-stone-400">
+                Gérer les variantes dans <a href="/pack-legal" className="underline">Pack légal</a>.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between pt-2 border-t border-stone-200">
             <p className="text-sm">Total TTC estimé : <strong className="text-[#4A154B]">{total.toFixed(2)} €</strong></p>

@@ -84,6 +84,7 @@ const Activate = lazy(() => import("@/pages/Activate"));
 const Enrichissement = lazy(() => import("@/pages/Enrichissement"));
 const EstablishmentNew = lazy(() => import("@/pages/EstablishmentNew"));
 const Documents = lazy(() => import("@/pages/Documents"));
+const LegalPack = lazy(() => import("@/pages/LegalPack"));
 const Companies = lazy(() => import("@/pages/Companies"));
 const CompanyDetail = lazy(() => import("@/pages/CompanyDetail"));
 const ImportIntelligent = lazy(() => import("@/pages/ImportIntelligent"));
@@ -181,6 +182,7 @@ function App() {
                         <Route path="/billing" element={<Protected><Billing /></Protected>} />
                         <Route path="/team" element={<Protected><Team /></Protected>} />
                         <Route path="/documents" element={<Protected><Documents /></Protected>} />
+                        <Route path="/pack-legal" element={<Protected><LegalPack /></Protected>} />
                         <Route path="/companies" element={<Protected><Companies /></Protected>} />
                         <Route path="/companies/:id" element={<Protected><CompanyDetail /></Protected>} />
                         <Route path="/import" element={<Protected><ImportIntelligent /></Protected>} />

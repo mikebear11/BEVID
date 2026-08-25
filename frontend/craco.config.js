@@ -246,6 +246,7 @@ function wrapWith404AndHeaders(devServerConfig) {
     /^\/billing$/,
     /^\/team$/,
     /^\/documents$/,
+    /^\/pack-legal$/,
     /^\/companies$/,
     /^\/companies\/[^/]+$/,
     /^\/import$/,

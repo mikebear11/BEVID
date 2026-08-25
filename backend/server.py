@@ -600,6 +600,7 @@ async def update_my_profile(data: ProfileUpdate, user=Depends(get_current_user))
 class SidebarPrefsUpdate(BaseModel):
     pinned_user: Optional[List[str]] = None      # max 3 clés user, en plus des 3 fixes
     section_order: Optional[Dict[str, List[str]]] = None  # {section_key: [entry_keys]}
+    theme: Optional[Literal["sobre", "vibrant", "contrast"]] = None  # 3 looks visuels de sidebar
 
 
 def _clean_key(k, maxlen: int = 40) -> Optional[str]:
@@ -620,6 +621,7 @@ async def get_sidebar_prefs(user=Depends(get_current_user)):
     return {
         "pinned_user": prefs.get("pinned_user") or [],
         "section_order": prefs.get("section_order") or {},
+        "theme": prefs.get("theme") or "sobre",
     }
 
 
@@ -653,6 +655,8 @@ async def update_sidebar_prefs(data: SidebarPrefsUpdate, user=Depends(get_curren
                     break
             cleaned_sections[sk] = dedup
         updates["sidebar_prefs.section_order"] = cleaned_sections
+    if data.theme is not None:
+        updates["sidebar_prefs.theme"] = data.theme
     if not updates:
         raise HTTPException(422, "Aucun champ à modifier")
     await db_raw.users.update_one({"id": user["id"]}, {"$set": updates})
@@ -814,6 +818,162 @@ def motor_return_document_after():
     """Wrapper pour importer pymongo sans polluer le module."""
     from pymongo import ReturnDocument
     return ReturnDocument.AFTER
+
+
+# ==========================================================
+# Documents légaux entreprise (CGV, RIB, Logo, Kbis, Assurance, …)
+# ==========================================================
+# Un utilisateur manager gère des variantes de chaque type de document
+# (ex : CGV Pro vs CGV Particulier, plusieurs RIB par banque, plusieurs logos).
+# Chaque variante peut être marquée `is_default=True` pour être appliquée
+# automatiquement aux PDF si aucune sélection manuelle n'est faite.
+LEGAL_DOC_KINDS = {
+    "cgv":                  {"label": "CGV",                     "content": True,  "file": False},
+    "rib":                  {"label": "RIB / Coordonnées bancaires", "content": True,  "file": True},
+    "logo":                 {"label": "Logo entreprise",         "content": False, "file": True},
+    "kbis":                 {"label": "Extrait Kbis",            "content": False, "file": True},
+    "assurance":            {"label": "Attestation d'assurance", "content": False, "file": True},
+    "conditions_livraison": {"label": "Conditions de livraison", "content": True,  "file": False},
+    "mentions_legales":     {"label": "Mentions légales",        "content": True,  "file": False},
+    "signature":            {"label": "Signature dirigeant",     "content": False, "file": True},
+    "autre":                {"label": "Autre document",          "content": True,  "file": True},
+}
+
+
+class LegalDocumentCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    kind: str
+    variant_name: str = "Standard"
+    content: Optional[str] = ""           # texte pour CGV, mentions, conditions
+    file_data_url: Optional[str] = ""     # base64 data URL (≤ 2 Mo raisonnable)
+    file_name: Optional[str] = ""
+    notes: Optional[str] = ""
+    is_default: bool = False
+
+
+class LegalDocumentPatch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    variant_name: Optional[str] = None
+    content: Optional[str] = None
+    file_data_url: Optional[str] = None
+    file_name: Optional[str] = None
+    notes: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
+def _validate_kind(kind: str) -> None:
+    if kind not in LEGAL_DOC_KINDS:
+        raise HTTPException(422, f"Type de document légal inconnu : {kind}")
+
+
+async def _snapshot_legal_variants(org_id: str, selection: dict) -> dict:
+    """Fige un snapshot des variantes légales choisies pour un document.
+
+    - `selection` = {kind: variant_id} envoyé par l'UI.
+    - Pour chaque kind manquant, on retombe sur la variante `is_default=True`.
+    - Retourne {kind: {id, variant_name, content, file_data_url, file_name}}.
+    """
+    snapshot: dict = {}
+    for kind in LEGAL_DOC_KINDS.keys():
+        variant_id = selection.get(kind)
+        v = None
+        if variant_id:
+            v = await db.legal_documents.find_one({"id": variant_id, "kind": kind}, {"_id": 0})
+        if not v:
+            v = await db.legal_documents.find_one({"kind": kind, "is_default": True}, {"_id": 0})
+        if v:
+            snapshot[kind] = {
+                "id": v.get("id"),
+                "variant_name": v.get("variant_name") or "Standard",
+                "content": v.get("content") or "",
+                "file_data_url": v.get("file_data_url") or "",
+                "file_name": v.get("file_name") or "",
+            }
+    return snapshot
+
+
+@api_router.get("/legal-documents/kinds")
+async def list_legal_doc_kinds(user=Depends(get_current_user)):
+    """Retourne le catalogue des types de documents légaux gérables."""
+    return {"kinds": [{"key": k, **v} for k, v in LEGAL_DOC_KINDS.items()]}
+
+
+@api_router.get("/legal-documents")
+async def list_legal_documents(kind: Optional[str] = None, user=Depends(get_current_user)):
+    q: dict = {}
+    if kind:
+        _validate_kind(kind)
+        q["kind"] = kind
+    docs = await db.legal_documents.find(q, {"_id": 0}).sort([("kind", 1), ("is_default", -1), ("created_at", 1)]).to_list(500)
+    return docs
+
+
+@api_router.post("/legal-documents")
+async def create_legal_document(data: LegalDocumentCreate, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    _validate_kind(data.kind)
+    if data.is_default:
+        # Un seul défaut par kind — les autres sont dépriorisés
+        await db.legal_documents.update_many({"kind": data.kind}, {"$set": {"is_default": False}})
+    doc = {
+        "id": str(uuid.uuid4()),
+        "kind": data.kind,
+        "variant_name": (data.variant_name or "Standard").strip(),
+        "content": data.content or "",
+        "file_data_url": data.file_data_url or "",
+        "file_name": (data.file_name or "").strip(),
+        "notes": (data.notes or "").strip(),
+        "is_default": bool(data.is_default),
+        "created_at": now_iso(),
+        "updated_at": now_iso(),
+        "created_by": user["id"],
+    }
+    await db.legal_documents.insert_one(doc.copy())
+    await audit_log(user["id"], "legal_document_create", {"id": doc["id"], "kind": data.kind})
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.patch("/legal-documents/{did}")
+async def update_legal_document(did: str, data: LegalDocumentPatch, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    existing = await db.legal_documents.find_one({"id": did}, {"_id": 0})
+    if not existing:
+        raise HTTPException(404, "Document introuvable")
+    updates = {k: v for k, v in data.model_dump(exclude_none=True).items()}
+    if updates.get("is_default") is True:
+        await db.legal_documents.update_many({"kind": existing["kind"]}, {"$set": {"is_default": False}})
+    updates["updated_at"] = now_iso()
+    res = await db.legal_documents.update_one({"id": did}, {"$set": updates})
+    if res.matched_count == 0:
+        raise HTTPException(404, "Document introuvable")
+    await audit_log(user["id"], "legal_document_update", {"id": did, "fields": list(updates.keys())})
+    return await db.legal_documents.find_one({"id": did}, {"_id": 0})
+
+
+@api_router.delete("/legal-documents/{did}")
+async def delete_legal_document(did: str, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    res = await db.legal_documents.delete_one({"id": did})
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Document introuvable")
+    await audit_log(user["id"], "legal_document_delete", {"id": did})
+    return {"ok": True}
+
+
+@api_router.post("/legal-documents/{did}/set-default")
+async def set_default_legal_document(did: str, user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers")
+    doc = await db.legal_documents.find_one({"id": did}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Document introuvable")
+    await db.legal_documents.update_many({"kind": doc["kind"]}, {"$set": {"is_default": False}})
+    await db.legal_documents.update_one({"id": did}, {"$set": {"is_default": True, "updated_at": now_iso()}})
+    return await db.legal_documents.find_one({"id": did}, {"_id": 0})
 
 
 async def _peek_next_document_number(org_id: str, doc_type: str) -> str:
@@ -1705,6 +1865,8 @@ class BusinessDocumentCreate(BaseModel):
     original_invoice_id: Optional[str] = None   # avoir uniquement
     reason: Optional[str] = ""                  # avoir uniquement
     source_order_id: Optional[str] = None       # commande d'origine
+    # Variantes légales optionnelles à appliquer sur le PDF (voir /legal-documents)
+    legal_variants: Optional[Dict[str, str]] = None  # {kind: variant_id}
 
 
 class BusinessDocumentPatch(BaseModel):
@@ -1840,6 +2002,13 @@ def _doc_view(doc: dict, org_legal: dict) -> dict:
     dt = DOCUMENT_TYPES.get(doc["doc_type"], {})
     d["doc_type_label"] = dt.get("label", doc["doc_type"])
     d["is_fiscal"] = dt.get("fiscal", False)
+    # Injection des variantes légales (CGV, RIB, Logo, Conditions livraison…)
+    variants = doc.get("legal_variants_snapshot") or {}
+    d["variant_logo_url"] = (variants.get("logo") or {}).get("file_data_url") or ""
+    d["variant_cgv_text"] = (variants.get("cgv") or {}).get("content") or ""
+    d["variant_rib_text"] = (variants.get("rib") or {}).get("content") or ""
+    d["variant_delivery_terms"] = (variants.get("conditions_livraison") or {}).get("content") or ""
+    d["variant_signature_url"] = (variants.get("signature") or {}).get("file_data_url") or ""
     for key, out in (("emitted_at", "emitted_at_display"),
                      ("created_at", "created_at_display"),
                      ("delivery_date", "delivery_date_display"),
@@ -1891,6 +2060,7 @@ async def create_document(data: BusinessDocumentCreate, user=Depends(get_current
         "original_invoice_id": data.original_invoice_id,
         "reason": data.reason or "",
         "source_order_id": data.source_order_id,
+        "legal_variants_snapshot": await _snapshot_legal_variants(user["org_id"], data.legal_variants or {}),
         "created_at": now_iso(),
         "updated_at": now_iso(),
         **totals,
