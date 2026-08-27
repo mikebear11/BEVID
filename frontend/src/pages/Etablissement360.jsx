@@ -66,7 +66,7 @@ export default function Etablissement360() {
             <div>
               <p className="overline">Encours</p>
               <p className="font-display text-2xl" style={{color}}>{(e.current_credit || 0).toLocaleString('fr-FR')} €</p>
-              <span className="text-[10px] uppercase tracking-widest font-bold" style={{color}}>{CREDIT_LABEL[status]}</span>
+              <span className="text-xs uppercase tracking-widest font-bold" style={{color}}>{CREDIT_LABEL[status]}</span>
             </div>
             <BriefButton establishmentId={id} testId="brief-btn-etab" />
           </div>

@@ -1,0 +1,785 @@
+{
+  "generated_at": "2026-08-27T07:55:09.283388+00:00",
+  "base_url": "https://drink-sales-hub-8.preview.emergentagent.com",
+  "budgets": {
+    "overflow_horizontal": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "tables_overflowing_container": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "touch_targets_below_44px_mobile": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "missing_labels": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "images_without_alt": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "h1_count_not_one": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "heading_level_skips": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "title_missing_or_generic": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "text_below_12px": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "console_errors": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "csp_violations": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "bundle_size_kb": {
+      "max": 5000,
+      "unit": "kb",
+      "severity": "soft"
+    },
+    "lcp_ms": {
+      "max": 3500,
+      "unit": "ms",
+      "severity": "soft"
+    }
+  },
+  "viewports": [
+    "mobile",
+    "tablet",
+    "desktop"
+  ],
+  "routes_count": 5,
+  "audits_count": 15,
+  "totals": {
+    "overflow_horizontal": 0,
+    "tables_overflowing_container": 0,
+    "touch_targets_below_44px_mobile": 0,
+    "missing_labels": 0,
+    "images_without_alt": 0,
+    "h1_count_not_one": 0,
+    "heading_level_skips": 0,
+    "title_missing_or_generic": 0,
+    "text_below_12px": 0,
+    "console_errors": 0,
+    "csp_violations": 0,
+    "bundle_size_kb": null,
+    "lcp_ms": 532
+  },
+  "audits": [
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 1604
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "mobile",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 1604,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 232
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "mobile",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 232,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 2893
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 228
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "mobile",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 228,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 232
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "mobile",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 232,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 814
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 236
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "mobile",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 236,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1408
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 264
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "tablet",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 264,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 584
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "tablet",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 584,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1670
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 276
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "tablet",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 276,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 532
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "tablet",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 532,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 224
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "tablet",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 224,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1058
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 416
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "desktop",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 416,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 284
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "desktop",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 284,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 1538
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 392
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "desktop",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 392,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 572
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "desktop",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 572,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 244
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "desktop",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 244,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 1010
+        }
+      }
+    }
+  ]
+}

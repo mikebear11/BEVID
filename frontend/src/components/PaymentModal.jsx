@@ -69,7 +69,7 @@ export default function PaymentModal({ orderId, onClose, onPaid }) {
             </button>
             <div className="relative flex items-center gap-2 my-3">
               <div className="flex-1 h-px bg-stone-200" />
-              <span className="text-[10px] uppercase tracking-widest text-stone-400">ou faire scanner le QR</span>
+              <span className="text-xs uppercase tracking-widest text-stone-400">ou faire scanner le QR</span>
               <div className="flex-1 h-px bg-stone-200" />
             </div>
             <div className="bg-white p-4 rounded-lg border-2 border-stone-200 flex items-center justify-center mb-3">

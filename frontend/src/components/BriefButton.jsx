@@ -78,7 +78,7 @@ export default function BriefButton({ establishmentId, testId = "brief-btn" }) {
                     <li key={i} className="text-sm text-stone-700 dark:text-stone-200">
                       {l.text}
                       {l.source && (
-                        <span className="text-[10px] text-stone-400 ml-2">
+                        <span className="text-xs text-stone-400 ml-2">
                           {l.source.date && `· ${l.source.date}`}
                         </span>
                       )}
@@ -86,7 +86,7 @@ export default function BriefButton({ establishmentId, testId = "brief-btn" }) {
                   ))}
                 </ol>
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200 dark:border-stone-700 mt-3">
-                  <span className="text-[10px] text-stone-400">Ce brief vous a-t-il été utile ?</span>
+                  <span className="text-xs text-stone-400">Ce brief vous a-t-il été utile ?</span>
                   <FeedbackThumbs kind="brief" targetId={establishmentId} testIdPrefix="brief-fb" />
                 </div>
               </>

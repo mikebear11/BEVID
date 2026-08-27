@@ -113,8 +113,8 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={k.chart}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E7E4DF" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#8A8A8A' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#8A8A8A' }} />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#8A8A8A' }} />
+                <YAxis tick={{ fontSize: 12, fill: '#8A8A8A' }} />
                 <Tooltip contentStyle={{ border: '1px solid #E7E4DF', borderRadius: 8 }} />
                 <Line type="monotone" dataKey="ca" stroke="#4A154B" strokeWidth={2} dot={{ r: 4, fill: '#4A154B' }} />
               </LineChart>

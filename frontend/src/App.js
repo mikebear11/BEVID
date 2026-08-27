@@ -24,6 +24,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import UpdateBanner from "@/components/UpdateBanner";
 import PostHogConsent from "@/components/PostHogConsent";
 import PwaInstallBanner from "@/components/PwaInstallBanner";
+import OfflineReadyBanner from "@/components/OfflineReadyBanner";
 import Layout from "@/components/Layout";
 
 // Publiques : chargées immédiatement (petites, indispensables au démarrage)
@@ -190,6 +191,7 @@ function App() {
                   <UpdateBanner />
                   <PostHogConsent />
                   <PwaInstallBanner />
+                  <OfflineReadyBanner />
                 </ConfirmProvider>
               </PermProvider>
             </AuthProvider>

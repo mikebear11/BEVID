@@ -72,13 +72,13 @@ export default function Pricing() {
     <div className="min-h-screen bg-stone-50" data-testid="pricing-page">
       <header className="border-b bg-white">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 min-h-[44px]">
             <BevidLogo size={32} />
             <span className="font-display text-2xl">BEVID</span>
           </Link>
           <nav className="flex items-center gap-4 text-sm">
-            <Link to="/login" className="text-stone-600 hover:text-stone-900" data-testid="pricing-login-link">Se connecter</Link>
-            <Link to="/register" className="btn-primary min-h-[40px] px-4 rounded-lg" data-testid="pricing-signup-link">
+            <Link to="/login" className="text-stone-600 hover:text-stone-900 inline-flex items-center min-h-[44px] px-2" data-testid="pricing-login-link">Se connecter</Link>
+            <Link to="/register" className="btn-primary min-h-[44px] px-4 rounded-lg inline-flex items-center" data-testid="pricing-signup-link">
               Créer un compte
             </Link>
           </nav>
@@ -125,7 +125,7 @@ export default function Pricing() {
                     Recommandé
                   </div>
                 )}
-                <h3 className="font-display text-2xl mb-1">{p.name}</h3>
+                <h2 className="font-display text-2xl mb-1">{p.name}</h2>
                 <p className="text-sm text-stone-600 mb-4">{p.description || ""}</p>
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">

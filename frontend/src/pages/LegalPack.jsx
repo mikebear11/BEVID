@@ -101,7 +101,7 @@ export default function LegalPack() {
           <button key={k.key} onClick={() => setActiveKind(k.key)}
             data-testid={`legal-kind-${k.key}`}
             className={`text-xs px-3 py-1.5 rounded-full min-h-[36px] transition-colors ${activeKind === k.key ? "bg-[#4A154B] text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300"}`}>
-            {k.label} {byKind[k.key]?.length ? <span className="ml-1 text-[10px] opacity-70">({byKind[k.key].length})</span> : null}
+            {k.label} {byKind[k.key]?.length ? <span className="ml-1 text-xs opacity-70">({byKind[k.key].length})</span> : null}
           </button>
         ))}
       </div>
@@ -126,16 +126,16 @@ export default function LegalPack() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm">{d.variant_name}</span>
                     {d.is_default && (
-                      <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800" data-testid={`legal-default-${d.id}`}>Défaut</span>
+                      <span className="text-xs uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800" data-testid={`legal-default-${d.id}`}>Défaut</span>
                     )}
                     {d.file_name && (
-                      <span className="text-[10px] text-stone-500 truncate max-w-[200px]">📎 {d.file_name}</span>
+                      <span className="text-xs text-stone-500 truncate max-w-[200px]">📎 {d.file_name}</span>
                     )}
                   </div>
                   {d.content && (
                     <p className="text-xs text-stone-500 mt-1 line-clamp-2 whitespace-pre-wrap">{d.content}</p>
                   )}
-                  {d.notes && <p className="text-[11px] text-stone-400 mt-1 italic">{d.notes}</p>}
+                  {d.notes && <p className="text-xs text-stone-400 mt-1 italic">{d.notes}</p>}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {!d.is_default && (

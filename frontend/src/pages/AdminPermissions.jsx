@@ -92,7 +92,7 @@ export default function AdminPermissions() {
                 className={`w-full text-left p-2 rounded ${selected === u.id ? "bg-[#4A154B] text-white" : "hover:bg-stone-50"}`}
                 data-testid={`user-${u.id}`}>
                 <p className="text-sm font-medium truncate">{u.name}</p>
-                <p className={`text-[10px] ${selected === u.id ? "text-stone-200" : "text-stone-500"}`}>{u.email} · {u.role}</p>
+                <p className={`text-xs ${selected === u.id ? "text-stone-200" : "text-stone-500"}`}>{u.email} · {u.role}</p>
               </button>
             ))}
           </div>
@@ -138,7 +138,7 @@ export default function AdminPermissions() {
                           <div key={f.key} className="flex items-center gap-3 p-2 hover:bg-stone-50 rounded" data-testid={`feat-${f.key}`}>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm">{f.label}</p>
-                              <p className="text-[10px] text-stone-400 font-mono">{f.key} · défaut {detail.role} : {roleDefault ? "✓" : "✗"}</p>
+                              <p className="text-xs text-stone-400 font-mono">{f.key} · défaut {detail.role} : {roleDefault ? "✓" : "✗"}</p>
                             </div>
                             <div className="flex gap-1">
                               <button onClick={() => setOverride(f.key, true)}

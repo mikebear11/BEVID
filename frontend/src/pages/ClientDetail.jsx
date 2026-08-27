@@ -124,7 +124,7 @@ export default function ClientDetail() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card-crm p-5"><p className="overline">CA total</p><div className="font-display text-2xl md:text-3xl text-[#2D5A4C] mt-1">{(stats?.total_ca ?? totalCa).toLocaleString('fr-FR')} €</div></div>
         <div className="card-crm p-5"><p className="overline">Panier moyen</p><div className="font-display text-2xl md:text-3xl text-[#4A154B] mt-1 flex items-center gap-1"><TrendingUp size={16} />{(stats?.avg_basket ?? 0).toLocaleString('fr-FR')} €</div></div>
-        <div className="card-crm p-5"><p className="overline">Commandes</p><div className="font-display text-2xl md:text-3xl mt-1">{orders.length}</div><p className="text-[10px] text-stone-500 mt-1">{stats?.frequency_days ? `~ tous les ${stats.frequency_days}j` : ""}</p></div>
+        <div className="card-crm p-5"><p className="overline">Commandes</p><div className="font-display text-2xl md:text-3xl mt-1">{orders.length}</div><p className="text-xs text-stone-500 mt-1">{stats?.frequency_days ? `~ tous les ${stats.frequency_days}j` : ""}</p></div>
         <div className="card-crm p-5"><p className="overline">Activités</p><div className="font-display text-2xl md:text-3xl mt-1">{activities.length}</div></div>
       </div>
 

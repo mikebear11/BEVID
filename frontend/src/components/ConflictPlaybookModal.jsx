@@ -72,7 +72,7 @@ export default function ConflictPlaybookModal({ conflictId, onClose, onResolved 
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-5 border-b border-stone-100 flex items-start justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-red-700 mb-1">Playbook conflit</p>
+            <p className="text-xs uppercase tracking-widest text-red-700 mb-1">Playbook conflit</p>
             <h2 className="font-display text-2xl">Rembourser + prévenir client</h2>
             <p className="text-xs text-stone-500 mt-1">
               {isCredit && "Compte client passé rouge entre-temps"}
@@ -129,13 +129,13 @@ export default function ConflictPlaybookModal({ conflictId, onClose, onResolved 
                 className={`p-3 rounded-xl border text-xs flex flex-col items-center gap-1 min-h-[64px] ${channel === "email" ? "bg-[#4A154B] text-white border-[#4A154B]" : "bg-white border-stone-200"} disabled:opacity-40 disabled:cursor-not-allowed`}
                 data-testid="playbook-channel-email">
                 <Mail size={16} /> Email
-                {!client?.email && <span className="text-[9px]">manquant</span>}
+                {!client?.email && <span className="text-xs">manquant</span>}
               </button>
               <button onClick={() => setChannel("whatsapp")} disabled={!client?.phone}
                 className={`p-3 rounded-xl border text-xs flex flex-col items-center gap-1 min-h-[64px] ${channel === "whatsapp" ? "bg-[#4A154B] text-white border-[#4A154B]" : "bg-white border-stone-200"} disabled:opacity-40 disabled:cursor-not-allowed`}
                 data-testid="playbook-channel-whatsapp">
                 <MessageSquare size={16} /> WhatsApp
-                {!client?.phone && <span className="text-[9px]">manquant</span>}
+                {!client?.phone && <span className="text-xs">manquant</span>}
               </button>
               <button onClick={() => setChannel("none")}
                 className={`p-3 rounded-xl border text-xs flex flex-col items-center gap-1 min-h-[64px] ${channel === "none" ? "bg-stone-700 text-white border-stone-700" : "bg-white border-stone-200"}`}

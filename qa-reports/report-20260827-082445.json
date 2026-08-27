@@ -1,0 +1,4712 @@
+{
+  "generated_at": "2026-08-27T08:24:45.181265+00:00",
+  "base_url": "https://drink-sales-hub-8.preview.emergentagent.com",
+  "budgets": {
+    "overflow_horizontal": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "tables_overflowing_container": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "touch_targets_below_44px_mobile": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "missing_labels": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "images_without_alt": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "h1_count_not_one": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "heading_level_skips": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "title_missing_or_generic": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "text_below_12px": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "console_errors": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "csp_violations": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "bundle_size_kb": {
+      "max": 5000,
+      "unit": "kb",
+      "severity": "soft"
+    },
+    "lcp_ms": {
+      "max": 3500,
+      "unit": "ms",
+      "severity": "soft"
+    }
+  },
+  "viewports": [
+    "mobile",
+    "tablet",
+    "desktop"
+  ],
+  "routes_count": 15,
+  "audits_count": 45,
+  "totals": {
+    "overflow_horizontal": 0,
+    "tables_overflowing_container": 0,
+    "touch_targets_below_44px_mobile": 0,
+    "missing_labels": 0,
+    "images_without_alt": 0,
+    "h1_count_not_one": 0,
+    "heading_level_skips": 1,
+    "title_missing_or_generic": 0,
+    "text_below_12px": 0,
+    "console_errors": 169,
+    "csp_violations": 0,
+    "bundle_size_kb": 3924,
+    "lcp_ms": 644
+  },
+  "audits": [
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 712
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "mobile",
+        "title": "Tableau de bord · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 712,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tableau de bord · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1906
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 220
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "mobile",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 220,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 2893
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 216
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "mobile",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 216,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 220
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "mobile",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 220,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 814
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 272
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "mobile",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 272,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1408
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "dashboard",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 768
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "mobile",
+        "title": "Tableau de bord · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 768,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tableau de bord · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1906
+        }
+      }
+    },
+    {
+      "route": "/clients",
+      "route_name": "clients",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 504
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/clients",
+        "viewport": "mobile",
+        "title": "Clients · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 504,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Clients · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/orders",
+      "route_name": "orders",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 404
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/orders",
+        "viewport": "mobile",
+        "title": "Commandes · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 404,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Commandes · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/tournee",
+      "route_name": "tournee",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 600
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/tournee",
+        "viewport": "mobile",
+        "title": "BEVID · CRM Boisson",
+        "title_missing_or_generic": false,
+        "lcp_ms": 600,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "BEVID · CRM Boisson",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/products",
+      "route_name": "products",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 428
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/products",
+        "viewport": "mobile",
+        "title": "Catalogue · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 428,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Catalogue · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/reports",
+      "route_name": "reports",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 608
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/reports",
+        "viewport": "mobile",
+        "title": "Rapports · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 608,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Rapports · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1350
+        }
+      }
+    },
+    {
+      "route": "/paiements",
+      "route_name": "paiements",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 604
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/paiements",
+        "viewport": "mobile",
+        "title": "Paiements et relances · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 604,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Paiements et relances · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1849
+        }
+      }
+    },
+    {
+      "route": "/drm",
+      "route_name": "drm",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 508
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/drm",
+        "viewport": "mobile",
+        "title": "DRM · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 508,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "DRM · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1348
+        }
+      }
+    },
+    {
+      "route": "/team",
+      "route_name": "team",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 444
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/team",
+        "viewport": "mobile",
+        "title": "Mon équipe · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 444,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Mon équipe · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/pwa-status",
+      "route_name": "pwa-status",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 612
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pwa-status",
+        "viewport": "mobile",
+        "title": "Diagnostic hors-ligne · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 612,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Diagnostic hors-ligne · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1566
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 996
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "tablet",
+        "title": "Tableau de bord · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 996,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rg:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tableau de bord · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1560
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 220
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "tablet",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 220,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1670
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 260
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "tablet",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 260,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 528
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "tablet",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 528,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 224
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "tablet",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 224,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1058
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "dashboard",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 808
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "tablet",
+        "title": "Tableau de bord · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 808,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rg:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tableau de bord · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1560
+        }
+      }
+    },
+    {
+      "route": "/clients",
+      "route_name": "clients",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 532
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/clients",
+        "viewport": "tablet",
+        "title": "Clients · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 532,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rd:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Clients · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/orders",
+      "route_name": "orders",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 508
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/orders",
+        "viewport": "tablet",
+        "title": "Commandes · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 508,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:ra:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Commandes · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/tournee",
+      "route_name": "tournee",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 508
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/tournee",
+        "viewport": "tablet",
+        "title": "BEVID · CRM Boisson",
+        "title_missing_or_generic": false,
+        "lcp_ms": 508,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rd:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "BEVID · CRM Boisson",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/products",
+      "route_name": "products",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 23,
+        "csp_violations": 0,
+        "lcp_ms": 640
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/products",
+        "viewport": "tablet",
+        "title": "Catalogue · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 640,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/products"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/me/sidebar-prefs"
+          },
+          {
+            "text": "Request failed with status code 429",
+            "location": "pageerror"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/billing/current"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/tours"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/sidebar/counters"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rd:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Catalogue · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/reports",
+      "route_name": "reports",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 18,
+        "csp_violations": 0,
+        "lcp_ms": 352
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/reports",
+        "viewport": "tablet",
+        "title": "BEVID · CRM Boisson",
+        "title_missing_or_generic": false,
+        "lcp_ms": 352,
+        "console_errors": [
+          {
+            "text": "WebSocket connection to 'wss://drink-sales-hub-8.preview.emergentagent.com/ws' failed: Error during WebSocket handshake: Unexpected response code: 429",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/bundle.js"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/me"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/language"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/language"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/me"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_component_Legend_js-node"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_component_Legend_js-node_modules_recharts_es6_state_selecto-1840d2.chunk",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/reports"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_cartesian_CartesianGrid_"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_cartesian_CartesianGrid_js-node_modules_recharts_es6_cartes-2a087d.chunk",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/reports"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/me/permissions"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_lucide-react_dist_esm_icons_file-down"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_lucide-react_dist_esm_icons_file-down_js-node_modules_lucide-react_dist_-e98746.chunk",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/reports"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_chart_BarChart_js-node_m"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_chart_BarChart_js-node_modules_recharts_es6_state_selectors-a9969d.chunk",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/reports"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/src_pages_Reports_jsx.chunk.js"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/src_pages_Reports_jsx.chunk.js' because its MIME type ('text/html') is not executable, and strict MIME typ",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/reports"
+          },
+          {
+            "text": "%o\n\n%s\n\n%s\n ChunkLoadError: Loading chunk vendors-node_modules_recharts_es6_component_Legend_js-node_modules_recharts_es6_state_selecto-1840d2 failed.\n(error: https://drink-sales-hub-8.preview.emergen",
+            "location": "https://assets.emergent.sh/scripts/emergent-main.js"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/errors"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "BEVID · CRM Boisson",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/paiements",
+      "route_name": "paiements",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 14,
+        "csp_violations": 0,
+        "lcp_ms": 332
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/paiements",
+        "viewport": "tablet",
+        "title": "BEVID · CRM Boisson",
+        "title_missing_or_generic": false,
+        "lcp_ms": 332,
+        "console_errors": [
+          {
+            "text": "WebSocket connection to 'wss://drink-sales-hub-8.preview.emergentagent.com/ws' failed: Error during WebSocket handshake: Unexpected response code: 429",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/bundle.js"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/language"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/me"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/language"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/me"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_lucide-react_dist_esm_icons_trending-"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_lucide-react_dist_esm_icons_trending-up_js-node_modules_recharts_es6_car-9a146b.chunk",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/paiements"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_cartesian_CartesianGrid_"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/vendors-node_modules_recharts_es6_cartesian_CartesianGrid_js-node_modules_recharts_es6_cartes-2a087d.chunk",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/paiements"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/src_pages_Paiements_jsx.chunk.js"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/src_pages_Paiements_jsx.chunk.js' because its MIME type ('text/html') is not executable, and strict MIME t",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/paiements"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/me/permissions"
+          },
+          {
+            "text": "%o\n\n%s\n\n%s\n ChunkLoadError: Loading chunk vendors-node_modules_lucide-react_dist_esm_icons_trending-up_js-node_modules_recharts_es6_car-9a146b failed.\n(error: https://drink-sales-hub-8.preview.emergen",
+            "location": "https://assets.emergent.sh/scripts/emergent-main.js"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/errors"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "BEVID · CRM Boisson",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/drm",
+      "route_name": "drm",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 38,
+        "csp_violations": 0,
+        "lcp_ms": 708
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/drm",
+        "viewport": "tablet",
+        "title": "DRM · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 708,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/sync/bootstrap"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/billing/current"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/sidebar/counters"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/tours"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/me/sidebar-prefs"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/drm/2026/8"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/tours"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/billing/current"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/drm/2026/8"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/media/ZTNature-Medium.9edde5a504fe3ce5c561.ttf"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/sidebar/counters"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/me/sidebar-prefs"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/media/playfair-display-latin-500-normal.d3e40468b43818e6bac7."
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/media/playfair-display-latin-500-normal.a1c38b574bb3e08734b5."
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-stock\"]",
+            "text": "Stock",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-drm\"]",
+            "text": "DRM",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rd:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "DRM · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/team",
+      "route_name": "team",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 7,
+        "csp_violations": 0,
+        "lcp_ms": 376
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/team",
+        "viewport": "tablet",
+        "title": "BEVID · CRM Boisson",
+        "title_missing_or_generic": false,
+        "lcp_ms": 376,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/auth/me"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/me/permissions"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/sync/bootstrap"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/static/js/src_pages_Team_jsx.chunk.js"
+          },
+          {
+            "text": "Refused to execute script from 'https://drink-sales-hub-8.preview.emergentagent.com/static/js/src_pages_Team_jsx.chunk.js' because its MIME type ('text/html') is not executable, and strict MIME type c",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/team"
+          },
+          {
+            "text": "%o\n\n%s\n\n%s\n ChunkLoadError: Loading chunk src_pages_Team_jsx failed.\n(error: https://drink-sales-hub-8.preview.emergentagent.com/static/js/src_pages_Team_jsx.chunk.js)\n    at __webpack_require__.f.j (",
+            "location": "https://assets.emergent.sh/scripts/emergent-main.js"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/errors"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "BEVID · CRM Boisson",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/pwa-status",
+      "route_name": "pwa-status",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 2,
+        "csp_violations": 0,
+        "lcp_ms": 464
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pwa-status",
+        "viewport": "tablet",
+        "title": "Diagnostic hors-ligne · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 464,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-stock\"]",
+            "text": "Stock",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-drm\"]",
+            "text": "DRM",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-pwa_status\"]",
+            "text": "Diagnostic mobile",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-settings\"]",
+            "text": "Paramètres",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "#radix-:r8:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Diagnostic hors-ligne · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1068
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 1,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 49,
+        "csp_violations": 0,
+        "lcp_ms": 804
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "desktop",
+        "title": "Tableau de bord · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 804,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/me/sidebar-prefs"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/billing/current"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/dashboard/kpis"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/low-stock?threshold=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/sidebar/counters"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/tours"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/overdue-payments?days=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/onboarding/morning"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/deposits/outstanding"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/dashboard/sync-feed?minutes=60"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/goals/team-progress"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/goals/progress"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/cashflow/forecast?days=60"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/forecast/sales?days=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/anniversaries?days=45"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/agents"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/overdue-payments?days=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/onboarding/morning"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/dashboard/sync-feed?minutes=60"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/deposits/outstanding"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/goals/team-progress"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/forecast/sales?days=30"
+          },
+          {
+            "text": "Request failed with status code 429",
+            "location": "pageerror"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/goals/progress"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/anniversaries?days=45"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/cashflow/forecast?days=60"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/agents"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Request failed with status code 429",
+            "location": "pageerror"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rg:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [
+          {
+            "from": 1,
+            "to": 3,
+            "text": "À relancer"
+          }
+        ],
+        "title_meta": {
+          "title": "Tableau de bord · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 272
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "desktop",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 272,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 1538
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 296
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "desktop",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 296,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 576
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "desktop",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 576,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 268
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "desktop",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 268,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 1010
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "dashboard",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 684
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "desktop",
+        "title": "Tableau de bord · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 684,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rg:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Tableau de bord · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 1178
+        }
+      }
+    },
+    {
+      "route": "/clients",
+      "route_name": "clients",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 596
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/clients",
+        "viewport": "desktop",
+        "title": "Clients · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 596,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:r8:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Clients · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/orders",
+      "route_name": "orders",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 684
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/orders",
+        "viewport": "desktop",
+        "title": "Commandes · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 684,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:re:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Commandes · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/tournee",
+      "route_name": "tournee",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 644
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/tournee",
+        "viewport": "desktop",
+        "title": "BEVID · CRM Boisson",
+        "title_missing_or_generic": false,
+        "lcp_ms": 644,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rd:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "BEVID · CRM Boisson",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/products",
+      "route_name": "products",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 532
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/products",
+        "viewport": "desktop",
+        "title": "Catalogue · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 532,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:r8:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Catalogue · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/reports",
+      "route_name": "reports",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 624
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/reports",
+        "viewport": "desktop",
+        "title": "Rapports · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 624,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rd:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Rapports · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/paiements",
+      "route_name": "paiements",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 708
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/paiements",
+        "viewport": "desktop",
+        "title": "Paiements et relances · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 708,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-payments\"]",
+            "text": "Paiements et relances0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:re:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Paiements et relances · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 1149
+        }
+      }
+    },
+    {
+      "route": "/drm",
+      "route_name": "drm",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 4,
+        "csp_violations": 0,
+        "lcp_ms": 584
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/drm",
+        "viewport": "desktop",
+        "title": "DRM · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 584,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-stock\"]",
+            "text": "Stock",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-drm\"]",
+            "text": "DRM",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-payments\"]",
+            "text": "Paiements et relances0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rb:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "DRM · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/team",
+      "route_name": "team",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 4,
+        "csp_violations": 0,
+        "lcp_ms": 812
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/team",
+        "viewport": "desktop",
+        "title": "Mon équipe · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 812,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-stock\"]",
+            "text": "Stock",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-drm\"]",
+            "text": "DRM",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-payments\"]",
+            "text": "Paiements et relances0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rg:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Mon équipe · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/pwa-status",
+      "route_name": "pwa-status",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 10,
+        "csp_violations": 0,
+        "lcp_ms": 692
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pwa-status",
+        "viewport": "desktop",
+        "title": "Diagnostic hors-ligne · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 692,
+        "console_errors": [
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/preferences"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/bad-payers"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/inbox"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/alerts/follow-ups"
+          },
+          {
+            "text": "Failed to load resource: the server responded with a status of 429 ()",
+            "location": "https://drink-sales-hub-8.preview.emergentagent.com/api/notifications/history?limit=30"
+          }
+        ],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-stock\"]",
+            "text": "Stock",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-drm\"]",
+            "text": "DRM",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-payments\"]",
+            "text": "Paiements et relances0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-pwa_status\"]",
+            "text": "Diagnostic mobile",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-settings\"]",
+            "text": "Paramètres",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "#radix-:re:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Diagnostic hors-ligne · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    }
+  ]
+}

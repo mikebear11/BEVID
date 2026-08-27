@@ -174,7 +174,7 @@ export default function Portefeuilles() {
         <div className="flex items-center gap-2 mb-3">
           <Users size={16} className="text-[#4A154B]" aria-hidden="true" />
           <h2 className="font-display text-lg">Commerciaux ({commercials.length})</h2>
-          <div className="ml-auto flex items-center gap-3 text-[10px] text-stone-500" aria-label="Légende heatmap">
+          <div className="ml-auto flex items-center gap-3 text-xs text-stone-500" aria-label="Légende heatmap">
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-sky-300" aria-hidden="true" />Capacité</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-300" aria-hidden="true" />Équilibré</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-300" aria-hidden="true" />Au-dessus</span>
@@ -219,7 +219,7 @@ export default function Portefeuilles() {
                     data-testid={`workload-bar-${p.user.id}`}
                   />
                 </div>
-                {c.label && <p className="text-[10px] text-stone-500 mt-1 capitalize">{c.label}</p>}
+                {c.label && <p className="text-xs text-stone-500 mt-1 capitalize">{c.label}</p>}
               </button>
             );
           })}

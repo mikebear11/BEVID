@@ -55,14 +55,14 @@ export default function Livreur() {
     <div className="min-h-screen bg-black text-white p-4 pb-24" data-testid="livreur-page">
       {/* En-tête minimal — informations vitales, rien d'autre */}
       <header className="pt-2 pb-4 border-b border-white/10">
-        <p className="text-[11px] tracking-widest uppercase text-white/50">Livraison</p>
+        <p className="text-xs tracking-widest uppercase text-white/50">Livraison</p>
         <div className="flex items-baseline justify-between mt-1">
           <h1 className="text-4xl font-bold" data-testid="livreur-title">
             {new Date(today || new Date()).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
           </h1>
           <div className="text-right">
             <div className="text-5xl font-bold tabular-nums" data-testid="livreur-remaining">{remaining}</div>
-            <div className="text-[11px] uppercase text-white/50">à livrer</div>
+            <div className="text-xs uppercase text-white/50">à livrer</div>
           </div>
         </div>
       </header>

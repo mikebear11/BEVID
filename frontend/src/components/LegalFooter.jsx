@@ -24,7 +24,7 @@ export default function LegalFooter() {
               key={l.to}
               to={l.to}
               data-testid={`footer-link-${l.to.replace(/[/]/g, "_")}`}
-              className="text-xs text-stone-500 hover:text-[#4A154B] dark:hover:text-[#B076B4] underline-offset-2 hover:underline min-h-[32px] inline-flex items-center"
+              className="text-xs text-stone-500 hover:text-[#4A154B] dark:hover:text-[#B076B4] underline-offset-2 hover:underline min-h-[44px] min-w-[44px] inline-flex items-center justify-center px-3"
             >
               {l.label}
             </Link>

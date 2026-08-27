@@ -53,11 +53,11 @@ export default function PublicDRMCalculator() {
     <div className="min-h-screen bg-stone-50" data-testid="public-drm-page">
       <header className="border-b border-stone-200 bg-white sticky top-0 z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-6 py-3">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 min-h-[44px]">
             <BevidLogo size={22} />
             <span className="overline">BEVID</span>
           </Link>
-          <Link to="/pricing" className="text-sm text-[#4A154B] font-medium hover:underline">Voir les forfaits</Link>
+          <Link to="/pricing" className="text-sm text-[#4A154B] font-medium hover:underline inline-flex items-center min-h-[44px] px-2">Voir les forfaits</Link>
         </div>
       </header>
 

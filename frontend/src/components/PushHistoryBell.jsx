@@ -158,7 +158,7 @@ export default function PushHistoryBell() {
           <Moon size={9} className="absolute bottom-1 right-1 text-indigo-500" aria-label="Ne pas déranger actif" />
         )}
         {unread > 0 && !dndActive && (
-          <span className="absolute top-1 right-1 bg-[#4A154B] text-white text-[10px] rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center font-medium" data-testid="push-history-badge">
+          <span className="absolute top-1 right-1 bg-[#4A154B] text-white text-xs rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center font-medium" data-testid="push-history-badge">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
@@ -175,7 +175,7 @@ export default function PushHistoryBell() {
             <div className="px-4 py-3 border-b border-stone-200 dark:border-stone-700 flex items-center justify-between">
               <div>
                 <h2 className="font-display text-base">Historique notifications</h2>
-                <p className="text-[11px] text-stone-500 mt-0.5">Ce qui vous a été envoyé (30 derniers)</p>
+                <p className="text-xs text-stone-500 mt-0.5">Ce qui vous a été envoyé (30 derniers)</p>
               </div>
               {unread > 0 && (
                 <button onClick={markAll} className="text-xs text-[#4A154B] hover:underline min-h-[32px]" data-testid="push-history-mark-all">
@@ -190,7 +190,7 @@ export default function PushHistoryBell() {
                 <Moon size={13} className="text-indigo-600 shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-indigo-900 dark:text-indigo-200">Ne pas déranger actif</p>
-                  <p className="text-[10px] text-indigo-700 dark:text-indigo-300">jusqu'au {new Date(dndUntil).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</p>
+                  <p className="text-xs text-indigo-700 dark:text-indigo-300">jusqu'au {new Date(dndUntil).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</p>
                 </div>
                 <button onClick={clearDnd} disabled={dndBusy}
                   className="text-indigo-600 hover:text-indigo-900 min-h-[32px] min-w-[32px] flex items-center justify-center"
@@ -202,7 +202,7 @@ export default function PushHistoryBell() {
               <div className="px-4 py-2 border-b border-stone-200 dark:border-stone-700" data-testid="dnd-presets-row">
                 <div className="flex items-center gap-2 mb-1.5">
                   <Moon size={12} className="text-stone-500" aria-hidden="true" />
-                  <span className="text-[11px] text-stone-500 font-medium">Ne pas déranger</span>
+                  <span className="text-xs text-stone-500 font-medium">Ne pas déranger</span>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
                   {DND_PRESETS.map(p => (
@@ -210,7 +210,7 @@ export default function PushHistoryBell() {
                       key={p.key}
                       onClick={() => enableDnd(p)}
                       disabled={dndBusy}
-                      className="min-h-[28px] px-2.5 text-[11px] rounded-full bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"
+                      className="min-h-[28px] px-2.5 text-xs rounded-full bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors"
                       data-testid={`dnd-preset-${p.key}`}
                     >
                       {p.label}
@@ -228,7 +228,7 @@ export default function PushHistoryBell() {
                   onClick={() => setFilter(f.key)}
                   role="tab"
                   aria-selected={filter === f.key}
-                  className={`shrink-0 min-h-[28px] px-2.5 text-[11px] rounded-full transition-colors ${
+                  className={`shrink-0 min-h-[28px] px-2.5 text-xs rounded-full transition-colors ${
                     filter === f.key
                       ? "bg-[#4A154B] text-white"
                       : "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200"
@@ -247,7 +247,7 @@ export default function PushHistoryBell() {
                 <p className="text-sm text-stone-500">
                   {filter === "all" ? "Aucune notification." : "Aucune notification dans cette catégorie."}
                 </p>
-                <p className="text-[11px] text-stone-400 mt-1">Les mentions et rappels apparaîtront ici.</p>
+                <p className="text-xs text-stone-400 mt-1">Les mentions et rappels apparaîtront ici.</p>
               </div>
             )}
             <ul className="divide-y divide-stone-100 dark:divide-stone-800">
@@ -268,15 +268,15 @@ export default function PushHistoryBell() {
                         <span className="text-xs font-medium text-[#4A154B] dark:text-[#B076B4]">
                           {KIND_LABEL[n.kind] || n.kind}
                         </span>
-                        <span className="text-[10px] text-stone-400">{relTime(n.created_at)}</span>
+                        <span className="text-xs text-stone-400">{relTime(n.created_at)}</span>
                       </div>
                       <p className="text-sm text-stone-700 dark:text-stone-300 mt-0.5 line-clamp-2">
                         {(n.payload || {}).body || (n.payload || {}).preview || (n.payload || {}).title || "(vide)"}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
-                        {isDeferred && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">Différée · plage silence</span>}
-                        {isFailed && <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded-full">Envoi échoué</span>}
-                        {n.push_result?.simulated && <span className="text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.5 rounded-full">Simulée</span>}
+                        {isDeferred && <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">Différée · plage silence</span>}
+                        {isFailed && <span className="text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded-full">Envoi échoué</span>}
+                        {n.push_result?.simulated && <span className="text-xs bg-stone-100 text-stone-700 px-1.5 py-0.5 rounded-full">Simulée</span>}
                         {isRead && <Check size={10} className="text-stone-400" aria-label="Lue" />}
                         <ExternalLink size={10} className="text-stone-400 ml-auto" aria-hidden="true" />
                       </div>

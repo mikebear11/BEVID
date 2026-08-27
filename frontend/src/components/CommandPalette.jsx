@@ -105,7 +105,7 @@ export default function CommandPalette({ items }) {
             }}
           />
           <kbd style={{
-            fontSize: 11, color: "var(--ds-text-muted, #8a8880)",
+            fontSize: 12, color: "var(--ds-text-muted, #8a8880)",
             border: "1px solid var(--ds-border, #e3e1da)", padding: "2px 6px",
             borderRadius: 4, fontFamily: "monospace",
           }}>Échap</kbd>
@@ -136,7 +136,7 @@ export default function CommandPalette({ items }) {
                 }}
               >
                 <span style={{
-                  fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em",
+                  fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em",
                   color: "var(--ds-text-muted, #8a8880)", minWidth: 110,
                 }}>{item.section}</span>
                 <span style={{ flex: 1 }}>{item.label}</span>

@@ -47,7 +47,7 @@ export default function InboxDropdown() {
       >
         <Inbox size={18} aria-hidden="true" />
         {unread > 0 && (
-          <span className="absolute top-1 right-1 bg-red-600 text-white text-[10px] rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center font-medium" data-testid="inbox-badge">
+          <span className="absolute top-1 right-1 bg-red-600 text-white text-xs rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center font-medium" data-testid="inbox-badge">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
@@ -64,7 +64,7 @@ export default function InboxDropdown() {
           >
             <div className="px-4 py-3 border-b border-stone-200 dark:border-stone-700">
               <h2 className="font-display text-base">Boîte de réception</h2>
-              <p className="text-[11px] text-stone-500 mt-0.5">Mentions et engagements datés</p>
+              <p className="text-xs text-stone-500 mt-0.5">Mentions et engagements datés</p>
             </div>
             {loading && <div className="p-6 text-center"><Loader2 size={16} className="mx-auto animate-spin text-stone-400" aria-hidden="true" /></div>}
             {!loading && items.length === 0 && (
@@ -83,11 +83,11 @@ export default function InboxDropdown() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-[#4A154B] dark:text-[#B076B4]">@ {a.author_name}</span>
-                      {a.due_date && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">⏱ {a.due_date}</span>}
+                      {a.due_date && <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">⏱ {a.due_date}</span>}
                     </div>
                     <p className="text-sm text-stone-700 dark:text-stone-300 mt-0.5 line-clamp-2">{a.preview || "(message)"}</p>
                     {a.object_type === "establishment" && (
-                      <p className="text-[11px] text-stone-500 mt-1">
+                      <p className="text-xs text-stone-500 mt-1">
                         Fiche : {a.preview_object_name || a.object_id?.slice(0, 8)}
                       </p>
                     )}

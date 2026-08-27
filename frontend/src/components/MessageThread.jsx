@@ -160,8 +160,8 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-stone-800 dark:text-stone-200">Moi</span>
-                <span className="text-[10px] text-stone-400">{(o.at || "").slice(0, 16).replace("T", " ")}</span>
-                <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                <span className="text-xs text-stone-400">{(o.at || "").slice(0, 16).replace("T", " ")}</span>
+                <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
                   <CloudOff size={9} aria-hidden="true" /> {o.status === "failed" ? "Retenté au prochain envoi" : "En attente d'envoi"}
                 </span>
               </div>
@@ -174,9 +174,9 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-stone-800 dark:text-stone-200">{m.author_name}</span>
-                <span className="text-[10px] text-stone-400">{(m.created_at || "").slice(0, 16).replace("T", " ")}</span>
-                {m.edited && <span className="text-[10px] text-stone-400 italic">modifié</span>}
-                {m.due_date && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">⏱ {m.due_date}</span>}
+                <span className="text-xs text-stone-400">{(m.created_at || "").slice(0, 16).replace("T", " ")}</span>
+                {m.edited && <span className="text-xs text-stone-400 italic">modifié</span>}
+                {m.due_date && <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">⏱ {m.due_date}</span>}
               </div>
               {editing !== m.id && (
                 <button onClick={() => { setEditing(m.id); setEditText(m.text); }} className="text-stone-400 hover:text-[#4A154B]" aria-label="Modifier" data-testid={`msg-edit-${m.id}`}>

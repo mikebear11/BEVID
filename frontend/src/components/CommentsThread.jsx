@@ -84,7 +84,7 @@ export default function CommentsThread({ establishmentId, onMemoryChange }) {
       <p className="overline flex items-center gap-1 mb-2">
         <MessageSquare size={11} /> Commentaires
         {items.filter(c => c.pinned).length > 0 && (
-          <span className="ml-1 text-[10px] text-stone-400">{items.filter(c => c.pinned).length} épinglé{items.filter(c => c.pinned).length > 1 ? "s" : ""}</span>
+          <span className="ml-1 text-xs text-stone-400">{items.filter(c => c.pinned).length} épinglé{items.filter(c => c.pinned).length > 1 ? "s" : ""}</span>
         )}
       </p>
 
@@ -125,7 +125,7 @@ export default function CommentsThread({ establishmentId, onMemoryChange }) {
                 className={`text-sm border rounded-lg p-2 ${c.pinned ? "border-amber-300 bg-amber-50 dark:bg-amber-900/10" : "border-stone-200 dark:border-stone-700"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] text-stone-400">
+                    <p className="text-xs text-stone-400">
                       {c.pinned && <Pin size={9} className="inline mr-1 -mt-0.5 text-amber-500" />}
                       {c.author_name} · {(c.created_at || "").slice(0, 10)}
                       {c.updated_at !== c.created_at && <span className="italic"> · modifié</span>}

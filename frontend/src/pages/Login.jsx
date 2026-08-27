@@ -68,7 +68,7 @@ export default function Login() {
           <span className="overline text-white/80">BEVID · CRM</span>
         </div>
         <div className="relative z-10">
-          <h1 className="font-display text-5xl leading-tight mb-4">Le CRM des brasseurs.<br/>Votre DRM, vos fûts, vos tournées.</h1>
+          <h2 className="font-display text-5xl leading-tight mb-4">Le CRM des brasseurs.<br/>Votre DRM, vos fûts, vos tournées.</h2>
           <p className="text-white/80 max-w-md">Même sans réseau. Terrain, DRM automatique depuis vos stocks, tournées optimisées, prise de commande hors-ligne.</p>
         </div>
         <div className="relative z-10 overline text-white/50">© 2026 BEVID</div>
@@ -78,7 +78,7 @@ export default function Login() {
           <div className="flex items-start justify-between">
             <div>
               <p className="overline">{t("welcome")}</p>
-              <h2 className="font-display text-4xl mt-1">{t("login")}</h2>
+              <h1 className="font-display text-4xl mt-1">{t("login")}</h1>
             </div>
             <select
               id="login-lang" name="language"
@@ -113,7 +113,7 @@ export default function Login() {
           <div>
             <div className="flex items-center justify-between">
               <label htmlFor="login-password" className="text-xs text-stone-600 dark:text-stone-300">{t("password")}</label>
-              <Link to="/forgot-password" className="text-xs text-[#4A154B] font-medium hover:underline" data-testid="login-forgot-link">
+              <Link to="/forgot-password" className="text-xs text-[#4A154B] font-medium hover:underline inline-flex items-center min-h-[44px] px-1" data-testid="login-forgot-link">
                 {t("forgot_password")}
               </Link>
             </div>
@@ -135,17 +135,17 @@ export default function Login() {
                  padding: "10px 12px", borderRadius: "var(--ds-radius-md)",
                }}>{rateError}</p>
           )}
-          <p className="text-sm text-stone-500 text-center">
-            <Link to="/register" className="text-[#4A154B] font-medium">{t("register")}</Link>
-            {" · "}
-            <Link to="/pricing" className="text-[#4A154B] font-medium" data-testid="login-pricing-link">{t("see_pricing")}</Link>
+          <p className="text-sm text-stone-500 text-center flex items-center justify-center gap-3 flex-wrap">
+            <Link to="/register" className="text-[#4A154B] font-medium inline-flex items-center min-h-[44px] px-2">{t("register")}</Link>
+            <span aria-hidden="true">·</span>
+            <Link to="/pricing" className="text-[#4A154B] font-medium inline-flex items-center min-h-[44px] px-2" data-testid="login-pricing-link">{t("see_pricing")}</Link>
           </p>
-          <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-stone-400" aria-label="Liens légaux">
-            <Link to="/legal/mentions-legales" className="hover:text-[#4A154B] hover:underline" data-testid="login-mentions">Mentions légales</Link>
-            <Link to="/legal/cgv" className="hover:text-[#4A154B] hover:underline" data-testid="login-cgv">CGV</Link>
-            <Link to="/legal/cgu" className="hover:text-[#4A154B] hover:underline" data-testid="login-cgu">CGU</Link>
-            <Link to="/legal/politique-confidentialite" className="hover:text-[#4A154B] hover:underline" data-testid="login-privacy">Confidentialité</Link>
-            <Link to="/legal/cookies" className="hover:text-[#4A154B] hover:underline" data-testid="login-cookies">Cookies</Link>
+          <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex flex-wrap justify-center gap-x-1 gap-y-1 text-xs text-stone-400" aria-label="Liens légaux">
+            <Link to="/legal/mentions-legales" className="hover:text-[#4A154B] hover:underline inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3" data-testid="login-mentions">Mentions légales</Link>
+            <Link to="/legal/cgv" className="hover:text-[#4A154B] hover:underline inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3" data-testid="login-cgv">CGV</Link>
+            <Link to="/legal/cgu" className="hover:text-[#4A154B] hover:underline inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3" data-testid="login-cgu">CGU</Link>
+            <Link to="/legal/politique-confidentialite" className="hover:text-[#4A154B] hover:underline inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3" data-testid="login-privacy">Confidentialité</Link>
+            <Link to="/legal/cookies" className="hover:text-[#4A154B] hover:underline inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3" data-testid="login-cookies">Cookies</Link>
           </div>
         </form>
       </div>

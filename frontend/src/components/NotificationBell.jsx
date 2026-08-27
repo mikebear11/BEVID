@@ -45,10 +45,15 @@ export default function NotificationBell() {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen(o => !o)} data-testid="notif-bell" className="relative p-2 rounded-full hover:bg-stone-100">
-        <Bell size={18} />
+      <button
+        onClick={() => setOpen(o => !o)}
+        data-testid="notif-bell"
+        aria-label="Notifications et relances urgentes"
+        className="relative rounded-full hover:bg-stone-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
+      >
+        <Bell size={18} aria-hidden="true" />
         {alerts.length > 0 && (
-          <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#8C2A2A] text-white text-[10px] font-bold rounded-full flex items-center justify-center">{alerts.length}</span>
+          <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#8C2A2A] text-white text-xs font-bold rounded-full flex items-center justify-center">{alerts.length}</span>
         )}
       </button>
       {open && (

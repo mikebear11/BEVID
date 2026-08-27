@@ -131,9 +131,9 @@ export default function Prospection() {
                     <p className="font-medium text-stone-800 truncate">{r.name}</p>
                     <p className="text-xs text-stone-500">{r.address} · {r.commune} · <span className="capitalize">{r.segment || "chr"}</span></p>
                     <div className="flex gap-1 mt-2">
-                      {r.badges?.bio && <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Leaf size={9} /> Bio</span>}
-                      {r.badges?.entrepreneur_spectacle && <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Music size={9} /> Spectacle</span>}
-                      {r.badges?.confiance_sanitaire && <span className="text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Award size={9} /> Confiance</span>}
+                      {r.badges?.bio && <span className="text-xs bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Leaf size={9} /> Bio</span>}
+                      {r.badges?.entrepreneur_spectacle && <span className="text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Music size={9} /> Spectacle</span>}
+                      {r.badges?.confiance_sanitaire && <span className="text-xs bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded-full flex items-center gap-1"><Award size={9} /> Confiance</span>}
                     </div>
                   </div>
                   <button onClick={() => convert(r)} className="text-xs bg-[#4A154B] text-white px-2 py-1.5 rounded flex items-center gap-1 ml-2 min-h-[36px]" data-testid={`convert-${r.siren}`}>

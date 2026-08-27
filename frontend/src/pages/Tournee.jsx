@@ -67,7 +67,8 @@ export default function Tournee() {
       <EngagementsWidget />
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"/>
-        <input value={q} onChange={ev=>setQ(ev.target.value)} placeholder="Nom, ville, enseigne…" className="input-crm pl-9 min-h-[48px]" data-testid="tournee-search" autoFocus/>
+        <label htmlFor="tournee-search" className="sr-only">Rechercher un client</label>
+        <input id="tournee-search" value={q} onChange={ev=>setQ(ev.target.value)} placeholder="Nom, ville, enseigne…" className="input-crm pl-9 min-h-[48px]" data-testid="tournee-search" aria-label="Rechercher un client" autoFocus/>
       </div>
       {Object.keys(byEtab).length > 0 && (
         <button

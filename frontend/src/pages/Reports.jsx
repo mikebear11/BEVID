@@ -67,7 +67,7 @@ export default function Reports() {
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-3">
         <div><p className="overline">Analyse</p><h1 className="font-display text-4xl">Rapports</h1></div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={exportCsv} className="btn-ghost flex items-center gap-2" data-testid="export-csv-btn"><Download size={14} /> Export CSV</button>
+          <button onClick={exportCsv} className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="export-csv-btn"><Download size={14} /> Export CSV</button>
           <button onClick={async () => {
             const now = new Date();
             const q = Math.floor(now.getMonth() / 3) + 1;
@@ -76,8 +76,8 @@ export default function Reports() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a"); a.href = url; a.download = `bilan-Q${q}-${now.getFullYear()}.pdf`; a.click();
             toast.success(t("toast.bilan_trimestriel_telecharge"));
-          }} className="btn-ghost flex items-center gap-2" data-testid="quarterly-pdf-btn"><FileDown size={14} /> Bilan trimestriel PDF</button>
-          <button onClick={genSummary} disabled={loading} className="btn-primary flex items-center gap-2" data-testid="ai-summary-btn">
+          }} className="btn-ghost flex items-center gap-2 min-h-[44px]" data-testid="quarterly-pdf-btn"><FileDown size={14} /> Bilan trimestriel PDF</button>
+          <button onClick={genSummary} disabled={loading} className="btn-primary flex items-center gap-2 min-h-[44px]" data-testid="ai-summary-btn">
             {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Synthèse IA
           </button>
         </div>
@@ -92,13 +92,13 @@ export default function Reports() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card-crm p-6">
-          <h3 className="font-display text-xl mb-4">Performance des commerciaux</h3>
+          <h2 className="font-display text-xl mb-4">Performance des commerciaux</h2>
           <div className="h-64">
             <ResponsiveContainer>
               <BarChart data={perf}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E7E4DF" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip />
                 <Bar dataKey="ca" fill="#4A154B" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -107,7 +107,7 @@ export default function Reports() {
         </div>
 
         <div className="card-crm p-6">
-          <h3 className="font-display text-xl mb-4">Répartition CA</h3>
+          <h2 className="font-display text-xl mb-4">Répartition CA</h2>
           {/* Fix visuel : avec 30+ agents, la légende écrasait le camembert.
               On regroupe le top 8 + « Autres », on place la légende à droite
               (verticale, scrollable) et on augmente la hauteur du conteneur. */}

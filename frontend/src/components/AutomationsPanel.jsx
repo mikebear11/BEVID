@@ -134,13 +134,13 @@ function PresetCard({ preset, onEnable, onDisable, onModeChange }) {
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">{preset.label}</p>
-          <p className="text-[11px] text-stone-500 mt-0.5">{preset.trigger}</p>
+          <p className="text-xs text-stone-500 mt-0.5">{preset.trigger}</p>
         </div>
         {preset.enabled ? (
-          <button onClick={onDisable} className="text-[11px] text-red-700 underline min-h-[32px]"
+          <button onClick={onDisable} className="text-xs text-red-700 underline min-h-[32px]"
             data-testid={`disable-${preset.preset_key}`}>Désactiver</button>
         ) : (
-          <button onClick={onEnable} className="text-[11px] bg-[#4A154B] text-white px-3 py-1.5 rounded min-h-[32px]"
+          <button onClick={onEnable} className="text-xs bg-[#4A154B] text-white px-3 py-1.5 rounded min-h-[32px]"
             data-testid={`enable-${preset.preset_key}`}>Activer</button>
         )}
       </div>
@@ -149,7 +149,7 @@ function PresetCard({ preset, onEnable, onDisable, onModeChange }) {
         <span>{preset.action_label}</span>
       </p>
       {preset.enabled && (
-        <div className="mt-2 flex items-center gap-3 text-[11px]">
+        <div className="mt-2 flex items-center gap-3 text-xs">
           <label className="flex items-center gap-1 cursor-pointer" data-testid={`mode-task-${preset.preset_key}`}>
             <input type="radio" checked={preset.action_mode === "task"} onChange={() => onModeChange("task")} className="accent-[#4A154B]" />
             Créer une tâche
@@ -161,7 +161,7 @@ function PresetCard({ preset, onEnable, onDisable, onModeChange }) {
         </div>
       )}
       {preset.last_run_at && (
-        <p className="text-[10px] text-stone-400 mt-2 flex items-center gap-1">
+        <p className="text-xs text-stone-400 mt-2 flex items-center gap-1">
           <Clock size={10} aria-hidden="true" /> Dernière exécution : {new Date(preset.last_run_at).toLocaleString("fr-FR")}
         </p>
       )}
@@ -223,14 +223,14 @@ function ActivatePreviewModal({ preset, onClose, onConfirm }) {
               <input type="radio" name="policy" checked={stockPolicy === "ignore"} onChange={() => setStockPolicy("ignore")} className="mt-1 accent-[#4A154B]" />
               <div>
                 <p className="text-sm font-medium">Ignorer le stock, ne déclencher que sur les nouveaux cas</p>
-                <p className="text-[11px] text-stone-500">Aucune action sur les {count} client{count > 1 ? "s" : ""} actuels. La règle s'appliquera aux prochains clients qui rentrent dans le déclencheur.</p>
+                <p className="text-xs text-stone-500">Aucune action sur les {count} client{count > 1 ? "s" : ""} actuels. La règle s'appliquera aux prochains clients qui rentrent dans le déclencheur.</p>
               </div>
             </label>
             <label className="flex items-start gap-2 p-2 border rounded cursor-pointer hover:bg-stone-50" data-testid="policy-throttle">
               <input type="radio" name="policy" checked={stockPolicy === "throttle"} onChange={() => setStockPolicy("throttle")} className="mt-1 accent-[#4A154B]" />
               <div>
                 <p className="text-sm font-medium">Traiter progressivement, 5 clients par jour maximum</p>
-                <p className="text-[11px] text-stone-500">Jamais d'envoi de masse. Étalage sur {Math.ceil(count / 5)} jour{Math.ceil(count / 5) > 1 ? "s" : ""}.</p>
+                <p className="text-xs text-stone-500">Jamais d'envoi de masse. Étalage sur {Math.ceil(count / 5)} jour{Math.ceil(count / 5) > 1 ? "s" : ""}.</p>
               </div>
             </label>
           </div>

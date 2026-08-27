@@ -119,18 +119,18 @@ export default function ContactsPanelV2({ establishmentId, onChange }) {
             <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="font-medium text-sm">{[c.prenom, c.nom].filter(Boolean).join(" ") || "—"}</span>
               {r.principal && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] text-[#C78B3A]"
+                <span className="inline-flex items-center gap-0.5 text-xs text-[#C78B3A]"
                       data-testid={`role-primary-${r.id}`}>
                   <Star size={10} className="fill-[#C78B3A]" /> principal
                 </span>
               )}
               {r.peut_engager && (
-                <span className="text-[10px] font-medium text-[#2D5A4C] px-1 rounded bg-[#2D5A4C]/10">
+                <span className="text-xs font-medium text-[#2D5A4C] px-1 rounded bg-[#2D5A4C]/10">
                   peut engager
                 </span>
               )}
             </div>
-            <p className="text-[11px] uppercase tracking-wider text-stone-500">
+            <p className="text-xs uppercase tracking-wider text-stone-500">
               {r.role_meta?.label || r.role}
             </p>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs">
@@ -146,7 +146,7 @@ export default function ContactsPanelV2({ establishmentId, onChange }) {
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-1 items-end shrink-0 text-[10px]">
+          <div className="flex flex-col gap-1 items-end shrink-0 text-xs">
             {!r.principal && (
               <button type="button" onClick={() => promotePrimary(r)}
                       className="text-stone-400 hover:text-[#C78B3A]"
@@ -198,7 +198,7 @@ export default function ContactsPanelV2({ establishmentId, onChange }) {
           {["direction", "operationnel", "administratif", "autre"].map(g => (
             groups[g].length > 0 && (
               <div key={g}>
-                <p className="text-[10px] uppercase tracking-wider text-stone-400 mb-1">
+                <p className="text-xs uppercase tracking-wider text-stone-400 mb-1">
                   {g === "direction" ? "Direction" : g === "operationnel" ? "Opérationnel" :
                    g === "administratif" ? "Administratif" : "Autre"}
                 </p>

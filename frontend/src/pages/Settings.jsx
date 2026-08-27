@@ -116,14 +116,14 @@ export default function SettingsPage() {
               className={`p-3 rounded-lg border text-left transition-all min-h-[80px] ${sidebarTheme === v ? "ring-2 ring-[#4A154B] border-[#4A154B]" : "border-stone-200 dark:border-stone-700 hover:border-stone-400"}`}>
               <div className={`h-8 rounded ${bg} border border-stone-200 dark:border-stone-700 mb-2`} aria-hidden="true" />
               <p className="font-medium text-sm">{l}</p>
-              <p className="text-[11px] text-stone-500 mt-0.5">{d}</p>
+              <p className="text-xs text-stone-500 mt-0.5">{d}</p>
             </button>
           ))}
         </div>
         <div className="mt-4 pt-4 border-t border-stone-200 dark:border-stone-700 space-y-4">
           <div>
             <p className="text-xs font-medium mb-2">Réinitialiser mon menu</p>
-            <p className="text-[11px] text-stone-500 mb-3">Efface toutes les épingles et remet l'ordre par défaut des sections. Le thème choisi ci-dessus est conservé.</p>
+            <p className="text-xs text-stone-500 mb-3">Efface toutes les épingles et remet l'ordre par défaut des sections. Le thème choisi ci-dessus est conservé.</p>
             <button onClick={resetMenu} disabled={resetting}
               data-testid="reset-menu-btn"
               className="btn-ghost flex items-center gap-2 min-h-[40px] text-sm">
@@ -139,7 +139,7 @@ export default function SettingsPage() {
                 data-testid="show-advanced-toggle" />
               <div>
                 <p className="text-sm font-medium">Afficher les fonctions avancées</p>
-                <p className="text-[11px] text-stone-500">Rapprochement, DRM, prospection, radar, veille, bouclier, revue mensuelle, objectifs… Sinon, elles apparaissent automatiquement à l'usage ou via ⌘K.</p>
+                <p className="text-xs text-stone-500">Rapprochement, DRM, prospection, radar, veille, bouclier, revue mensuelle, objectifs… Sinon, elles apparaissent automatiquement à l'usage ou via ⌘K.</p>
               </div>
             </label>
           </div>

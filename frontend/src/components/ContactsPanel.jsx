@@ -50,7 +50,7 @@ function TelLink({ value, kind, testId }) {
        data-testid={testId}
        aria-label={`${label} : ${value}`}>
       <Icon size={11} />
-      <span className="text-[10px] uppercase tracking-wider text-stone-400 mr-0.5">{label}</span>
+      <span className="text-xs uppercase tracking-wider text-stone-400 mr-0.5">{label}</span>
       {value}
     </a>
   );
@@ -64,7 +64,7 @@ function MailLink({ value, testId, secondary }) {
        data-testid={testId}
        aria-label={`Email : ${value}`}>
       <Mail size={11} />
-      {secondary && <span className="text-[10px] uppercase tracking-wider text-stone-400 mr-0.5">2e</span>}
+      {secondary && <span className="text-xs uppercase tracking-wider text-stone-400 mr-0.5">2e</span>}
       {value}
     </a>
   );
@@ -184,12 +184,12 @@ export default function ContactsPanel({ establishmentId }) {
                     <div className="flex items-baseline gap-1.5 flex-wrap">
                       <span className="font-medium text-sm text-stone-800 dark:text-stone-100">{c.name}</span>
                       {c.is_primary && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-[#C78B3A]" title="Contact principal" data-testid={`contact-primary-${c.id}`}>
+                        <span className="inline-flex items-center gap-0.5 text-xs font-medium text-[#C78B3A]" title="Contact principal" data-testid={`contact-primary-${c.id}`}>
                           <Star size={10} className="fill-[#C78B3A]" /> principal
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] uppercase tracking-wider text-stone-500 mt-0.5 flex items-center gap-1">
+                    <p className="text-xs uppercase tracking-wider text-stone-500 mt-0.5 flex items-center gap-1">
                       {ROLE_LABELS[c.role] || c.role}
                       {c.job_title && (
                         <>
@@ -356,7 +356,7 @@ export default function ContactsPanel({ establishmentId }) {
                 data-testid="contact-primary-checkbox"
               />
               <span>Contact principal</span>
-              <span className="text-[10px] text-stone-400">
+              <span className="text-xs text-stone-400">
                 (les autres seront démotés)
               </span>
             </label>

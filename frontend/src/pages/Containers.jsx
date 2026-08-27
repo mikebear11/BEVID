@@ -84,7 +84,7 @@ export default function Containers() {
               <QrCode size={22} className="text-stone-400" />
             </div>
             <div className="mt-3 flex items-center justify-between">
-              <span className={`text-[10px] uppercase tracking-widest font-medium px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status] || ""}`}>{STATUS_LABEL[c.status]}</span>
+              <span className={`text-xs uppercase tracking-widest font-medium px-2 py-0.5 rounded-full ${STATUS_COLOR[c.status] || ""}`}>{STATUS_LABEL[c.status]}</span>
               <span className="text-xs text-stone-500 flex items-center gap-1"><MapPin size={11} /> {c.current_location_name || c.current_location || "—"}</span>
             </div>
             {c.deposit_amount > 0 && <p className="text-xs text-stone-500 mt-2">Consigne : {c.deposit_amount.toFixed(2)} €</p>}

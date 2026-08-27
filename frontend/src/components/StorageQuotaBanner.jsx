@@ -44,7 +44,7 @@ export default function StorageQuotaBanner() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-amber-900 dark:text-amber-200">Mode hors-ligne dégradé</p>
           <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">{reason}</p>
-          <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 flex items-center gap-1">
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 flex items-center gap-1">
             Ouvrir le diagnostic <ChevronRight size={11} aria-hidden="true" />
           </p>
         </div>

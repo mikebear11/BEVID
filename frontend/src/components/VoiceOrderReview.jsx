@@ -211,13 +211,13 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-stone-900">{line.product_name}</span>
                         {line.confidence === "low" && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase tracking-wide">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase tracking-wide">
                             À confirmer
                           </span>
                         )}
                       </div>
                       {line.source_phrase && (
-                        <div className="text-[11px] text-stone-500 mt-0.5 italic">« {line.source_phrase} »</div>
+                        <div className="text-xs text-stone-500 mt-0.5 italic">« {line.source_phrase} »</div>
                       )}
                     </div>
                     <button
@@ -231,7 +231,7 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 mt-3 items-end">
-                    <label className="text-[11px] text-stone-500 col-span-1">
+                    <label className="text-xs text-stone-500 col-span-1">
                       Quantité
                       <input
                         type="number" min="1"
@@ -241,11 +241,11 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
                         data-testid={`voice-order-qty-${i}`}
                       />
                     </label>
-                    <label className="text-[11px] text-stone-500 col-span-1">
+                    <label className="text-xs text-stone-500 col-span-1">
                       Format
                       <div className="input-crm text-sm mt-0.5 text-stone-700 truncate">{line.unit}</div>
                     </label>
-                    <label className="text-[11px] text-stone-500 col-span-1">
+                    <label className="text-xs text-stone-500 col-span-1">
                       Prix HT
                       <input
                         type="number" step="0.01"
@@ -276,7 +276,7 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
-              <label className="text-[11px] text-stone-500">
+              <label className="text-xs text-stone-500">
                 Livraison
                 <input
                   type="date"
@@ -287,7 +287,7 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
                 />
               </label>
               <div className="text-right">
-                <div className="text-[11px] text-stone-500">Total HT</div>
+                <div className="text-xs text-stone-500">Total HT</div>
                 <div className="text-2xl font-display text-[#4A154B]" data-testid="voice-order-total">
                   {total.toFixed(2)} €
                 </div>

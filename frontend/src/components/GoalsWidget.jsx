@@ -29,7 +29,13 @@ export default function GoalsWidget() {
     <div className="card-crm p-6" data-testid="goals-widget">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2"><Target size={18} className="text-[#4A154B]" /><h3 className="font-display text-xl">Objectifs du mois</h3></div>
-        <button onClick={() => setShow(true)} className="text-xs text-[#4A154B] flex items-center gap-1" data-testid="add-goal-btn"><Plus size={12} /> Fixer</button>
+        <button
+          onClick={() => setShow(true)}
+          className="text-xs text-[#4A154B] flex items-center gap-1 min-h-[44px] px-2"
+          data-testid="add-goal-btn"
+        >
+          <Plus size={12} aria-hidden="true" /> Fixer
+        </button>
       </div>
       <div className="space-y-3">
         {progress.length === 0 && <p className="text-sm text-stone-500">Aucun objectif fixé ce mois-ci</p>}

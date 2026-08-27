@@ -162,7 +162,7 @@ export default function OrgSettings() {
               className="input-crm min-h-[44px]" data-testid="orgsettings-dpo-email" />
           </div>
         </div>
-        <p className="text-[11px] text-stone-500">Une fois ces champs remplis, les pages publiques /legal/mentions-legales et /legal/cgv les affichent automatiquement à la place des placeholders.</p>
+        <p className="text-xs text-stone-500">Une fois ces champs remplis, les pages publiques /legal/mentions-legales et /legal/cgv les affichent automatiquement à la place des placeholders.</p>
       </section>
 
       {/* Zone démo — purge les fake data et enrichit les vrais établissements
@@ -232,7 +232,7 @@ export default function OrgSettings() {
                 <p className="font-display text-lg text-[#4A154B]">{consolidateReport.engagements_created}</p>
               </div>
             </div>
-            <div className="px-3 py-2 text-[11px] text-stone-500 bg-stone-50 dark:bg-stone-800">
+            <div className="px-3 py-2 text-xs text-stone-500 bg-stone-50 dark:bg-stone-800">
               Préservés : {(consolidateReport.preserved_establishments || []).join(" · ")}
             </div>
           </div>

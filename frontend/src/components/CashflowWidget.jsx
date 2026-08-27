@@ -29,10 +29,10 @@ export default function CashflowWidget() {
               <linearGradient id="enc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2D5A4C" stopOpacity={0.5}/><stop offset="100%" stopColor="#2D5A4C" stopOpacity={0}/></linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#E7E4DF" />
-            <XAxis dataKey="date" tick={{fontSize: 10}} />
-            <YAxis tick={{fontSize: 10}} />
-            <Tooltip contentStyle={{fontSize: 11, border: '1px solid #E7E4DF', borderRadius: 6}} />
-            <Legend wrapperStyle={{fontSize: 11}} />
+            <XAxis dataKey="date" tick={{fontSize: 12}} />
+            <YAxis tick={{fontSize: 12}} />
+            <Tooltip contentStyle={{fontSize: 12, border: '1px solid #E7E4DF', borderRadius: 6}} />
+            <Legend wrapperStyle={{fontSize: 12}} />
             <Area type="monotone" dataKey="facture" name="Facturé" stroke="#4A154B" strokeWidth={2} fill="url(#fac)" />
             <Area type="monotone" dataKey="encaisse" name="Encaissé" stroke="#2D5A4C" strokeWidth={2} fill="url(#enc)" />
           </AreaChart>

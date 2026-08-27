@@ -184,7 +184,7 @@ export default function ObjectionExtractPanel({ open, visitId, onClose, onConfir
                         ))}
                       </select>
                       {p.confidence != null && (
-                        <span className="text-[10px] text-stone-400 tabular-nums" aria-label={`confiance ${Math.round(p.confidence * 100)}%`}>
+                        <span className="text-xs text-stone-400 tabular-nums" aria-label={`confiance ${Math.round(p.confidence * 100)}%`}>
                           confiance {Math.round(p.confidence * 100)}%
                         </span>
                       )}

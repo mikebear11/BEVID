@@ -34,7 +34,7 @@ export default function SyncFeed() {
     <div className="bg-white rounded-2xl border border-stone-200 p-5" data-testid="sync-feed">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-medium flex items-center gap-2"><CloudDownload size={16} className="text-emerald-600" /> Sync feed <span className="text-xs text-stone-500 font-normal">(60 min)</span></h3>
-        <span className="text-[10px] uppercase tracking-widest text-stone-500">{feed.visits.length + feed.orders.length} arrivée(s)</span>
+        <span className="text-xs uppercase tracking-widest text-stone-500">{feed.visits.length + feed.orders.length} arrivée(s)</span>
       </div>
 
       {/* Conflits en tête */}
@@ -47,7 +47,7 @@ export default function SyncFeed() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-red-900">Conflit resync — {c.kind}</p>
                   <p className="text-xs text-red-800">{c.reason}</p>
-                  {c.extra?.client_name && <p className="text-[10px] text-red-700 mt-0.5">Client : {c.extra.client_name}</p>}
+                  {c.extra?.client_name && <p className="text-xs text-red-700 mt-0.5">Client : {c.extra.client_name}</p>}
                 </div>
                 <button onClick={() => dismiss(c.id)} className="text-red-700 hover:text-red-900 min-w-[36px] min-h-[36px] flex items-center justify-center" title="Écarter" data-testid={`dismiss-conflict-${c.id}`}><X size={14} /></button>
               </div>
@@ -74,8 +74,8 @@ export default function SyncFeed() {
             <div key={o.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-stone-50" data-testid={`sync-order-${o.id}`}>
               <ShoppingCart size={14} className="text-[#4A154B]" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm truncate"><span className="font-medium">{o.client_name}</span> · {o.total?.toFixed(2)} €{o.has_signature && <span className="ml-1 text-emerald-600 text-[10px]">signé ✓</span>}</p>
-                <p className="text-[10px] text-stone-500">{o.created_at?.slice(11, 16)}</p>
+                <p className="text-sm truncate"><span className="font-medium">{o.client_name}</span> · {o.total?.toFixed(2)} €{o.has_signature && <span className="ml-1 text-emerald-600 text-xs">signé ✓</span>}</p>
+                <p className="text-xs text-stone-500">{o.created_at?.slice(11, 16)}</p>
               </div>
             </div>
           ))}
@@ -84,7 +84,7 @@ export default function SyncFeed() {
               <ClipboardCheck size={14} className="text-[#5C8A6A]" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm truncate"><span className="font-medium">{v.client_name}</span> · {v.mood} → {v.next_action}</p>
-                <p className="text-[10px] text-stone-500">{v.created_at?.slice(11, 16)}</p>
+                <p className="text-xs text-stone-500">{v.created_at?.slice(11, 16)}</p>
               </div>
             </div>
           ))}

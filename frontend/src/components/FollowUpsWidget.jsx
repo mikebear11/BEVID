@@ -20,7 +20,7 @@ export default function FollowUpsWidget() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <AlertCircle size={18} className="text-[#4A154B]" />
-          <h3 className="font-display text-xl">À relancer</h3>
+          <h2 className="font-display text-xl">À relancer</h2>
         </div>
         <span className="ml-auto"><PuceEtat etat="info" variante="douce" libelle={String(count)} /></span>
       </div>
@@ -38,7 +38,7 @@ export default function FollowUpsWidget() {
                 <span>{a.reason}</span>
               </div>
             </div>
-            <span className="text-[10px] uppercase tracking-wider font-medium" style={{ color: PRIO_COLOR[a.priority] }}>{PRIO_LABEL[a.priority]}</span>
+            <span className="text-xs uppercase tracking-wider font-medium" style={{ color: PRIO_COLOR[a.priority] }}>{PRIO_LABEL[a.priority]}</span>
             <ChevronRight size={14} className="text-stone-400" />
           </Link>
         ))}

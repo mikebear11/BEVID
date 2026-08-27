@@ -121,7 +121,7 @@ export default function SirenAutocomplete({ onSelect, autoFocus = false, testId 
                 </div>
               </div>
               {r.etat === "A" && (
-                <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ds-state-success)" }}>Actif</span>
+                <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ds-state-success)" }}>Actif</span>
               )}
             </li>
           ))}

@@ -148,7 +148,7 @@ export default function Documents() {
                 <td className="p-3">{d.client_snapshot?.name || d.client_id?.slice(0, 8)}</td>
                 <td className="p-3 text-stone-500">{(d.emitted_at || d.created_at || "").slice(0, 10)}</td>
                 <td className="p-3">
-                  <span className={`badge text-[10px] px-2 py-0.5 rounded-full ${STATUS_COLORS[d.status] || "bg-stone-100 text-stone-700"}`}>{d.status}</span>
+                  <span className={`badge text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[d.status] || "bg-stone-100 text-stone-700"}`}>{d.status}</span>
                 </td>
                 <td className="p-3 text-right font-mono">{(d.total_ttc || 0).toFixed(2)} €</td>
                 <td className="p-3 text-right space-x-1 whitespace-nowrap">
@@ -320,7 +320,7 @@ function CreateDocumentModal({ types, legalDocs, onClose, onCreated }) {
                   </div>
                 );
               })}
-              <p className="text-[10px] text-stone-400">
+              <p className="text-xs text-stone-400">
                 Gérer les variantes dans <a href="/pack-legal" className="underline">Pack légal</a>.
               </p>
             </div>

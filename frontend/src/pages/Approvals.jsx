@@ -136,7 +136,7 @@ export default function Approvals() {
                       {a.context?.days && <span className="text-xs text-stone-500">+{a.context.days} j</span>}
                     </div>
                     <p className="text-sm text-stone-700 dark:text-stone-300 mt-1">{a.reason}</p>
-                    <p className="text-[11px] text-stone-500 mt-1">
+                    <p className="text-xs text-stone-500 mt-1">
                       Demandé par <b>{a.requester_name}</b> · {(a.created_at || "").slice(0, 16).replace("T", " ")}
                       {a.context?.establishment_id && (
                         <> · <Link to={`/etab/${a.context.establishment_id}`} className="text-[#4A154B] hover:underline" data-testid={`approval-link-etab-${a.id}`}>fiche client</Link></>

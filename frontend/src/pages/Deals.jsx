@@ -86,7 +86,7 @@ export default function Deals() {
               data-testid={`stage-${s.key}`}>
               <div className="flex items-center justify-between mb-3 pb-2 border-b" style={{ borderColor: s.color + "40" }}>
                 <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{ background: s.color }} /><span className="overline">{s.label}</span></div>
-                <span className="text-[10px] text-stone-500">{items.length} · {total.toLocaleString('fr-FR', {maximumFractionDigits: 0})}€</span>
+                <span className="text-xs text-stone-500">{items.length} · {total.toLocaleString('fr-FR', {maximumFractionDigits: 0})}€</span>
               </div>
               <div className="space-y-2">
                 {items.map(d => (
@@ -101,14 +101,14 @@ export default function Deals() {
                     </div>
                     <div className="flex justify-between items-end mt-2">
                       <span className="font-display text-lg" style={{color: s.color}}>{d.amount.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €</span>
-                      <span className="text-[10px] text-stone-500">{d.probability}%</span>
+                      <span className="text-xs text-stone-500">{d.probability}%</span>
                     </div>
-                    <button onClick={() => coach(d.id)} disabled={coachLoading === d.id} className="w-full mt-2 text-[10px] text-[#4A154B] flex items-center justify-center gap-1 py-1 border-t border-stone-100 pt-1.5 hover:bg-stone-50 rounded" data-testid={`coach-${d.id}`}>
+                    <button onClick={() => coach(d.id)} disabled={coachLoading === d.id} className="w-full mt-2 text-xs text-[#4A154B] flex items-center justify-center gap-1 py-1 border-t border-stone-100 pt-1.5 hover:bg-stone-50 rounded" data-testid={`coach-${d.id}`}>
                       {coachLoading === d.id ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
                       Coach IA
                     </button>
                     {coaches[d.id] && (
-                      <div className="mt-2 p-2 bg-stone-50 rounded text-[11px] text-stone-700 border-l-2 border-[#4A154B]" data-testid={`coach-content-${d.id}`}>
+                      <div className="mt-2 p-2 bg-stone-50 rounded text-xs text-stone-700 border-l-2 border-[#4A154B]" data-testid={`coach-content-${d.id}`}>
                         {coaches[d.id]}
                       </div>
                     )}

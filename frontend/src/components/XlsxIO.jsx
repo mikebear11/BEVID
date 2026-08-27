@@ -109,7 +109,7 @@ export default function XlsxIO({ kind, onImportDone, label }) {
         type="button"
         onClick={() => setOpen(o => !o)}
         disabled={busy}
-        className="btn-ghost flex items-center gap-2"
+        className="btn-ghost flex items-center gap-2 min-h-[44px]"
         data-testid={`xlsx-menu-btn-${kind}`}
       >
         {busy ? <Loader2 size={16} className="animate-spin" /> : <FileSpreadsheet size={16} />}
@@ -131,7 +131,7 @@ export default function XlsxIO({ kind, onImportDone, label }) {
                 <FileSpreadsheet size={14} className="text-stone-500" />
                 <div className="flex-1">
                   <div>Télécharger un modèle</div>
-                  <div className="text-[10px] text-stone-500">Avec exemple pré-rempli</div>
+                  <div className="text-xs text-stone-500">Avec exemple pré-rempli</div>
                 </div>
               </button>
             )}
@@ -144,7 +144,7 @@ export default function XlsxIO({ kind, onImportDone, label }) {
               <Download size={14} className="text-stone-500" />
               <div className="flex-1">
                 <div>Exporter les données</div>
-                <div className="text-[10px] text-stone-500">Format .xlsx</div>
+                <div className="text-xs text-stone-500">Format .xlsx</div>
               </div>
             </button>
             {endpoint.importUrl && (
@@ -157,7 +157,7 @@ export default function XlsxIO({ kind, onImportDone, label }) {
                 <Upload size={14} className="text-stone-500" />
                 <div className="flex-1">
                   <div>Importer un fichier</div>
-                  <div className="text-[10px] text-stone-500">.xlsx (max 5 Mo)</div>
+                  <div className="text-xs text-stone-500">.xlsx (max 5 Mo)</div>
                 </div>
               </button>
             )}

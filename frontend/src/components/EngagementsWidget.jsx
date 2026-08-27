@@ -47,11 +47,11 @@ export default function EngagementsWidget() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-medium text-[#4A154B] dark:text-[#B076B4]">@ {a.author_name}</span>
-                {a.due_date && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5"><Clock size={9} aria-hidden="true" /> {a.due_date}</span>}
+                {a.due_date && <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5"><Clock size={9} aria-hidden="true" /> {a.due_date}</span>}
               </div>
               <p className="text-sm text-stone-700 dark:text-stone-300 mt-0.5 line-clamp-1">{a.preview}</p>
               {a.object_type === "establishment" && a.object_name && (
-                <Link to={`/clients/${a.object_id}`} className="text-[11px] text-[#4A154B] hover:underline" data-testid={`engagement-link-${a.id}`}>
+                <Link to={`/clients/${a.object_id}`} className="text-xs text-[#4A154B] hover:underline" data-testid={`engagement-link-${a.id}`}>
                   {a.object_name} {a.object_city && `· ${a.object_city}`}
                 </Link>
               )}

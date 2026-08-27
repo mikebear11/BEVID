@@ -146,7 +146,7 @@ export default function ForgotPassword() {
                       <Copy size={11} /> Copier
                     </button>
                   </div>
-                  <p className="text-[10px]">
+                  <p className="text-xs">
                     Ce code s'affiche uniquement parce que l'email n'a pas pu partir. En production
                     normale, il arrive dans votre boîte email.
                   </p>

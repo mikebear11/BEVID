@@ -62,8 +62,8 @@ export default function QRLabels() {
                 <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} className="mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-xs font-medium truncate">{c.product_name || "(sans produit)"}</p>
-                  <p className="text-[10px] text-stone-500 font-mono truncate">{c.id.slice(0, 8)}</p>
-                  <p className="text-[10px] text-stone-500">{c.type} · {c.filled_volume_l || "—"}L</p>
+                  <p className="text-xs text-stone-500 font-mono truncate">{c.id.slice(0, 8)}</p>
+                  <p className="text-xs text-stone-500">{c.type} · {c.filled_volume_l || "—"}L</p>
                 </div>
               </label>
             ))}
@@ -78,11 +78,11 @@ export default function QRLabels() {
           <div key={c.id} className="border border-stone-300 rounded-lg p-2 flex gap-2 items-center bg-white" style={{ height: "3.4cm" }}>
             <QRCodeCanvas value={c.id} size={78} bgColor="#ffffff" fgColor="#0A0A0A" includeMargin={false} />
             <div className="min-w-0 flex-1 text-left">
-              <div className="flex items-center gap-1 text-[#4A154B]"><BevidLogo size={12} /><span className="text-[9px] font-medium tracking-widest">BEVID</span></div>
+              <div className="flex items-center gap-1 text-[#4A154B]"><BevidLogo size={12} /><span className="text-xs font-medium tracking-widest">BEVID</span></div>
               <p className="font-medium text-xs mt-0.5 leading-tight truncate">{c.product_name || "—"}</p>
-              <p className="text-[10px] text-stone-500">{c.type} · {c.filled_volume_l || "—"}L</p>
-              {c.batch_lot && <p className="text-[9px] text-stone-500 truncate">Lot {c.batch_lot}</p>}
-              <p className="text-[9px] text-stone-400 font-mono mt-0.5">{c.id.slice(0, 8)}</p>
+              <p className="text-xs text-stone-500">{c.type} · {c.filled_volume_l || "—"}L</p>
+              {c.batch_lot && <p className="text-xs text-stone-500 truncate">Lot {c.batch_lot}</p>}
+              <p className="text-xs text-stone-400 font-mono mt-0.5">{c.id.slice(0, 8)}</p>
             </div>
           </div>
         ))}

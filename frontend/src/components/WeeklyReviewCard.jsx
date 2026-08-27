@@ -68,7 +68,7 @@ export default function WeeklyReviewCard() {
             ].map(m => (
               <div key={m.label} className="bg-stone-50 dark:bg-stone-800 rounded-lg p-2 text-center" data-testid={`weekly-kpi-${m.label.toLowerCase()}`}>
                 <div className="text-2xl font-display">{m.value}</div>
-                <div className="text-[10px] text-stone-500 uppercase tracking-wide">{m.label}</div>
+                <div className="text-xs text-stone-500 uppercase tracking-wide">{m.label}</div>
               </div>
             ))}
           </div>

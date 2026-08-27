@@ -184,7 +184,7 @@ function SidebarUserMenu({ theme, setTheme, resolvedTheme, lang, setLanguage, la
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="w-56" data-testid="sidebar-user-menu-content">
-        <DropdownMenuLabel className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-stone-500">
+        <DropdownMenuLabel className="flex items-center gap-2 text-xs uppercase tracking-wider text-stone-500">
           <currentTheme.Icon size={12} aria-hidden="true" />
           {t("theme") || "Thème"} · <span className="normal-case tracking-normal text-stone-700 dark:text-stone-300">{currentTheme.l}</span>
         </DropdownMenuLabel>
@@ -199,7 +199,7 @@ function SidebarUserMenu({ theme, setTheme, resolvedTheme, lang, setLanguage, la
               <Icon size={14} className="mr-2 opacity-70" aria-hidden="true" />
               <span className="flex-1">{l}</span>
               {theme === "system" && v === "system" && (
-                <span className="text-[10px] text-stone-400 ml-2">{resolvedTheme}</span>
+                <span className="text-xs text-stone-400 ml-2">{resolvedTheme}</span>
               )}
             </DropdownMenuRadioItem>
           ))}
@@ -207,7 +207,7 @@ function SidebarUserMenu({ theme, setTheme, resolvedTheme, lang, setLanguage, la
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuLabel className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-stone-500">
+        <DropdownMenuLabel className="flex items-center gap-2 text-xs uppercase tracking-wider text-stone-500">
           <Languages size={12} aria-hidden="true" />
           {t("language") || "Langue"}
         </DropdownMenuLabel>
@@ -626,7 +626,7 @@ export default function Layout({ children }) {
         {!collapsed && locked && (
           <span
             data-testid={`nav-lock-${k}`}
-            className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 shrink-0"
+            className="text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 shrink-0"
             aria-label={`Verrouillé — forfait ${t(PLAN_LABEL_KEY[locked] || "plan_pro")}`}
           >
             {t(PLAN_LABEL_KEY[locked] || "plan_pro")}
@@ -635,7 +635,7 @@ export default function Layout({ children }) {
         {!collapsed && showCounter && (
           <span
             data-testid={`nav-counter-${k}`}
-            className={`text-[11px] tabular-nums px-1.5 py-0.5 rounded-full shrink-0 ${active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"}`}
+            className={`text-xs tabular-nums px-1.5 py-0.5 rounded-full shrink-0 ${active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"}`}
             aria-label={`${counterVal} ${t(COUNTER_ARIA[k])}`}
           >
             {counterVal > 99 ? "99+" : counterVal}
@@ -643,7 +643,7 @@ export default function Layout({ children }) {
         )}
         {!collapsed && badge != null && badge > 0 && (
           <span
-            className={`text-[11px] tabular-nums px-1.5 py-0.5 rounded-full shrink-0 ${active ? "bg-white/20 text-white" : "bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200"}`}
+            className={`text-xs tabular-nums px-1.5 py-0.5 rounded-full shrink-0 ${active ? "bg-white/20 text-white" : "bg-stone-200 text-stone-700 dark:bg-stone-700 dark:text-stone-200"}`}
             aria-label={`${badge} arrêts aujourd'hui`}
             data-testid={`nav-badge-${k}`}
           >
@@ -689,7 +689,7 @@ export default function Layout({ children }) {
               <Pin size={14} className="mr-2" />
               {t("pin_to_today")}
               {userPinCount >= 3 && !pinned && (
-                <span className="ml-auto text-[10px] text-stone-400">{t("max_pins_reached")}</span>
+                <span className="ml-auto text-xs text-stone-400">{t("max_pins_reached")}</span>
               )}
             </ContextMenuItem>
           )}
@@ -760,7 +760,7 @@ export default function Layout({ children }) {
             >
               <Search size={14} aria-hidden="true" />
               <span className="flex-1 text-left">{t("search_verb")}…</span>
-              <kbd className="text-[10px] px-1.5 py-0.5 border border-stone-300 dark:border-stone-600 rounded font-mono">⌘K</kbd>
+              <kbd className="text-xs px-1.5 py-0.5 border border-stone-300 dark:border-stone-600 rounded font-mono">⌘K</kbd>
             </button>
           ) : (
             <Tooltip>
@@ -791,11 +791,11 @@ export default function Layout({ children }) {
             {visiblePinned.length > 0 && (
               <div data-testid="nav-pinned" className="pb-2 mb-2 border-b border-stone-200/60 dark:border-stone-700/50">
                 {!collapsed && (
-                  <div className="flex items-center gap-1 px-2 py-1.5 text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400">
+                  <div className="flex items-center gap-1 px-2 py-1.5 text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400">
                     <Pin size={10} aria-hidden="true" />
                     <span>{t("section_today")}</span>
                     {userPinCount > 0 && (
-                      <span className="ml-auto tabular-nums normal-case text-[10px] text-stone-400">{userPinCount}/3</span>
+                      <span className="ml-auto tabular-nums normal-case text-xs text-stone-400">{userPinCount}/3</span>
                     )}
                   </div>
                 )}
@@ -827,7 +827,7 @@ export default function Layout({ children }) {
                     <button
                       type="button"
                       onClick={() => toggleSection(section.key)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] font-medium uppercase tracking-wider transition-colors ${
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-xs font-medium uppercase tracking-wider transition-colors ${
                         isOpen
                           ? "text-[#4A154B] dark:text-[#B076B4] bg-stone-100/70 dark:bg-stone-800/40"
                           : "text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800/30"
@@ -872,7 +872,7 @@ export default function Layout({ children }) {
             })}
 
             {!collapsed && userPinCount === 0 && Object.keys(prefs.section_order || {}).length === 0 && (
-              <div className="mt-3 px-2 text-[10px] text-stone-400 dark:text-stone-500 leading-snug" data-testid="nav-customize-hint">
+              <div className="mt-3 px-2 text-xs text-stone-400 dark:text-stone-500 leading-snug" data-testid="nav-customize-hint">
                 {t("customize_hint")}
               </div>
             )}
@@ -893,7 +893,7 @@ export default function Layout({ children }) {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-stone-800 dark:text-stone-100 truncate text-[13px] leading-tight">{user?.name || user?.email}</div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      {user?.org_name && <span className="text-[10px] text-stone-500 truncate">{user.org_name}</span>}
+                      {user?.org_name && <span className="text-xs text-stone-500 truncate">{user.org_name}</span>}
                       <PuceEtat etat="info" variante="douce" libelle={role} />
                     </div>
                   </div>
@@ -1010,7 +1010,7 @@ export default function Layout({ children }) {
                 className={`flex flex-col items-center gap-0.5 px-2 py-1 min-w-[48px] min-h-[48px] ${active ? "text-[#4A154B] dark:text-[#B076B4]" : "text-stone-500 dark:text-stone-400"}`}
               >
                 <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
-                <span className="text-[10px] font-medium">{label}</span>
+                <span className="text-xs font-medium">{label}</span>
               </button>
             );
           })}

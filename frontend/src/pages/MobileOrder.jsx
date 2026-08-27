@@ -219,10 +219,10 @@ export default function MobileOrder() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm truncate">{p.name}</p>
-                    <p className="text-xs text-stone-500">{p.sku || p.category} · {price.toFixed(2)} €{p.on_price_list && <span className="ml-1 text-[10px] text-emerald-700 bg-emerald-50 px-1 rounded">tarif client</span>}{p.volume_liters ? <span className="ml-1 text-[10px] text-stone-500">{p.volume_liters}L/u</span> : null}</p>
-                    {p.habitual_qty > 0 && <p className="text-[11px] text-stone-500 mt-1">Habitude : ~{p.habitual_qty} u.</p>}
+                    <p className="text-xs text-stone-500">{p.sku || p.category} · {price.toFixed(2)} €{p.on_price_list && <span className="ml-1 text-xs text-emerald-700 bg-emerald-50 px-1 rounded">tarif client</span>}{p.volume_liters ? <span className="ml-1 text-xs text-stone-500">{p.volume_liters}L/u</span> : null}</p>
+                    {p.habitual_qty > 0 && <p className="text-xs text-stone-500 mt-1">Habitude : ~{p.habitual_qty} u.</p>}
                     {(p.hecto_tiers || []).length > 0 && qty === 0 && (
-                      <p className="text-[10px] text-emerald-700 bg-emerald-50 inline-block px-1.5 py-0.5 rounded mt-1" data-testid={`hecto-badge-${p.id}`}>
+                      <p className="text-xs text-emerald-700 bg-emerald-50 inline-block px-1.5 py-0.5 rounded mt-1" data-testid={`hecto-badge-${p.id}`}>
                         Tarif hecto : {p.hecto_tiers.map(t => `${t.min_hl}hL → -${t.discount_pct}%`).join(" · ")}
                       </p>
                     )}

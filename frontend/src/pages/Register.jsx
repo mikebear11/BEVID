@@ -81,7 +81,7 @@ export default function Register() {
           <span className="overline text-white/80">BEVID · CRM</span>
         </div>
         <div className="relative z-10">
-          <h1 className="font-display text-5xl leading-tight mb-4">{t("login_hero_title_line1")}<br/>{t("login_hero_title_line2")}</h1>
+          <h2 className="font-display text-5xl leading-tight mb-4">{t("login_hero_title_line1")}<br/>{t("login_hero_title_line2")}</h2>
           <p className="text-white/80 max-w-md">{t("login_hero_subtitle")}</p>
         </div>
         <div className="relative z-10 overline text-white/50">© 2026 BEVID</div>
@@ -91,7 +91,7 @@ export default function Register() {
           <div className="flex items-start justify-between">
             <div>
               <p className="overline">{t("welcome")}</p>
-              <h2 className="font-display text-4xl mt-1">{t("register")}</h2>
+              <h1 className="font-display text-4xl mt-1">{t("register")}</h1>
             </div>
             <select
               id="reg-lang-top" name="language"
@@ -152,15 +152,15 @@ export default function Register() {
             {errors.password_confirm && <p id="err-password-confirm" className="text-xs mt-1" style={{ color: "var(--ds-state-danger-text)" }}>{errors.password_confirm}</p>}
           </div>
 
-          <label htmlFor="reg-terms" className="flex items-start gap-2 text-sm cursor-pointer">
+          <label htmlFor="reg-terms" className="flex items-start gap-3 text-sm cursor-pointer min-h-[44px] py-2">
             <input id="reg-terms" name="accept_terms" type="checkbox" checked={form.accept_terms}
               aria-invalid={!!errors.accept_terms} aria-describedby={errors.accept_terms ? "err-terms" : undefined}
               onChange={e => setForm({ ...form, accept_terms: e.target.checked })}
-              style={{ width: 18, height: 18, marginTop: 2, accentColor: "var(--ds-accent)" }}
+              style={{ width: 24, height: 24, minWidth: 24, marginTop: 2, accentColor: "var(--ds-accent)" }}
               data-testid="register-accept-terms" />
             <span style={{ color: "var(--ds-text-primary)" }}>
-              J'accepte les <Link to="/legal/cgu" className="underline" style={{ color: "var(--ds-accent)" }}>CGU</Link>, les <Link to="/legal/cgv" className="underline" style={{ color: "var(--ds-accent)" }}>CGV</Link> et la
-              {" "}<Link to="/legal/politique-confidentialite" className="underline" style={{ color: "var(--ds-accent)" }}>politique de confidentialité (RGPD)</Link>.
+              J'accepte les <Link to="/legal/cgu" className="underline inline-flex items-center min-h-[44px] px-3" style={{ color: "var(--ds-accent)" }}>CGU</Link>, les <Link to="/legal/cgv" className="underline inline-flex items-center min-h-[44px] px-3" style={{ color: "var(--ds-accent)" }}>CGV</Link> et la
+              {" "}<Link to="/legal/politique-confidentialite" className="underline inline-flex items-center min-h-[44px] px-1" style={{ color: "var(--ds-accent)" }}>politique de confidentialité (RGPD)</Link>.
             </span>
           </label>
           {errors.accept_terms && <p id="err-terms" className="text-xs" style={{ color: "var(--ds-state-danger-text)" }}>{errors.accept_terms}</p>}
@@ -169,7 +169,7 @@ export default function Register() {
             {loading ? "…" : t("register")}
           </button>
           <p className="text-sm text-stone-500 text-center">
-            <Link to="/login" className="text-[#4A154B] font-medium">{t("back_to_login")}</Link>
+            <Link to="/login" className="text-[#4A154B] font-medium inline-flex items-center min-h-[44px] px-2">{t("back_to_login")}</Link>
           </p>
         </form>
       </div>

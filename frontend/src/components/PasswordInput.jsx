@@ -28,7 +28,7 @@ export default function PasswordInput({
         aria-label={show ? "Masquer le mot de passe" : "Afficher le mot de passe"}
         aria-pressed={show}
         tabIndex={-1}
-        className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center text-stone-500 hover:text-stone-800"
+        className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-500 hover:text-stone-800"
         data-testid={toggleTid}
       >
         {show ? <EyeOff size={18} /> : <Eye size={18} />}

@@ -204,7 +204,7 @@ export default function ImportIntelligent() {
                           {Object.entries(FIELD_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                         </select>
                       </td>
-                      <td className="p-3"><span className={`badge text-[10px] px-2 py-0.5 rounded-full ${badge.cls}`}>{badge.label}{c.certainty > 0 && ` · ${Math.round(c.certainty * 100)}%`}</span></td>
+                      <td className="p-3"><span className={`badge text-xs px-2 py-0.5 rounded-full ${badge.cls}`}>{badge.label}{c.certainty > 0 && ` · ${Math.round(c.certainty * 100)}%`}</span></td>
                       <td className="p-3 text-xs text-stone-500">{(c.samples || []).slice(0, 3).map((s, ix) => <div key={ix} className="truncate max-w-[240px]">{s || "—"}</div>)}</td>
                     </tr>
                   );
@@ -271,7 +271,7 @@ export default function ImportIntelligent() {
                     <td className="p-3 font-mono text-xs">{r.cleaned.telephone || "—"}</td>
                     <td className="p-3 text-xs">{r.cleaned.email || "—"}</td>
                     <td className="p-3 text-xs">{r.cleaned.ville || "—"}{r.cleaned.code_postal ? ` (${r.cleaned.code_postal})` : ""}</td>
-                    <td className="p-3">{r.corrections.length > 0 && <span className="text-[10px] text-[#4A154B]" title={r.corrections.map(c => `${c.field}: ${c.original} → ${c.cleaned}`).join("\n")}>{r.corrections.length} corr.</span>}</td>
+                    <td className="p-3">{r.corrections.length > 0 && <span className="text-xs text-[#4A154B]" title={r.corrections.map(c => `${c.field}: ${c.original} → ${c.cleaned}`).join("\n")}>{r.corrections.length} corr.</span>}</td>
                   </tr>
                 ))}
               </tbody>

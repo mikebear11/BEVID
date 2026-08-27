@@ -1,5 +1,75 @@
 # BEVID — PRD
 
+### Phase A · Points 1 & 2 (livré 27 février 2026)
+
+**Point 1 — Correctif pushManager (iOS hors-ligne)**
+- Cause identifiée : `push.js` importé uniquement via `NotificationSettings` (Profile) et `/pwa-status`, tous deux en `React.lazy`. `pushManager` vivait dans un chunk, jamais dans `bundle.js`. Sur iOS Safari, sans permission notification accordée, `navigator.storage.persist()` renvoie `false` → base IndexedDB purgeable après quelques jours.
+- Fix : import statique de `push.js` depuis `pwa.js` (chargé eagerly par `AuthContext`) → `pushManager` désormais présent 5× dans `bundle.js` (contre 0 avant), `subscribePush` 8×. Vérification via `curl bundle.js | grep pushManager`.
+- Nouveau flux `enableFullOfflineMode()` dans `pwa.js` : enchaîne `Notification.requestPermission()` → `subscribePush()` → `storage.persist()` dans un seul geste utilisateur (impératif iOS).
+- Nouveau bandeau `OfflineReadyBanner.jsx` : proactif, une seule apparition, dismissible définitivement, monté globalement dans `App.js`. Ne s'affiche que si iOS Safari non-standalone + storage non-persistant.
+- `pwaDiagnostics()` étendu avec `offline_mode_ready` (booléen strict).
+
+**Point 2 — Porte de qualité automatique**
+- `/app/scripts/qa/run.py` — orchestrateur Playwright, 45 audits (15 routes × 3 viewports 375/768/1440 px).
+- `/app/scripts/qa/checks.js` — 10 checks in-page (overflow, tables, tactile, labels, alt, h1, sauts, titre, textes, taille).
+- `/app/scripts/qa/config.json` — routes + budgets.
+- `/app/scripts/qa/README.md` — règle des 3 critères d'exception + liste avec dates + stratégie de réessai plutôt que filtrage.
+- 12 métriques : 11 dures (budget 0 chacune) + 3 souples (`transient_load_failures` ≤ 3, `bundle_size_kb` ≤ 5000, `lcp_ms` p75 ≤ 3500).
+- **Login unique via `storage_state`** → évite les 429 sur re-login à chaque viewport.
+- **Sleep 0.8s entre pages** → évite les rate-limits que déclencherait la vitesse d'audit sur les APIs métier.
+- **Réessai automatique** sur échec de chargement transient (React non monté, MIME text/html sur bundle) — comptabilisé dans `transient_load_failures`, pas masqué. Un second échec = vrai défaut.
+- Archivage horodaté à chaque exécution, comparaison automatique avec le rapport précédent, régression = échec.
+- **Rapport de référence** — 27 février 2026, 08:49 UTC :
+  ```
+  overflow_horizontal              0 ✅   (budget 0)
+  tables_overflowing_container     0 ✅   (budget 0)
+  touch_targets_below_44px_mobile  0 ✅   (budget 0)
+  missing_labels                   0 ✅   (budget 0)
+  images_without_alt               0 ✅   (budget 0)
+  h1_count_not_one                 0 ✅   (budget 0)
+  heading_level_skips              0 ✅   (budget 0)
+  title_missing_or_generic         0 ✅   (budget 0)
+  text_below_12px                  0 ✅   (budget 0)
+  console_errors                   0 ✅   (budget 0)
+  csp_violations                   0 ✅   (budget 0)
+  transient_load_failures          0 ✅   (budget 3)
+  bundle_size_kb                3924 ✅   (budget 5000)
+  lcp_ms (p75)                   684 ✅   (budget 3500)
+  ```
+- **Comparaison avant/après (récap seulement, historique conservé dans `qa-reports/`)** :
+  - `touch_targets_below_44px_mobile` : baseline **61 sur publiques + 28 sur auth** → **0**
+  - `missing_labels` : baseline **78** → **0**
+  - `tables_overflowing_container` : baseline **10** → **0**
+  - `heading_level_skips` : baseline **27** → **0**
+  - `text_below_12px` : baseline **248** → **0**
+  - `h1_count_not_one` : baseline **3** → **0**
+  - `orientation: portrait` retiré du `manifest.json`
+
+**Point 3 — Cibles tactiles / textes / h1 / orientation (livré 27 février 2026)**
+- Consent banner : bouton close 28→44 px, Accepter/Refuser 40→44 px, Détails min 44×44.
+- LegalFooter : liens ≥ 44 px hauteur et largeur.
+- Login/Register : brand panel `h1` → `h2` (décoration), form `h2` → `h1` (vraie hiérarchie sémantique). Footer légal `min-h-[44px] min-w-[44px]`. Password toggle 36→44. Register checkbox 18→24 avec label 44 px de haut.
+- Pricing : header `Se connecter` et `Créer un compte` en 44 px, `h3` cartes → `h2`.
+- PublicDRMCalculator : header BEVID + « Voir les forfaits » en 44 px.
+- `.overline` class : 0.7rem → 0.75rem (11.2 → 12 px).
+- `.badge` class : 0.7rem → 0.75rem.
+- Bascule globale `text-[10px]` / `text-[11px]` / `text-[9px]` → `text-xs` (12 px) sur tout `frontend/src`.
+- Bascule `fontSize: 10|11` → `fontSize: 12` (charts, badges, tooltips).
+- Layout auth : `notif-bell` (34→44 + aria-label), `dismiss-checklist` (36→44 + aria-label), `xlsx-menu-btn` (42→44).
+- OnboardingTour : bouton fermer 36→44 + aria-label, titre modal `h3` → `h2` (fixe sauts h1 → h3 sur toutes les pages auth qui rendaient l'overlay dans le DOM).
+- Reports : `h3` « Performance des commerciaux », « Répartition CA » → `h2` ; boutons export en 44.
+- Paiements : `h1` « Payments » ordre correct + `h3` « Seuils/Alertes/DSO » → `h2` + labels `htmlFor` sur les inputs seuils.
+- Team : `h3` « Membres actifs », « Invitations en cours » → `h2`.
+- MorningChecklist : `h3` « Priorités du jour » → `h2`.
+- FollowUpsWidget : `h3` « À relancer » → `h2`.
+- Tournee : `<input aria-label>` sur la recherche.
+- DRM : `<select aria-label>` sur mois/année.
+- Dashboard : `add-goal-btn` 43×16 → 44 px avec padding.
+
+**À exécuter avant chaque livraison** : `python3 /app/scripts/qa/run.py` — la porte doit être verte, sinon la livraison ne part pas.
+
+**Points 4 & 5 (densité desktop, mode terrain) et Phases B→F du plan** : en attente, ordre validé le 27/02.
+
 ## Problème d'origine
 CRM mobile-first pour la distribution de boissons (bars, restaurants, cavistes, hôtels).
 Objectif : maximiser le temps terrain des commerciaux, réduire le DSO, éliminer la double saisie

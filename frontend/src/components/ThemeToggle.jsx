@@ -34,7 +34,7 @@ export default function ThemeToggle({ variant = "icon" }) {
           <Icon size={16} strokeWidth={1.75} />
           <span>Thème · {label}</span>
         </span>
-        <span className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500">{resolved}</span>
+        <span className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500">{resolved}</span>
       </button>
     );
   }

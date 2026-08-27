@@ -65,7 +65,7 @@ export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
           type="button"
           onClick={goToSource}
           data-testid={testId}
-          className="text-[10px] text-stone-400 dark:text-stone-500 ml-1 whitespace-nowrap hover:text-[#4A154B] dark:hover:text-[#B076B4] hover:underline cursor-pointer inline-flex items-center"
+          className="text-xs text-stone-400 dark:text-stone-500 ml-1 whitespace-nowrap hover:text-[#4A154B] dark:hover:text-[#B076B4] hover:underline cursor-pointer inline-flex items-center"
           aria-label={`Ouvrir source ${label}${date}`}
         >
           <ExternalLink size={9} className="mr-0.5" />
@@ -76,7 +76,7 @@ export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
     return (
       <span
         data-testid={testId}
-        className="text-[10px] text-stone-400 dark:text-stone-500 ml-1 whitespace-nowrap inline-flex items-center"
+        className="text-xs text-stone-400 dark:text-stone-500 ml-1 whitespace-nowrap inline-flex items-center"
         aria-label={`source ${label}${date}`}
       >
         <ExternalLink size={9} className="mr-0.5" />
@@ -96,7 +96,7 @@ export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
           type="button"
           onClick={recompute}
           disabled={recomputing}
-          className="text-[10px] text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 disabled:opacity-50"
+          className="text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 disabled:opacity-50"
           aria-label="Recalculer la mémoire"
           data-testid="memory-recompute"
         >
@@ -111,7 +111,7 @@ export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
         <div className="space-y-3">
           {sections.map(sec => (
             <div key={sec.key} data-testid={`memory-section-${sec.key}`}>
-              <p className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1">{sec.title}</p>
+              <p className="text-xs uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1">{sec.title}</p>
               <ul className="space-y-1">
                 {sec.items.map((it, i) => (
                   <li key={i} className="text-sm text-stone-700 dark:text-stone-200 flex flex-wrap items-baseline gap-x-1">
@@ -125,7 +125,7 @@ export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
         </div>
       )}
       {computedAt && (
-        <p className="text-[10px] text-stone-400 mt-3" data-testid="memory-computed-at">
+        <p className="text-xs text-stone-400 mt-3" data-testid="memory-computed-at">
           Mis à jour {computedAt}
         </p>
       )}

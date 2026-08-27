@@ -92,7 +92,7 @@ export default function Team() {
       </div>
 
       <section className="card-crm p-4" data-testid="members-list">
-        <h3 className="font-display text-xl mb-3">Membres actifs ({data.members.length})</h3>
+        <h2 className="font-display text-xl mb-3">Membres actifs ({data.members.length})</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {data.members.map(m => (
             <div key={m.id} className="border rounded-lg p-3 flex items-center gap-3" data-testid={`member-${m.id}`}>
@@ -119,7 +119,7 @@ export default function Team() {
 
       {data.invitations.length > 0 && (
         <section className="card-crm p-4" data-testid="pending-invitations">
-          <h3 className="font-display text-xl mb-3">Invitations en cours ({data.invitations.length})</h3>
+          <h2 className="font-display text-xl mb-3">Invitations en cours ({data.invitations.length})</h2>
           <div className="space-y-2">
             {data.invitations.map(inv => (
               <div key={inv.id} className="border rounded-lg p-3 flex items-center gap-3 text-sm" data-testid={`inv-${inv.id}`}>

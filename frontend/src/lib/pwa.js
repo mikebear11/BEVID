@@ -4,9 +4,15 @@
  * la file d'envoi (sync_queue + message_outbox) pour faire de la place.
  */
 import { db } from "./db";
+// Import statique de push.js — force la présence de pushManager dans le main bundle,
+// pas dans un chunk lazy. Sur iOS, la chaîne notif → push → persist doit être atomique
+// à l'intérieur du même geste utilisateur pour que le storage devienne persistant.
+import { subscribePush, pushSupported } from "./push";
 
 const INSTALL_DISMISSED_KEY = "bevid_install_dismissed";
 const PERSIST_ASKED_KEY = "bevid_persist_asked";
+const OFFLINE_READY_DISMISSED_KEY = "bevid_offline_ready_dismissed";
+const OFFLINE_READY_ASKED_KEY = "bevid_offline_ready_asked";
 const PWA_LAST_CHECK = "bevid_pwa_last_check";
 
 let _deferredInstall = null;
@@ -120,6 +126,92 @@ export async function purgeIfQuotaHigh() {
   return { purged, est };
 }
 
+/**
+ * Enchaîne — dans un même geste utilisateur — les 3 étapes nécessaires pour que
+ * le mode hors-ligne soit robuste sur iOS Safari :
+ *   1. Notification.requestPermission()
+ *   2. pushManager.subscribe() (via subscribePush)
+ *   3. navigator.storage.persist()
+ *
+ * Sur iOS, storage.persist() ne renvoie true que si l'app est installée en
+ * standalone OU si les notifications sont accordées. Cette fonction doit être
+ * appelée depuis un handler onClick, jamais silencieusement au boot.
+ *
+ * Idempotent : rejeu OK, ne redemande rien si déjà accordé.
+ * Retour : { notification, push, persist, ready } — chaque champ un booléen.
+ */
+export async function enableFullOfflineMode() {
+  const result = { notification: false, push: false, persist: false, ready: false, reasons: {} };
+  // 1. Notification
+  if (typeof Notification === "undefined") {
+    result.reasons.notification = "unsupported";
+  } else if (Notification.permission === "granted") {
+    result.notification = true;
+  } else if (Notification.permission === "denied") {
+    result.reasons.notification = "denied";
+  } else {
+    try {
+      const perm = await Notification.requestPermission();
+      result.notification = perm === "granted";
+      if (!result.notification) result.reasons.notification = perm;
+    } catch (e) {
+      result.reasons.notification = e?.message || "error";
+    }
+  }
+  // 2. Push subscription (best-effort, dépend de notif)
+  if (result.notification && pushSupported()) {
+    try {
+      const r = await subscribePush();
+      result.push = !!(r && r.ok);
+      if (!result.push) result.reasons.push = r?.reason || "error";
+    } catch (e) {
+      result.reasons.push = e?.message || "error";
+    }
+  } else if (!pushSupported()) {
+    result.reasons.push = "unsupported";
+  }
+  // 3. Storage persist — après notif (chaîne iOS obligatoire)
+  try {
+    const p = await requestPersistentStorage();
+    result.persist = !!p.ok;
+    if (!p.ok) result.reasons.persist = p.reason || "denied";
+  } catch (e) {
+    result.reasons.persist = e?.message || "error";
+  }
+  result.ready = result.persist; // Le vrai critère de succès = base non purgeable
+  try { localStorage.setItem(OFFLINE_READY_ASKED_KEY, new Date().toISOString()); } catch {}
+  return result;
+}
+
+/** L'utilisateur a-t-il déjà refusé le bandeau ? */
+export function offlineReadyDismissed() {
+  try { return localStorage.getItem(OFFLINE_READY_DISMISSED_KEY) === "1"; } catch { return false; }
+}
+export function dismissOfflineReady() {
+  try { localStorage.setItem(OFFLINE_READY_DISMISSED_KEY, "1"); } catch {}
+}
+
+/**
+ * Faut-il proposer le bandeau « Activer le mode hors-ligne » ?
+ * Règle : iOS Safari non-standalone, storage non persistant, non-dismissé.
+ * Sur les autres navigateurs, `storage.persist()` fonctionne sans notif,
+ * donc pas besoin de bandeau proactif.
+ */
+export async function shouldPromptOfflineReady() {
+  if (offlineReadyDismissed()) return false;
+  if (!isIOS()) return false;
+  if (isStandalone()) {
+    // Déjà installé : persist devrait fonctionner. Vérifions.
+    return !(await isPersistentStorage());
+  }
+  // iOS Safari non-standalone : persist n'aboutit que si notif accordée.
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission === "granted") {
+    return !(await isPersistentStorage());
+  }
+  return Notification.permission === "default";
+}
+
 export async function pwaDiagnostics() {
   const [persisted, quotaEst] = await Promise.all([isPersistentStorage(), estimateQuota()]);
   let notifPerm = "default";
@@ -139,6 +231,7 @@ export async function pwaDiagnostics() {
     snapshotAt = snap?.value || null;
   } catch { /* noop */ }
   try { localStorage.setItem(PWA_LAST_CHECK, new Date().toISOString()); } catch {}
+  const pushSup = typeof window !== "undefined" && "PushManager" in window && "serviceWorker" in navigator;
   return {
     installed: isStandalone(),
     persistent_storage: persisted,
@@ -149,6 +242,9 @@ export async function pwaDiagnostics() {
     message_outbox_count: messageOutboxCount,
     is_ios: isIOS(),
     install_available: installAvailable(),
-    push_supported: typeof window !== "undefined" && "PushManager" in window && "serviceWorker" in navigator,
+    push_supported: pushSup,
+    // Vraie condition « offline-ready » : storage persistant + push abonné (si supporté).
+    // Sur iOS, sans notif accordée, persistent_storage=false → offline_mode_ready=false.
+    offline_mode_ready: !!persisted && (!pushSup || notifPerm === "granted"),
   };
 }

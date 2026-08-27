@@ -56,10 +56,10 @@ export default function DRM() {
 
       <div className="bg-white rounded-2xl border border-stone-200 p-4 flex items-center gap-3 flex-wrap" data-testid="period-selector">
         <Calendar size={16} className="text-stone-500" />
-        <select value={month} onChange={e => setMonth(parseInt(e.target.value))} className="input-crm max-w-[140px] min-h-[44px]" data-testid="drm-month">
+        <select value={month} onChange={e => setMonth(parseInt(e.target.value))} className="input-crm max-w-[140px] min-h-[44px]" data-testid="drm-month" aria-label="Mois de la période DRM">
           {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{new Date(2020, m-1).toLocaleString("fr-FR", { month: "long" })}</option>)}
         </select>
-        <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="input-crm max-w-[100px] min-h-[44px]" data-testid="drm-year">
+        <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="input-crm max-w-[100px] min-h-[44px]" data-testid="drm-year" aria-label="Année de la période DRM">
           {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => <option key={y}>{y}</option>)}
         </select>
         <button onClick={exportCSV} disabled={!data?.lines?.length} className="btn-ghost flex items-center gap-2 min-h-[44px] ml-auto" data-testid="drm-export-csv"><FileDown size={16} /> Export CSV</button>

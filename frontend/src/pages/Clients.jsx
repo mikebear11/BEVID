@@ -129,7 +129,7 @@ export default function Clients() {
                     {s ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color }} title={s.reasons.join(" · ")}>
                         <span className="font-display text-base">{s.score}</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: color + "20" }}>{s.grade}</span>
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: color + "20" }}>{s.grade}</span>
                       </span>
                     ) : <span className="text-stone-300 text-xs">—</span>}
                   </td>

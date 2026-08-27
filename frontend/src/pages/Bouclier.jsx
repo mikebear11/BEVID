@@ -60,7 +60,7 @@ export default function Bouclier() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <AlertOctagon size={16} className={sev.color} />
-                  <span className={`text-[10px] uppercase tracking-widest font-medium ${sev.color}`}>{sev.label}</span>
+                  <span className={`text-xs uppercase tracking-widest font-medium ${sev.color}`}>{sev.label}</span>
                   <span className="text-xs text-stone-500">· {a.occurred_at}</span>
                 </div>
                 <h3 className="font-display text-lg mt-2">{a.action_label}</h3>

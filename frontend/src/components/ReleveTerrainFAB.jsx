@@ -101,7 +101,7 @@ export default function ReleveTerrainFAB({ clientId }) {
             {saving && <Loader2 size={14} className="animate-spin" />}
             Enregistrer le relevé
           </button>
-          <p className="text-[10px] text-stone-400 text-center">Anonymisé & agrégé pour l'observatoire · seuil min 5 relevés par zone</p>
+          <p className="text-xs text-stone-400 text-center">Anonymisé & agrégé pour l'observatoire · seuil min 5 relevés par zone</p>
         </div>
       </div>
     </div>

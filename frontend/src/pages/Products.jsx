@@ -146,7 +146,7 @@ function HectoTiersModal({ product, onClose }) {
         <div>
           <label className="text-xs">Volume par unité (L)</label>
           <input type="number" step="0.01" value={volume} onChange={e => setVolume(e.target.value)} className="input-crm mt-1 min-h-[48px]" data-testid="hecto-volume" />
-          <p className="text-[11px] text-stone-500 mt-1">Ex : 30 (fût 30L), 0.33 (33cl bouteille), 20 (fût 20L).</p>
+          <p className="text-xs text-stone-500 mt-1">Ex : 30 (fût 30L), 0.33 (33cl bouteille), 20 (fût 20L).</p>
         </div>
         <div className="space-y-2 max-h-64 overflow-y-auto">
           <p className="text-xs font-medium text-stone-700">Paliers</p>

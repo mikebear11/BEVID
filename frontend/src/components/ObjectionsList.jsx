@@ -91,12 +91,12 @@ export default function ObjectionsList({ establishmentId }) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${badge.cls}`}>
+              <span className={`text-xs uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${badge.cls}`}>
                 {badge.label}
               </span>
-              <span className="text-[10px] text-stone-500 uppercase tracking-wider">{catLabel(o.category)}</span>
+              <span className="text-xs text-stone-500 uppercase tracking-wider">{catLabel(o.category)}</span>
               {o.occurrences > 1 && (
-                <span className="text-[10px] tabular-nums text-stone-400" aria-label={`${o.occurrences} occurrences`}>
+                <span className="text-xs tabular-nums text-stone-400" aria-label={`${o.occurrences} occurrences`}>
                   ×{o.occurrences}
                 </span>
               )}
@@ -105,7 +105,7 @@ export default function ObjectionsList({ establishmentId }) {
             {o.response_used && (
               <p className="text-xs text-stone-500 mt-1 italic">Réponse : « {o.response_used} »</p>
             )}
-            <p className="text-[10px] text-stone-400 mt-1">
+            <p className="text-xs text-stone-400 mt-1">
               vue le {(o.last_seen_at || o.first_seen_at || "").slice(0, 10)}
               {o.source_visit_id && " · visite"}
             </p>
@@ -125,7 +125,7 @@ export default function ObjectionsList({ establishmentId }) {
           <div className="mt-2 space-y-2 pt-2 border-t border-stone-200 dark:border-stone-700">
             {effective && effective.length > 0 && (
               <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded p-2 space-y-1" data-testid={`objection-effective-${o.id}`}>
-                <p className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                <p className="text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                   Ce qui a déjà fonctionné dans l'entreprise
                 </p>
                 {effective.slice(0, 3).map((r, i) => (
@@ -137,7 +137,7 @@ export default function ObjectionsList({ establishmentId }) {
                       data-testid={`objection-effective-pick-${o.id}-${i}`}
                       title="Cliquer pour réutiliser cette réponse"
                     >
-                      « {r.response} » <span className="text-[10px] text-emerald-700 dark:text-emerald-300 tabular-nums">levée {r.successes}/{r.uses} · {Math.round(r.rate * 100)}%</span>
+                      « {r.response} » <span className="text-xs text-emerald-700 dark:text-emerald-300 tabular-nums">levée {r.successes}/{r.uses} · {Math.round(r.rate * 100)}%</span>
                     </button>
                     <FeedbackThumbs kind="response_suggestion" targetId={r.response} context={o.category} testIdPrefix={`resp-fb-${o.id}-${i}`} />
                   </div>
@@ -184,7 +184,7 @@ export default function ObjectionsList({ establishmentId }) {
   return (
     <div className="space-y-2" data-testid="objections-list">
       <div className="flex items-center justify-between">
-        <p className="overline flex items-center gap-1"><AlertOctagon size={11} /> Objections {open.length > 0 && <span className="text-[10px] tabular-nums text-stone-400 ml-1">{open.length} ouverte{open.length > 1 ? "s" : ""}</span>}</p>
+        <p className="overline flex items-center gap-1"><AlertOctagon size={11} /> Objections {open.length > 0 && <span className="text-xs tabular-nums text-stone-400 ml-1">{open.length} ouverte{open.length > 1 ? "s" : ""}</span>}</p>
         <button type="button" onClick={load} className="text-xs text-stone-400 hover:text-stone-600" aria-label="Rafraîchir" data-testid="objections-refresh">
           <RefreshCw size={11} />
         </button>
@@ -194,7 +194,7 @@ export default function ObjectionsList({ establishmentId }) {
       </div>
       {treated.length > 0 && (
         <details className="mt-2">
-          <summary className="text-[10px] uppercase tracking-wider text-stone-400 cursor-pointer">
+          <summary className="text-xs uppercase tracking-wider text-stone-400 cursor-pointer">
             {treated.length} traitée{treated.length > 1 ? "s" : ""}
           </summary>
           <div className="space-y-1.5 mt-2">

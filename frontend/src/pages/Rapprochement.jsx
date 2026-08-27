@@ -153,9 +153,9 @@ export default function Rapprochement() {
                   {tx.amount >= 0 ? "+" : ""}{Number(tx.amount).toFixed(2)} €
                 </td>
                 <td className="p-3">
-                  {tx.status === "matched" && <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px]">{t("filter.matched")}</span>}
-                  {tx.status === "open" && <span className="badge bg-red-100 text-red-800 border border-red-300 text-[10px]">{t("filter.open")}</span>}
-                  {tx.status === "partial" && <span className="badge bg-amber-100 text-amber-800 border border-amber-300 text-[10px]">{t("filter.partial")}</span>}
+                  {tx.status === "matched" && <span className="badge bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs">{t("filter.matched")}</span>}
+                  {tx.status === "open" && <span className="badge bg-red-100 text-red-800 border border-red-300 text-xs">{t("filter.open")}</span>}
+                  {tx.status === "partial" && <span className="badge bg-amber-100 text-amber-800 border border-amber-300 text-xs">{t("filter.partial")}</span>}
                 </td>
                 <td className="p-3 text-right">
                   {tx.status !== "matched" && tx.amount > 0 && (
@@ -228,7 +228,7 @@ function ProposalsModal({ tid, data, onClose, onApply }) {
               <div key={i} className={`border rounded-xl p-4 ${p.confidence >= 85 ? "bg-emerald-50/40" : "bg-white"}`} data-testid={`proposal-${i}`}>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] uppercase tracking-widest border rounded-full px-2 py-0.5 ${conf.cls}`}>{conf.label}</span>
+                    <span className={`text-xs uppercase tracking-widest border rounded-full px-2 py-0.5 ${conf.cls}`}>{conf.label}</span>
                     <span className="text-xs text-stone-500">Score {p.confidence}</span>
                   </div>
                   <span className="font-mono font-medium text-stone-800">{Number(p.amount_applied).toFixed(2)} €</span>

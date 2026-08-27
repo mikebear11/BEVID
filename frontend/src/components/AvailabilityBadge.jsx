@@ -22,8 +22,8 @@ export default function AvailabilityBadge({ contact, establishment, size = "sm" 
   );
   const style = AVAILABILITY_STYLES[av.level] || AVAILABILITY_STYLES.neutral;
   const dim = size === "xs"
-    ? { padding: "1px 5px", fontSize: 9 }
-    : { padding: "2px 7px", fontSize: 10 };
+    ? { padding: "1px 5px", fontSize: 12 }
+    : { padding: "2px 7px", fontSize: 12 };
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full font-medium tracking-wide"

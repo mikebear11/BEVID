@@ -25,7 +25,7 @@ export default function SalesWeather() {
             <div className="flex-1 h-12">
               <ResponsiveContainer>
                 <LineChart data={a.chart}>
-                  <Tooltip contentStyle={{ fontSize: 11, border: '1px solid #E7E4DF', borderRadius: 6, padding: '4px 8px' }} formatter={(v) => `${v}€`} labelStyle={{fontSize: 10}} />
+                  <Tooltip contentStyle={{ fontSize: 12, border: '1px solid #E7E4DF', borderRadius: 6, padding: '4px 8px' }} formatter={(v) => `${v}€`} labelStyle={{fontSize: 12}} />
                   <Line type="monotone" dataKey="value" stroke="#4A154B" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>

@@ -81,9 +81,16 @@ export default function OnboardingTour() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="overline text-[#4A154B]">Étape {step + 1} / {STEPS.length}</p>
-            <h3 className="font-display text-2xl mt-1">{s.title}</h3>
+            <h2 className="font-display text-2xl mt-1">{s.title}</h2>
           </div>
-          <button onClick={finish} className="text-stone-400 hover:text-stone-900 min-w-[36px] min-h-[36px] flex items-center justify-center" data-testid="onboarding-skip"><X size={16} /></button>
+          <button
+            onClick={finish}
+            aria-label="Fermer le guide de bienvenue"
+            className="text-stone-400 hover:text-stone-900 min-w-[44px] min-h-[44px] flex items-center justify-center"
+            data-testid="onboarding-skip"
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
         </div>
         <p className="text-sm text-stone-700 mt-3 leading-relaxed">{s.body}</p>
         <div className="flex items-center justify-between mt-4">

@@ -110,17 +110,21 @@ export default function PostHogConsent() {
         data-testid="consent-close"
         aria-label="Fermer sans accepter"
         style={{
-          position: "absolute", top: 8, right: 8,
-          width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+          position: "absolute", top: 4, right: 4,
+          width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
           background: "transparent", border: "none", borderRadius: 6,
           color: "var(--ds-text-secondary, #56544d)", cursor: "pointer",
           fontSize: 18, lineHeight: 1,
         }}
       >×</button>
-      <p style={{ margin: 0, marginBottom: 6, fontWeight: 600, paddingRight: 24 }}>Statistiques anonymes ?</p>
+      <p style={{ margin: 0, marginBottom: 6, fontWeight: 600, paddingRight: 44 }}>Statistiques anonymes ?</p>
       <p style={{ margin: 0, marginBottom: 12, color: "var(--ds-text-secondary, #56544d)", fontSize: 12 }}>
         Aucune donnée client partagée, aucun enregistrement de session.{" "}
-        <a href="/legal/cookies" style={{ color: "var(--ds-accent, #4A154B)", textDecoration: "underline" }} data-testid="consent-cookie-policy-link">
+        <a
+          href="/legal/cookies"
+          style={{ color: "var(--ds-accent, #4A154B)", textDecoration: "underline", display: "inline-block", minHeight: 44, minWidth: 44, lineHeight: "44px", padding: "0 8px", textAlign: "center" }}
+          data-testid="consent-cookie-policy-link"
+        >
           Détails
         </a>.
       </p>
@@ -129,9 +133,9 @@ export default function PostHogConsent() {
           onClick={() => decide("granted")}
           data-testid="consent-accept"
           style={{
-            flex: 1, minHeight: 40, minWidth: 100,
+            flex: 1, minHeight: 44, minWidth: 100,
             background: "var(--ds-accent, #4A154B)", color: "#fff",
-            border: "none", borderRadius: 8, padding: "8px 12px",
+            border: "none", borderRadius: 8, padding: "10px 12px",
             fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}
         >Accepter</button>
@@ -139,9 +143,9 @@ export default function PostHogConsent() {
           onClick={() => decide("denied")}
           data-testid="consent-deny"
           style={{
-            flex: 1, minHeight: 40, minWidth: 100,
+            flex: 1, minHeight: 44, minWidth: 100,
             background: "var(--ds-bg-surface-alt, #f0eee8)", color: "var(--ds-text-primary, #121210)",
-            border: "1px solid var(--ds-border, #e3e1da)", borderRadius: 8, padding: "8px 12px",
+            border: "1px solid var(--ds-border, #e3e1da)", borderRadius: 8, padding: "10px 12px",
             fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}
         >Refuser</button>

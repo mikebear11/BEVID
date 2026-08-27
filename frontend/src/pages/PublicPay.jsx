@@ -101,10 +101,10 @@ export default function PublicPay() {
         </button>
       )}
 
-      <div className="mt-4 flex items-center justify-center gap-1 text-[11px] text-stone-500">
+      <div className="mt-4 flex items-center justify-center gap-1 text-xs text-stone-500">
         <Shield size={11} aria-hidden="true" /> Paiement sécurisé — Stripe · CB Mastercard Visa
       </div>
-      <p className="text-[10px] text-stone-400 text-center mt-2">
+      <p className="text-xs text-stone-400 text-center mt-2">
         Aucun compte à créer. Aucune donnée bancaire stockée par BEVID.
       </p>
     </div>

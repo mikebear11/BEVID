@@ -72,7 +72,7 @@ export default function Paiements() {
 
       {alerts.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4" data-testid="active-alerts-block">
-          <h3 className="font-medium text-red-900 flex items-center gap-2 mb-3"><Bell size={16} /> Alertes actives ({alerts.length})</h3>
+          <h2 className="font-medium text-red-900 flex items-center gap-2 mb-3"><Bell size={16} /> Alertes actives ({alerts.length})</h2>
           <div className="space-y-2">
             {alerts.map(a => (
               <div key={a.id} className="flex items-center justify-between bg-white rounded-lg p-3" data-testid={`bp-alert-${a.id}`}>
@@ -88,18 +88,18 @@ export default function Paiements() {
       )}
 
       <div className="bg-white rounded-2xl p-5 border border-stone-200" data-testid="thresholds-block">
-        <h3 className="font-medium mb-3">Seuils d'alerte mauvais payeurs</h3>
+        <h2 className="font-medium mb-3">Seuils d'alerte mauvais payeurs</h2>
         <p className="text-xs text-stone-500 mb-4">Un client déclenche une alerte dès qu'il dépasse l'un des seuils. Scan quotidien automatique via cron.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-stone-600">Score composite</label>
-            <input type="number" min={0} value={settings.bad_payer_alert_score_threshold} onChange={e => setSettings({ ...settings, bad_payer_alert_score_threshold: parseInt(e.target.value) || 0 })} className="input-crm mt-1 min-h-[48px]" data-testid="threshold-score" />
-            <p className="text-[11px] text-stone-500 mt-1">Retard moyen + ancienneté + montant/100 (max 50).</p>
+            <label htmlFor="threshold-score-input" className="text-xs text-stone-600">Score composite</label>
+            <input id="threshold-score-input" type="number" min={0} value={settings.bad_payer_alert_score_threshold} onChange={e => setSettings({ ...settings, bad_payer_alert_score_threshold: parseInt(e.target.value) || 0 })} className="input-crm mt-1 min-h-[48px]" data-testid="threshold-score" />
+            <p className="text-xs text-stone-500 mt-1">Retard moyen + ancienneté + montant/100 (max 50).</p>
           </div>
           <div>
-            <label className="text-xs text-stone-600">Montant en retard (€)</label>
-            <input type="number" min={0} value={settings.bad_payer_alert_overdue_amount} onChange={e => setSettings({ ...settings, bad_payer_alert_overdue_amount: parseFloat(e.target.value) || 0 })} className="input-crm mt-1 min-h-[48px]" data-testid="threshold-amount" />
-            <p className="text-[11px] text-stone-500 mt-1">Cumul en retard déclenchant l'alerte.</p>
+            <label htmlFor="threshold-amount-input" className="text-xs text-stone-600">Montant en retard (€)</label>
+            <input id="threshold-amount-input" type="number" min={0} value={settings.bad_payer_alert_overdue_amount} onChange={e => setSettings({ ...settings, bad_payer_alert_overdue_amount: parseFloat(e.target.value) || 0 })} className="input-crm mt-1 min-h-[48px]" data-testid="threshold-amount" />
+            <p className="text-xs text-stone-500 mt-1">Cumul en retard déclenchant l'alerte.</p>
           </div>
         </div>
         <div className="mt-3 flex justify-end"><button onClick={saveThresholds} className="btn-primary min-h-[44px]" data-testid="save-thresholds">Enregistrer</button></div>

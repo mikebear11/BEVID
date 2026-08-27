@@ -1,0 +1,2123 @@
+{
+  "generated_at": "2026-08-27T07:37:02.689569+00:00",
+  "base_url": "https://drink-sales-hub-8.preview.emergentagent.com",
+  "budgets": {
+    "overflow_horizontal": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "tables_overflowing_container": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "touch_targets_below_44px_mobile": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "missing_labels": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "images_without_alt": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "h1_count_not_one": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "heading_level_skips": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "title_missing_or_generic": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "text_below_12px": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "console_errors": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "csp_violations": {
+      "max": 0,
+      "unit": "count",
+      "severity": "hard"
+    },
+    "bundle_size_kb": {
+      "max": 5000,
+      "unit": "kb",
+      "severity": "soft"
+    },
+    "lcp_ms": {
+      "max": 3500,
+      "unit": "ms",
+      "severity": "soft"
+    }
+  },
+  "viewports": [
+    "mobile",
+    "tablet",
+    "desktop"
+  ],
+  "routes_count": 5,
+  "audits_count": 15,
+  "totals": {
+    "overflow_horizontal": 0,
+    "tables_overflowing_container": 0,
+    "touch_targets_below_44px_mobile": 61,
+    "missing_labels": 0,
+    "images_without_alt": 0,
+    "h1_count_not_one": 3,
+    "heading_level_skips": 3,
+    "title_missing_or_generic": 0,
+    "text_below_12px": 33,
+    "console_errors": 0,
+    "csp_violations": 0,
+    "bundle_size_kb": null,
+    "lcp_ms": 316
+  },
+  "audits": [
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 13,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 1,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 1,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 236
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "mobile",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 236,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a[data-testid=\"login-forgot-link\"]",
+            "text": "Forgot password?",
+            "width": 98,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"login-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Create account",
+            "width": 96,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-pricing-link\"]",
+            "text": "See pricing",
+            "width": 68,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-mentions\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-privacy\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 100,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 100,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [
+          {
+            "count": 0,
+            "texts": []
+          }
+        ],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 12,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 1,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 1,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 236
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "mobile",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 236,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a.flex.items-center",
+            "text": "BEVID",
+            "width": 108,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"pricing-login-link\"]",
+            "text": "Se connecter",
+            "width": 81,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_mentions-legales\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_politique-confidentialite\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_pricing\"]",
+            "text": "Tarifs",
+            "width": 31,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 100,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 100,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [
+          {
+            "from": 1,
+            "to": 3,
+            "text": "Terrain"
+          }
+        ],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "p.overline",
+            "text": "Tarifs",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 2868
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 13,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 1,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 1,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 220
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "mobile",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 220,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a[data-testid=\"login-forgot-link\"]",
+            "text": "Forgot password?",
+            "width": 98,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"login-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Create account",
+            "width": 96,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-pricing-link\"]",
+            "text": "See pricing",
+            "width": 68,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-mentions\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-privacy\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 100,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 100,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [
+          {
+            "count": 0,
+            "texts": []
+          }
+        ],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 11,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 1,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 1,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 224
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "mobile",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 224,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"register-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "button[data-testid=\"register-password-confirm-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "#reg-terms",
+            "text": "",
+            "width": 13,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "CGU",
+            "width": 31,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "CGV",
+            "width": 31,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "politique de confidentialité (RGPD)",
+            "width": 277,
+            "height": 38
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Back to sign in",
+            "width": 89,
+            "height": 18
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 100,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 100,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [
+          {
+            "count": 0,
+            "texts": []
+          }
+        ],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 812
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "mobile",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 12,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 224
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "mobile",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 224,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a.flex.items-center",
+            "text": "BEVID",
+            "width": 71,
+            "height": 22
+          },
+          {
+            "selector": "a.text-sm.text-[#4A154B]",
+            "text": "Voir les forfaits",
+            "width": 96,
+            "height": 20
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_mentions-legales\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_politique-confidentialite\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_pricing\"]",
+            "text": "Tarifs",
+            "width": 31,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 100,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 100,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline",
+            "text": "BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline.flex",
+            "text": "Outil gratuit",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline.text-white/70",
+            "text": "BEVID",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 375,
+          "innerWidth": 375,
+          "docHeight": 1360
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 312
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "tablet",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 312,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a[data-testid=\"login-forgot-link\"]",
+            "text": "Forgot password?",
+            "width": 98,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"login-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Create account",
+            "width": 96,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-pricing-link\"]",
+            "text": "See pricing",
+            "width": 68,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-mentions\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-privacy\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline.text-white/80",
+            "text": "BEVID · CRM",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "div.relative.z-10",
+            "text": "© 2026 BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 1,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 1,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 236
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "tablet",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 236,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a.flex.items-center",
+            "text": "BEVID",
+            "width": 108,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"pricing-login-link\"]",
+            "text": "Se connecter",
+            "width": 84,
+            "height": 20
+          },
+          {
+            "selector": "a[data-testid=\"pricing-signup-link\"]",
+            "text": "Créer un compte",
+            "width": 142,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_mentions-legales\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_politique-confidentialite\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_pricing\"]",
+            "text": "Tarifs",
+            "width": 31,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [
+          {
+            "from": 1,
+            "to": 3,
+            "text": "Terrain"
+          }
+        ],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "p.overline",
+            "text": "Tarifs",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1605
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 232
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "tablet",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 232,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a[data-testid=\"login-forgot-link\"]",
+            "text": "Forgot password?",
+            "width": 98,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"login-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Create account",
+            "width": 96,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-pricing-link\"]",
+            "text": "See pricing",
+            "width": 68,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-mentions\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-privacy\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline.text-white/80",
+            "text": "BEVID · CRM",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "div.relative.z-10",
+            "text": "© 2026 BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 536
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "tablet",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 536,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"register-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "button[data-testid=\"register-password-confirm-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "#reg-terms",
+            "text": "",
+            "width": 13,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "CGU",
+            "width": 31,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "CGV",
+            "width": 31,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "politique de confidentialité (RGPD)",
+            "width": 277,
+            "height": 38
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Back to sign in",
+            "width": 89,
+            "height": 18
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline.text-white/80",
+            "text": "BEVID · CRM",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "div.relative.z-10",
+            "text": "© 2026 BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 240
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "tablet",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 240,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a.flex.items-center",
+            "text": "BEVID",
+            "width": 71,
+            "height": 22
+          },
+          {
+            "selector": "a.text-sm.text-[#4A154B]",
+            "text": "Voir les forfaits",
+            "width": 96,
+            "height": 20
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_mentions-legales\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_politique-confidentialite\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_pricing\"]",
+            "text": "Tarifs",
+            "width": 31,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline",
+            "text": "BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline.flex",
+            "text": "Outil gratuit",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline.text-white/70",
+            "text": "BEVID",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/",
+      "route_name": "landing",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 316
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
+        "viewport": "desktop",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 316,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a[data-testid=\"login-forgot-link\"]",
+            "text": "Forgot password?",
+            "width": 98,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"login-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Create account",
+            "width": 96,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-pricing-link\"]",
+            "text": "See pricing",
+            "width": 68,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-mentions\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-privacy\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline.text-white/80",
+            "text": "BEVID · CRM",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "div.relative.z-10",
+            "text": "© 2026 BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/pricing",
+      "route_name": "pricing",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 1,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 1,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 388
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
+        "viewport": "desktop",
+        "title": "Tarifs · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 388,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a.flex.items-center",
+            "text": "BEVID",
+            "width": 108,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"pricing-login-link\"]",
+            "text": "Se connecter",
+            "width": 84,
+            "height": 20
+          },
+          {
+            "selector": "a[data-testid=\"pricing-signup-link\"]",
+            "text": "Créer un compte",
+            "width": 142,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_mentions-legales\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_politique-confidentialite\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_pricing\"]",
+            "text": "Tarifs",
+            "width": 31,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [
+          {
+            "from": 1,
+            "to": 3,
+            "text": "Terrain"
+          }
+        ],
+        "title_meta": {
+          "title": "Tarifs · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "p.overline",
+            "text": "Tarifs",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 1521
+        }
+      }
+    },
+    {
+      "route": "/login",
+      "route_name": "login",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 256
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
+        "viewport": "desktop",
+        "title": "Connexion · BEVID — Le CRM des brasseurs",
+        "title_missing_or_generic": false,
+        "lcp_ms": 256,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a[data-testid=\"login-forgot-link\"]",
+            "text": "Forgot password?",
+            "width": 98,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"login-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Create account",
+            "width": 96,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-pricing-link\"]",
+            "text": "See pricing",
+            "width": 68,
+            "height": 18
+          },
+          {
+            "selector": "a[data-testid=\"login-mentions\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-privacy\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 16
+          },
+          {
+            "selector": "a[data-testid=\"login-cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 16
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Connexion · BEVID — Le CRM des brasseurs",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline.text-white/80",
+            "text": "BEVID · CRM",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "div.relative.z-10",
+            "text": "© 2026 BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/register",
+      "route_name": "register",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 532
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
+        "viewport": "desktop",
+        "title": "Créer un compte · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 532,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"register-password-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "button[data-testid=\"register-password-confirm-toggle\"]",
+            "text": "Afficher le mot de passe",
+            "width": 36,
+            "height": 36
+          },
+          {
+            "selector": "#reg-terms",
+            "text": "",
+            "width": 15,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "CGU",
+            "width": 31,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "CGV",
+            "width": 31,
+            "height": 18
+          },
+          {
+            "selector": "a.underline",
+            "text": "politique de confidentialité (RGPD)",
+            "width": 277,
+            "height": 38
+          },
+          {
+            "selector": "a.text-[#4A154B].font-medium",
+            "text": "Back to sign in",
+            "width": 89,
+            "height": 18
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Créer un compte · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline.text-white/80",
+            "text": "BEVID · CRM",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "div.relative.z-10",
+            "text": "© 2026 BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline",
+            "text": "Welcome",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/calculateur-drm",
+      "route_name": "drm-calculator",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 3,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "lcp_ms": 248
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
+        "viewport": "desktop",
+        "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 248,
+        "console_errors": [],
+        "csp_violations": [],
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "a.flex.items-center",
+            "text": "BEVID",
+            "width": 71,
+            "height": 22
+          },
+          {
+            "selector": "a.text-sm.text-[#4A154B]",
+            "text": "Voir les forfaits",
+            "width": 96,
+            "height": 20
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_mentions-legales\"]",
+            "text": "Mentions légales",
+            "width": 89,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgv\"]",
+            "text": "CGV",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cgu\"]",
+            "text": "CGU",
+            "width": 25,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_politique-confidentialite\"]",
+            "text": "Confidentialité",
+            "width": 79,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_legal_cookies\"]",
+            "text": "Cookies",
+            "width": 42,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"footer-link-_pricing\"]",
+            "text": "Tarifs",
+            "width": 31,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"consent-close\"]",
+            "text": "×",
+            "width": 28,
+            "height": 28
+          },
+          {
+            "selector": "a[data-testid=\"consent-cookie-policy-link\"]",
+            "text": "Détails",
+            "width": 37,
+            "height": 15
+          },
+          {
+            "selector": "button[data-testid=\"consent-accept\"]",
+            "text": "Accepter",
+            "width": 208,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"consent-deny\"]",
+            "text": "Refuser",
+            "width": 210,
+            "height": 40
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [
+          {
+            "selector": "span.overline",
+            "text": "BEVID",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline.flex",
+            "text": "Outil gratuit",
+            "font_size_px": 11.2
+          },
+          {
+            "selector": "p.overline.text-white/70",
+            "text": "BEVID",
+            "font_size_px": 11.2
+          }
+        ],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 974
+        }
+      }
+    }
+  ]
+}

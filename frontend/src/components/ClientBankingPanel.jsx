@@ -77,7 +77,7 @@ export default function ClientBankingPanel({ client, onUpdate }) {
             className="input-crm mt-1 font-mono"
             data-testid="client-iban"
           />
-          <p className="text-[10px] text-stone-400 mt-1">Validation clé mod-97 côté serveur</p>
+          <p className="text-xs text-stone-400 mt-1">Validation clé mod-97 côté serveur</p>
         </div>
         <div>
           <label className="text-xs text-stone-600">BIC / SWIFT</label>

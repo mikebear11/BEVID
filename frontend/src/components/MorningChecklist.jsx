@@ -25,12 +25,19 @@ export default function MorningChecklist() {
 
   return (
     <div className="card-crm p-6 border-l-4 border-l-[#C78B3A] relative" data-testid="morning-checklist">
-      <button onClick={dismiss} className="absolute top-3 right-3 text-stone-400 hover:text-stone-700" data-testid="dismiss-checklist"><X size={16} /></button>
+      <button
+        onClick={dismiss}
+        aria-label="Masquer la check-list du matin"
+        className="absolute top-2 right-2 text-stone-400 hover:text-stone-700 min-w-[44px] min-h-[44px] flex items-center justify-center"
+        data-testid="dismiss-checklist"
+      >
+        <X size={16} aria-hidden="true" />
+      </button>
       <div className="flex items-center gap-2 mb-3">
         <Sunrise size={20} className="text-[#C78B3A]" />
         <div>
           <p className="overline">Ta journée</p>
-          <h3 className="font-display text-xl">Priorités du jour</h3>
+          <h2 className="font-display text-xl">Priorités du jour</h2>
         </div>
       </div>
       <div className="space-y-2 mt-4">
@@ -39,7 +46,7 @@ export default function MorningChecklist() {
             <span className="text-2xl">{t.icon}</span>
             <div className="flex-1">
               <div className="text-sm font-medium">{t.title}</div>
-              <span className="text-[10px] uppercase tracking-widest font-medium" style={{ color: PRIO_COLOR[t.priority] }}>{t.priority}</span>
+              <span className="text-xs uppercase tracking-widest font-medium" style={{ color: PRIO_COLOR[t.priority] }}>{t.priority}</span>
             </div>
             <ChevronRight size={16} className="text-stone-400" />
           </Link>

@@ -77,7 +77,7 @@ export default function Connectors() {
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white mb-3" style={{ background: p.color }}><Plug size={18} strokeWidth={1.5} /></div>
               <div className="font-display text-lg">{p.name}</div>
               <div className="text-xs text-stone-500 mt-1">{p.desc}</div>
-              {p.oauth && <div className="text-[10px] text-[#4A154B] mt-2">OAuth 2.0</div>}
+              {p.oauth && <div className="text-xs text-[#4A154B] mt-2">OAuth 2.0</div>}
             </button>
           ))}
         </div>

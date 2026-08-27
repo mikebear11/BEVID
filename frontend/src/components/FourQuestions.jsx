@@ -88,7 +88,7 @@ function Line({ q, contact, onAssign, index = 0, establishment }) {
           <Icon size={14} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] uppercase tracking-wider text-stone-500">{q.label}</p>
+          <p className="text-xs uppercase tracking-wider text-stone-500">{q.label}</p>
           <p className="text-sm text-stone-400 italic">À renseigner · <span className="underline text-[#4A154B] dark:text-[#B076B4]">{q.hint}</span></p>
         </div>
         <Plus size={14} className="text-stone-400" />
@@ -103,17 +103,17 @@ function Line({ q, contact, onAssign, index = 0, establishment }) {
     >
       <Initials prenom={contact.prenom} nom={contact.nom} />
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] uppercase tracking-wider text-stone-500 flex items-center gap-1">
+        <p className="text-xs uppercase tracking-wider text-stone-500 flex items-center gap-1">
           <Icon size={11} /> {q.label}
         </p>
         <p className="text-sm text-stone-800 dark:text-stone-100 truncate">
           {[contact.prenom, contact.nom].filter(Boolean).join(" ")}
-          <span className="ml-1 text-[11px] text-stone-500">· {contact.role_label}</span>
+          <span className="ml-1 text-xs text-stone-500">· {contact.role_label}</span>
         </p>
         <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1 items-center">
           <AvailabilityBadge contact={contact} establishment={establishment} size="xs" />
         </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[11px]">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs">
           {contact.mobile_pro && (
             <a href={`tel:${contact.mobile_pro.replace(/\s/g,"")}`}
                className="text-stone-600 dark:text-stone-300 hover:text-[#4A154B] flex items-center gap-1"
@@ -137,7 +137,7 @@ function Line({ q, contact, onAssign, index = 0, establishment }) {
         </div>
       </div>
       {q.key === "qui_signe" && contact.peut_engager && (
-        <span className="text-[10px] font-medium text-[#2D5A4C] px-1.5 py-0.5 rounded bg-[#2D5A4C]/10 shrink-0"
+        <span className="text-xs font-medium text-[#2D5A4C] px-1.5 py-0.5 rounded bg-[#2D5A4C]/10 shrink-0"
               data-testid="fq-engager-badge">
           Peut engager
         </span>
