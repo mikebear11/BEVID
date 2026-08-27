@@ -9717,10 +9717,38 @@ async def drm_month(year: int, month: int, user=Depends(get_current_user)):
             "alcool_pur_l": round(alcool_pur_l, 3),
         })
     result.sort(key=lambda x: x["alcohol_type"] or "")
+    # M-1 : total alcool pur pour comparaison
+    if month == 1:
+        prev_year, prev_month = year - 1, 12
+    else:
+        prev_year, prev_month = year, month - 1
+    prev_prefix = f"{prev_year:04d}-{prev_month:02d}"
+    prev_start = f"{prev_prefix}-01"
+    prev_end = f"{year:04d}-{month:02d}-01"
+    prev_movs = await db.stock_movements.find({"at": {"$gte": prev_start, "$lt": prev_end}}, {"_id": 0}).to_list(50000)
+    prev_total = 0.0
+    for m in prev_movs:
+        p = products.get(m.get("product_id") or "", {})
+        if not p.get("abv_pct"): continue
+        if m.get("kind") in ("sortie", "casse", "degustation", "don"):
+            prev_total += abs((m.get("qty") or 0) * (p.get("volume_liters") or 0)) * (p["abv_pct"] / 100.0)
+    # Détection d'incohérences par produit : mouvement sans lot, sorties > entrées cumul
+    incoherences = []
+    for line in result:
+        pid = line["product_id"]
+        no_lot = await db.stock_movements.count_documents({"at": {"$gte": start, "$lt": end}, "product_id": pid, "batch_lot": {"$in": [None, ""]}})
+        if no_lot > 0:
+            incoherences.append({"product_id": pid, "product_name": line["product_name"], "type": "no_lot", "count": no_lot, "label": f"{no_lot} mouvement(s) sans lot"})
+        if line["net_l"] < 0:
+            incoherences.append({"product_id": pid, "product_name": line["product_name"], "type": "negative_stock", "count": 1, "label": f"Stock théorique négatif ({line['net_l']} L)"})
     return {
         "period": prefix,
+        "prev_period": prev_prefix,
         "lines": result,
         "total_alcool_pur_l": round(total_alcool_pur_l, 3),
+        "prev_total_alcool_pur_l": round(prev_total, 3),
+        "delta_alcool_pur_l": round(total_alcool_pur_l - prev_total, 3),
+        "incoherences": incoherences,
         "generated_at": now_iso(),
         "note": "Récapitulatif automatique — à valider et déclarer sur portailpro.douanes.gouv.fr. Ce logiciel n'est pas un télédéclarant agréé.",
     }
@@ -13536,5 +13564,108 @@ async def list_traces(client_id: Optional[str] = None, limit: int = 100,
     items = await db.automation_traces.find(q, {"_id": 0}).sort("at", -1).to_list(limit)
     return items
 
+
+
+
+@app.on_event("startup")
+async def _prune_dead_sidebar_prefs():
+    """Nettoie les épingles/ordres pointant vers les 7 pages supprimées du Lot 0."""
+    DEAD_KEYS = {"agents", "pipeline", "monthly", "smart", "radar", "veille", "sources", "planning", "bouclier"}
+    try:
+        n = 0
+        async for u in db_raw.users.find({"sidebar_prefs": {"$exists": True}}, {"_id": 0, "id": 1, "sidebar_prefs": 1}):
+            prefs = u.get("sidebar_prefs") or {}
+            pinned = [k for k in (prefs.get("pinned_user") or []) if k not in DEAD_KEYS]
+            visited = [k for k in (prefs.get("visited_features") or []) if k not in DEAD_KEYS]
+            sec = prefs.get("section_order") or {}
+            new_sec = {sk: [k for k in ks if k not in DEAD_KEYS] for sk, ks in sec.items()}
+            new_sec = {sk: ks for sk, ks in new_sec.items() if ks}
+            updates = {}
+            if pinned != (prefs.get("pinned_user") or []):
+                updates["sidebar_prefs.pinned_user"] = pinned
+            if visited != (prefs.get("visited_features") or []):
+                updates["sidebar_prefs.visited_features"] = visited
+            if new_sec != sec:
+                updates["sidebar_prefs.section_order"] = new_sec
+            if updates:
+                await db_raw.users.update_one({"id": u["id"]}, {"$set": updates})
+                n += 1
+        if n:
+            logger.info(f"[startup:prune_sidebar] cleaned {n} users of dead keys")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[startup:prune_sidebar] skipped: {e}")
+
+
+# Lot 0 §6 — cron d'évaluation automations avec garde-fous
+import hmac as _hmac
+FR_HOLIDAYS_2026 = {"2026-01-01","2026-04-06","2026-05-01","2026-05-08","2026-05-14","2026-05-25","2026-07-14","2026-08-15","2026-11-01","2026-11-11","2026-12-25"}
+
+
+def _is_business_time(dt: datetime) -> bool:
+    if dt.weekday() >= 5: return False
+    if dt.strftime("%Y-%m-%d") in FR_HOLIDAYS_2026: return False
+    if dt.hour < 8 or dt.hour >= 20: return False
+    return True
+
+
+@api_router.post("/cron/automations-tick")
+async def cron_automations_tick(request: Request):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    auth = request.headers.get("Authorization", "")
+    secret = os.environ.get("WEBHOOK_CRON_SECRET", "")
+    if not secret or not auth.startswith("Bearer ") or not _hmac.compare_digest(auth[7:], secret):
+        raise HTTPException(401, "unauthorized")
+    now = datetime.now(timezone.utc)
+    if not _is_business_time(now):
+        return {"ok": True, "skipped": "outside_hours"}
+    ks = await db_raw.org_settings.find_one({"id": "global"}, {"_id": 0}) or {}
+    if ks.get("automations_kill_switch"):
+        return {"ok": True, "skipped": "kill_switch"}
+    rules = await db_raw.automation_rules_v2.find({"enabled": True}, {"_id": 0}).to_list(50)
+    exclusions = set()
+    async for e in db_raw.automation_exclusions.find({}, {"_id": 0, "client_id": 1}):
+        exclusions.add(e["client_id"])
+    from automations_v2 import PRESETS
+    cap_ago = (now - timedelta(days=14)).isoformat()
+    contact_cutoff = (now - timedelta(hours=48)).isoformat()
+    scheduled = 0; skipped_cap = 0; skipped_contact = 0; skipped_excluded = 0
+    for r in rules:
+        pk = r.get("preset_key"); meta = PRESETS.get(pk)
+        if not meta: continue
+        is_payment = meta.get("domain") == "paiement"
+        cands: list[str] = []
+        try:
+            if pk == "client_decroche":
+                cutoff = (now - timedelta(days=30)).isoformat()
+                async for row in db_raw.orders.aggregate([
+                    {"$group": {"_id": "$client_id", "last": {"$max": "$created_at"}}},
+                    {"$match": {"last": {"$lt": cutoff}}},
+                ]): cands.append(row["_id"])
+            elif pk == "impaye_courtois":
+                cutoff = (now - timedelta(days=8)).isoformat()[:10]
+                async for d in db_raw.business_documents.find({"doc_type": "facture", "status": {"$ne": "paid"}, "due_date": {"$lt": cutoff}}, {"_id": 0, "client_id": 1}):
+                    if d.get("client_id"): cands.append(d["client_id"])
+            elif pk == "fut_a_recuperer":
+                cutoff = (now - timedelta(days=90)).isoformat()
+                async for c in db_raw.containers.find({"status": {"$in": ["chez_client", "sorti"]}, "deposit_amount": {"$gt": 0}, "last_moved_at": {"$lt": cutoff}}, {"_id": 0, "current_location": 1}):
+                    if c.get("current_location"): cands.append(c["current_location"])
+        except Exception as ex:  # noqa: BLE001
+            logger.warning(f"[cron/automations] {pk} candidates failed: {ex}"); continue
+        for cid in set(cands):
+            if cid in exclusions: skipped_excluded += 1; continue
+            last = await db_raw.automation_traces.find_one({"client_id": cid, "at": {"$gt": cap_ago}}, {"_id": 0}, sort=[("at", -1)])
+            if last and not is_payment: skipped_cap += 1; continue
+            if not is_payment:
+                ro = await db_raw.orders.find_one({"client_id": cid, "created_at": {"$gt": contact_cutoff}}, {"_id": 0})
+                if ro: skipped_contact += 1; continue
+            await db_raw.automation_traces.insert_one({
+                "id": str(uuid.uuid4()), "at": now_iso(),
+                "preset_key": pk, "client_id": cid,
+                "action": r.get("action_mode", meta.get("action_default", "task")),
+                "domain": meta.get("domain"), "status": "queued",
+            })
+            scheduled += 1
+    await db_raw.automation_rules_v2.update_many({"enabled": True}, {"$set": {"last_run_at": now_iso()}})
+    return {"ok": True, "scheduled": scheduled, "skipped": {"cap_14d": skipped_cap, "contact_48h": skipped_contact, "excluded": skipped_excluded}}
 
 app.include_router(api_router)

@@ -97,10 +97,11 @@ crons:
     endpoint: "{{BASE_URL}}/api/cron/approval-reminders"
     method: POST
     enabled: true
-  - name: weekly-review-monday
-    description: "Compose un brouillon de revue hebdo pour chaque commercial le lundi à 7h"
-    cron: "0 7 * * 1"
+  - name: automations-tick
+    description: "Lot 0 §6 — évalue les 8 règles activées et pose tâches/emails avec garde-fous (14j, contact 48h, exclusion, hors 8-20h, week-end, fériés FR)"
+    cron: "0 9,14 * * *"
     timezone: "Europe/Paris"
-    endpoint: "{{BASE_URL}}/api/cron/weekly-review-monday"
+    endpoint: "{{BASE_URL}}/api/cron/automations-tick"
     method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
     enabled: true
