@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { MessageSquare, Percent, Save, Bell, Palette, RotateCcw, Download } from "lucide-react";
+import AutomationsPanel from "@/components/AutomationsPanel";
 import { t } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
 import StorageQuotaBanner from "@/components/StorageQuotaBanner";
@@ -157,6 +158,8 @@ export default function SettingsPage() {
           {exporting ? "Préparation…" : "Télécharger l'archive JSON"}
         </button>
       </div>
+
+      <AutomationsPanel />
 
       <div className="card-crm p-6">
         <div className="flex items-center gap-2 mb-4"><Bell size={18} className="text-[#4A154B]" aria-hidden="true" /><h2 className="font-display text-xl">{t("auto_reminders")}</h2></div>

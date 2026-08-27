@@ -60,6 +60,9 @@ SCOPED_COLLECTIONS = {
     "contacts_v2",  # Lot 9 étape 1 — personnes physiques (déduplication cross-etab)
     "roles",  # Lot 9 étape 1 — liens datés contact ↔ établissement/société
     "legal_documents",  # Documents légaux entreprise (CGV, RIB, Logo, Kbis, Assurance…)
+    "automation_rules_v2",     # Lot recentrage §6 — règles activables (8 scénarios)
+    "automation_exclusions",   # Lot recentrage §6 — clients exclus définitifs
+    "automation_traces",       # Lot recentrage §6 — trace envois/tâches créées
 }
 
 

@@ -13225,7 +13225,9 @@ api_router.include_router(_build_telemetry_router(
     rate_limit_record=_rate_limit_record,
 ))
 
-app.include_router(api_router)
+# NB : `app.include_router(api_router)` déplacé en toute fin de fichier —
+# tous les endpoints suivants (contacts_v2 migration, automatisations §6) sont
+# déclarés APRÈS et doivent être agrégés au router AVANT que FastAPI le fige.
 
 
 @app.on_event("shutdown")
@@ -13341,3 +13343,198 @@ async def _internal_run_contacts_v2_migration(user=Depends(get_current_user)):
     if user["role"] != "manager":
         raise HTTPException(403, "Manager only")
     return await _migrate_contacts_v2_on_startup()
+
+
+# ==========================================================
+# Lot recentrage §6 — Automatisations (8 presets + garde-fous)
+# ==========================================================
+from automations_v2 import (  # noqa: E402
+    PRESETS, AutomationRuleUpdate, KillSwitchUpdate,
+)
+
+
+async def _get_kill_switch() -> bool:
+    """Interrupteur général — coupé = plus aucune règle ne s'exécute."""
+    s = await db.org_settings.find_one({"id": "global"}, {"_id": 0}) or {}
+    return bool(s.get("automations_kill_switch", False))
+
+
+@api_router.get("/automations/presets")
+async def list_automation_presets(user=Depends(get_current_user)):
+    """Liste les 8 scénarios prêts avec leur état actuel côté org."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    states = {r["preset_key"]: r async for r in db.automation_rules_v2.find({}, {"_id": 0})}
+    presets_out = []
+    for key, meta in PRESETS.items():
+        st = states.get(key, {})
+        presets_out.append({
+            "preset_key": key,
+            **meta,
+            "enabled": bool(st.get("enabled", False)),
+            "action_mode": st.get("action_mode", meta["action_default"]),
+            "stock_policy": st.get("stock_policy", "ignore"),
+            "throttle_daily": st.get("throttle_daily", 5),
+            "activated_at": st.get("activated_at"),
+            "last_run_at": st.get("last_run_at"),
+        })
+    return {
+        "presets": presets_out,
+        "kill_switch": await _get_kill_switch(),
+    }
+
+
+@api_router.get("/automations/preview/{preset_key}")
+async def preview_preset(preset_key: str, user=Depends(get_current_user)):
+    """Compte combien de clients matchent le déclencheur AUJOURD'HUI.
+
+    Évite le piège d'activation de masse : à l'écran on affiche « X clients
+    concernés, que fait-on du stock ? ».
+    Implémentation prudente : estimations basées sur les collections existantes,
+    pas de tir réel. Retourne 0 si le calcul n'est pas encore branché.
+    """
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    if preset_key not in PRESETS:
+        raise HTTPException(404, "Scénario inconnu")
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    matches = 0
+    try:
+        if preset_key == "client_decroche":
+            cutoff = (now - timedelta(days=30)).isoformat()
+            # Clients avec dernière commande < cutoff
+            pipeline = [
+                {"$group": {"_id": "$client_id", "last": {"$max": "$created_at"}}},
+                {"$match": {"last": {"$lt": cutoff}}},
+                {"$count": "n"},
+            ]
+            async for r in db.orders.aggregate(pipeline):
+                matches = r.get("n", 0)
+        elif preset_key == "impaye_courtois":
+            cutoff = (now - timedelta(days=8)).isoformat()
+            matches = await db.business_documents.count_documents({
+                "doc_type": "facture", "status": {"$ne": "paid"},
+                "due_date": {"$lt": cutoff[:10]},
+            })
+        elif preset_key == "fut_a_recuperer":
+            cutoff = (now - timedelta(days=90)).isoformat()
+            matches = await db.containers.count_documents({
+                "status": {"$in": ["chez_client", "sorti"]},
+                "deposit_amount": {"$gt": 0},
+                "last_moved_at": {"$lt": cutoff},
+            })
+        elif preset_key == "devis_sans_reponse":
+            cutoff = (now - timedelta(days=5)).isoformat()
+            matches = await db.business_documents.count_documents({
+                "doc_type": "devis", "status": "envoye",
+                "created_at": {"$lt": cutoff},
+            })
+        # Les autres presets nécessitent des données non toutes présentes en
+        # dev (visits.status, prévisions rupture…). On renvoie 0 en garde
+        # sécuritaire — l'écran indique « aucun client concerné aujourd'hui ».
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"[automations] preview {preset_key} failed: {e}")
+    return {"preset_key": preset_key, "matches_today": matches}
+
+
+@api_router.put("/automations/presets/{preset_key}")
+async def update_preset(preset_key: str, data: AutomationRuleUpdate,
+                        user=Depends(get_current_user)):
+    """Active/désactive un preset et fixe son mode d'action."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    if preset_key not in PRESETS:
+        raise HTTPException(404, "Scénario inconnu")
+    updates = {}
+    payload = data.model_dump(exclude_none=True)
+    for k in ("enabled", "action_mode", "stock_policy", "throttle_daily"):
+        if k in payload:
+            updates[k] = payload[k]
+    if updates.get("enabled") is True:
+        updates["activated_at"] = now_iso()
+        updates["activated_by"] = user["id"]
+    updates["updated_at"] = now_iso()
+    await db.automation_rules_v2.update_one(
+        {"preset_key": preset_key},
+        {"$set": {"preset_key": preset_key, **updates}},
+        upsert=True,
+    )
+    await audit_log(user["id"], "automation_toggle", {"preset": preset_key, **updates})
+    return {"ok": True, "preset_key": preset_key, **updates}
+
+
+@api_router.get("/automations/kill-switch")
+async def get_kill_switch(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    return {"enabled": await _get_kill_switch()}
+
+
+@api_router.put("/automations/kill-switch")
+async def set_kill_switch(data: KillSwitchUpdate, user=Depends(get_current_user)):
+    """Coupe/relance TOUTES les automatisations d'un coup."""
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    await db.org_settings.update_one(
+        {"id": "global"},
+        {"$set": {"automations_kill_switch": bool(data.enabled),
+                  "automations_kill_switch_at": now_iso(),
+                  "automations_kill_switch_by": user["id"]}},
+        upsert=True,
+    )
+    await audit_log(user["id"], "automation_kill_switch",
+                    {"enabled": bool(data.enabled)})
+    return {"enabled": bool(data.enabled)}
+
+
+@api_router.get("/automations/exclusions")
+async def list_exclusions(user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    items = await db.automation_exclusions.find({}, {"_id": 0}).sort("added_at", -1).to_list(1000)
+    return items
+
+
+@api_router.post("/automations/exclusions")
+async def add_exclusion(data: dict, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    client_id = (data or {}).get("client_id")
+    if not client_id:
+        raise HTTPException(422, "client_id requis")
+    doc = {
+        "client_id": client_id,
+        "reason": (data.get("reason") or "").strip()[:200],
+        "added_at": now_iso(),
+        "added_by": user["id"],
+    }
+    await db.automation_exclusions.update_one(
+        {"client_id": client_id}, {"$set": doc}, upsert=True,
+    )
+    await audit_log(user["id"], "automation_exclusion_add", {"client_id": client_id})
+    return doc
+
+
+@api_router.delete("/automations/exclusions/{client_id}")
+async def remove_exclusion(client_id: str, user=Depends(get_current_user)):
+    if user["role"] != "manager":
+        raise HTTPException(403, "Manager only")
+    await db.automation_exclusions.delete_one({"client_id": client_id})
+    await audit_log(user["id"], "automation_exclusion_remove", {"client_id": client_id})
+    return {"ok": True}
+
+
+@api_router.get("/automations/traces")
+async def list_traces(client_id: Optional[str] = None, limit: int = 100,
+                       user=Depends(get_current_user)):
+    """Trace visible dans la fiche client / le brief : ce que l'app a envoyé
+    au nom du commercial."""
+    q = {}
+    if client_id:
+        q["client_id"] = client_id
+    items = await db.automation_traces.find(q, {"_id": 0}).sort("at", -1).to_list(limit)
+    return items
+
+
+app.include_router(api_router)
