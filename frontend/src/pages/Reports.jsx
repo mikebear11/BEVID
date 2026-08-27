@@ -6,11 +6,26 @@ import { API } from "@/lib/api";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
+import Tabs from "@/components/Tabs";
+import MonthlyTab from "@/pages/tabs/MonthlyTab";
+import SmartGoalsTab from "@/pages/tabs/SmartGoalsTab";
+import MarcheTab from "@/pages/tabs/MarcheTab";
+import { useSearchParams } from "react-router-dom";
 
 const COLORS = ["#4A154B", "#2D5A4C", "#C78B3A", "#8C2A2A", "#6B2D5C", "#0F766E", "#7C3AED", "#B45309", "#78716C"];
 
+const REPORTS_TABS = [
+  { key: "perf",    label: "Performance" },
+  { key: "monthly", label: "Bilan mensuel" },
+  { key: "smart",   label: "Objectifs" },
+  { key: "marche",  label: "Marché" },
+];
+
 export default function Reports() {
   usePageMeta({ title: `${t("reports")} · BEVID` });
+  const [sp, setSp] = useSearchParams();
+  const active = REPORTS_TABS.some(x => x.key === sp.get("tab")) ? sp.get("tab") : "perf";
+  const setActive = (k) => setSp({ tab: k });
   const [perf, setPerf] = useState([]);
   const [kpis, setKpis] = useState(null);
   const [aiSummary, setAiSummary] = useState("");
