@@ -3707,7 +3707,10 @@ async def list_org_members(user=Depends(get_current_user)):
 
 @api_router.get("/auth/me")
 async def me(user=Depends(get_current_user)):
-    return user
+    # Enrichit avec super_admin_role (rôle produit) — filtré depuis DB, pas depuis
+    # le token JWT (qui ne le contient pas). Nul si le user n'est pas propriétaire produit.
+    is_owner = _is_product_owner(user.get("email") or "")
+    return {**user, "super_admin_role": is_owner}
 
 # ---------- CLIENTS (LEGACY — déprécié, à remplacer par /establishments) ----------
 # Header `X-BEVID-Deprecated` ajouté sur toutes les routes /clients pour signaler
@@ -13426,6 +13429,37 @@ async def admin_kpis(user=Depends(require_super_admin)):
     trial = await db_raw.organizations.count_documents({"status": "trial"})
     exempt = await db_raw.organizations.count_documents({"billing_exempt": True})
     return {"total_orgs": total, "active": active, "trial": trial, "exempt": exempt}
+
+
+class ExtendTrialPayload(BaseModel):
+    days: int
+
+
+@api_router.post("/admin/orgs/{org_id}/extend-trial")
+async def admin_extend_trial(org_id: str, data: ExtendTrialPayload, user=Depends(require_super_admin)):
+    """Prolonge l'essai d'une org de N jours (1-365). Journalisé."""
+    if data.days < 1 or data.days > 365:
+        raise HTTPException(422, "Prolongation entre 1 et 365 jours")
+    org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0, "trial_ends_at": 1, "name": 1})
+    if not org:
+        raise HTTPException(404, "Organisation introuvable")
+    # Base = trial_ends_at existant s'il est futur, sinon now
+    now = datetime.now(timezone.utc)
+    base = now
+    if org.get("trial_ends_at"):
+        try:
+            te = datetime.fromisoformat(org["trial_ends_at"].replace("Z", "+00:00"))
+            if te > now:
+                base = te
+        except Exception:
+            pass
+    new_end = (base + timedelta(days=data.days)).isoformat()
+    await db_raw.organizations.update_one(
+        {"id": org_id},
+        {"$set": {"trial_ends_at": new_end, "status": "trial"}},
+    )
+    logger.info(f"[admin] trial extended {org_id[:8]} +{data.days}d by {user.get('email')}")
+    return {"ok": True, "trial_ends_at": new_end}
 
 
 class SupportAccessGrant(BaseModel):

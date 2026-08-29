@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { UserPlus, Mail, Smartphone, QrCode, Trash2, Crown } from "lucide-react";
+import { UserPlus, Mail, Smartphone, QrCode, Trash2, Crown, Copy, Info } from "lucide-react";
 import { t as tt } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
 
@@ -15,7 +15,7 @@ export default function Team() {
   usePageMeta({ title: `${tt("team")} · BEVID` });
   const { user } = useAuth();
   const [data, setData] = useState(null);
-  const [features, setFeatures] = useState({ sms_configured: false });
+  const [features, setFeatures] = useState({ sms_configured: false, email_configured: false });
   const [showInvite, setShowInvite] = useState(false);
   const [channel, setChannel] = useState("email");
   const [form, setForm] = useState({ email: "", phone: "", name: "", role: "commercial" });
@@ -41,9 +41,21 @@ export default function Team() {
       if (channel === "email") payload.email = form.email;
       if (channel === "sms") payload.phone = form.phone;
       const { data: r } = await api.post("/org/invitations", payload);
+      const inv = r.invitation;
+      const simulated = inv.delivery_status === "simulated" || inv.delivery_status === "failed";
       if (channel === "qr") {
-        setQr(r.invitation);
+        setQr(inv);
         setShowInvite(false);
+      } else if (simulated) {
+        // Envoi impossible côté serveur → on ouvre la modale "copier le lien"
+        // pour que le manager transmette lui-même par WhatsApp/SMS/e-mail.
+        setQr(inv);
+        setShowInvite(false);
+        toast.warning(
+          channel === "email" && !features.email_configured
+            ? "Envoi e-mail non configuré — copiez le lien et transmettez-le manuellement."
+            : "Envoi automatique impossible — utilisez le lien affiché."
+        );
       } else {
         toast.success(tt("toast.invitation_sent"));
         setShowInvite(false); setForm({ email: "", phone: "", name: "", role: "commercial" });
@@ -51,6 +63,16 @@ export default function Team() {
       load();
     } catch (err) {
       toast.error(err.response?.data?.detail || err.response?.data?.errors?.email || tt("toast.error_generic"));
+    }
+  };
+
+  const copyLink = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Lien copié dans le presse-papier");
+    } catch {
+      // Fallback : sélectionner le texte pour copie manuelle
+      window.prompt("Copiez ce lien :", url);
     }
   };
 
@@ -76,6 +98,7 @@ export default function Team() {
   if (!data) return <div className="text-stone-500">{tt("loading_ellipsis")}</div>;
   const isManager = user?.role === "manager";
   const smsDisabled = !features.sms_configured;
+  const emailDisabled = !features.email_configured;
 
   return (
     <div className="space-y-6" data-testid="team-page">
@@ -121,27 +144,53 @@ export default function Team() {
         <section className="card-crm p-4" data-testid="pending-invitations">
           <h2 className="font-display text-xl mb-3">Invitations en cours ({data.invitations.length})</h2>
           <div className="space-y-2">
-            {data.invitations.map(inv => (
-              <div key={inv.id} className="border rounded-lg p-3 flex items-center gap-3 text-sm" data-testid={`inv-${inv.id}`}>
-                {inv.channel === "email" && <Mail size={16} />}
-                {inv.channel === "sms" && <Smartphone size={16} />}
-                {inv.channel === "qr" && <QrCode size={16} />}
-                <div className="flex-1">
-                  <p>{inv.email || inv.phone || "QR"} — {inv.role}</p>
-                  <p className="text-xs text-stone-500">
-                    Expire le {new Date(inv.expires_at).toLocaleDateString("fr-FR")}
-                  </p>
+            {data.invitations.map(inv => {
+              const simulated = inv.delivery_status === "simulated" || inv.delivery_status === "failed";
+              return (
+                <div key={inv.id} className="border rounded-lg p-3 text-sm" data-testid={`inv-${inv.id}`}>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {inv.channel === "email" && <Mail size={16} aria-hidden="true"/>}
+                    {inv.channel === "sms" && <Smartphone size={16} aria-hidden="true"/>}
+                    {inv.channel === "qr" && <QrCode size={16} aria-hidden="true"/>}
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">{inv.email || inv.phone || "QR"} — {inv.role}</p>
+                      <p className="text-xs text-stone-500">
+                        Expire le {new Date(inv.expires_at).toLocaleDateString("fr-FR")}
+                        {simulated && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-orange-700" data-testid={`sim-badge-${inv.id}`}>
+                            <Info size={12} aria-hidden="true"/> Envoi non effectué
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    {inv.activate_url && (
+                      <button
+                        onClick={() => copyLink(inv.activate_url)}
+                        className="btn-ghost text-xs min-h-[44px] px-3 inline-flex items-center gap-1"
+                        data-testid={`copy-link-${inv.id}`}
+                        title="Copier le lien d'activation"
+                      >
+                        <Copy size={14} aria-hidden="true"/> Copier
+                      </button>
+                    )}
+                    {inv.channel === "qr" && (
+                      <button onClick={() => setQr(inv)} className="btn-ghost text-xs min-h-[44px] px-3" data-testid={`show-qr-${inv.id}`}>
+                        Afficher QR
+                      </button>
+                    )}
+                    <button onClick={() => revoke(inv.id)} aria-label="Révoquer l'invitation"
+                      className="btn-ghost min-h-[44px] min-w-[44px] flex items-center justify-center" data-testid={`revoke-${inv.id}`}>
+                      <Trash2 size={14} aria-hidden="true"/>
+                    </button>
+                  </div>
+                  {inv.activate_url && (
+                    <p className="text-xs text-stone-500 mt-2 break-all font-mono bg-stone-50 dark:bg-stone-900 p-2 rounded" data-testid={`link-${inv.id}`}>
+                      {inv.activate_url}
+                    </p>
+                  )}
                 </div>
-                {inv.channel === "qr" && (
-                  <button onClick={() => setQr(inv)} className="btn-ghost text-xs" data-testid={`show-qr-${inv.id}`}>
-                    Afficher QR
-                  </button>
-                )}
-                <button onClick={() => revoke(inv.id)} className="btn-ghost text-xs" data-testid={`revoke-${inv.id}`}>
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -190,7 +239,9 @@ export default function Team() {
               <option value="manager">Manager</option>
             </select>
             <p className="text-xs text-stone-500" data-testid="channel-hint">
-              {channel === "email" && "Lien envoyé par e-mail, valable 7 jours."}
+              {channel === "email" && (emailDisabled
+                ? "Envoi e-mail non configuré — l'invitation sera créée avec un lien à copier et transmettre manuellement."
+                : "Lien envoyé par e-mail, valable 7 jours.")}
               {channel === "sms" && (smsDisabled
                 ? "Envoi SMS non configuré — utilisez le QR code ou l'e-mail."
                 : "SMS envoyé via Twilio, lien valable 24 h.")}
@@ -208,11 +259,26 @@ export default function Team() {
         <div role="dialog" aria-modal="true" onClick={() => setQr(null)}
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={e => e.stopPropagation()} className="card-crm p-6 w-full max-w-sm text-center" data-testid="qr-modal">
-            <h3 className="font-display text-2xl mb-2">Scanner le QR code</h3>
-            <p className="text-xs text-stone-500 mb-4">Nominatif · à usage unique · valable 24 h</p>
-            <img src={qrDataUrl(qr.activate_url)} alt="QR d'activation" width={280} height={280} className="mx-auto" data-testid="qr-image" />
-            <p className="text-xs text-stone-500 mt-3 break-all">{qr.activate_url}</p>
-            <button onClick={() => setQr(null)} className="btn-primary w-full mt-4 min-h-[44px]">Fermer</button>
+            <h2 className="font-display text-2xl mb-2">{qr.channel === "qr" ? "Scanner le QR code" : "Transmettre le lien"}</h2>
+            <p className="text-xs text-stone-500 mb-4">Nominatif · à usage unique · valable {qr.channel === "qr" ? "24 h" : "7 jours"}</p>
+            {qr.channel === "qr" && (
+              <img src={qrDataUrl(qr.activate_url)} alt="QR d'activation" width={280} height={280} className="mx-auto" data-testid="qr-image" />
+            )}
+            {qr.channel !== "qr" && (qr.delivery_status === "simulated" || qr.delivery_status === "failed") && (
+              <p className="text-xs bg-orange-50 text-orange-800 p-3 rounded mb-3 flex items-start gap-2 text-left">
+                <Info size={14} className="shrink-0 mt-0.5" aria-hidden="true"/>
+                <span>L'envoi automatique n'a pas fonctionné. Copiez le lien ci-dessous et transmettez-le par WhatsApp, SMS ou e-mail depuis votre propre téléphone.</span>
+              </p>
+            )}
+            <p className="text-xs text-stone-500 mt-3 break-all font-mono bg-stone-50 dark:bg-stone-900 p-2 rounded" data-testid="qr-url">{qr.activate_url}</p>
+            <button
+              onClick={() => copyLink(qr.activate_url)}
+              className="btn-primary w-full mt-3 min-h-[44px] inline-flex items-center justify-center gap-2"
+              data-testid="qr-copy-btn"
+            >
+              <Copy size={14} aria-hidden="true"/> Copier le lien
+            </button>
+            <button onClick={() => setQr(null)} className="btn-ghost w-full mt-2 min-h-[44px]">Fermer</button>
           </div>
         </div>
       )}

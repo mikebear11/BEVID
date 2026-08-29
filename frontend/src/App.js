@@ -55,6 +55,7 @@ const Tournee = lazy(() => import("@/pages/Tournee"));
 const Livreur = lazy(() => import("@/pages/Livreur"));
 const Etablissement360 = lazy(() => import("@/pages/Etablissement360"));
 const AdminUsers = lazy(() => import("@/pages/AdminUsers"));
+const AdminOrgs = lazy(() => import("@/pages/AdminOrgs"));
 const Paiements = lazy(() => import("@/pages/Paiements"));
 const Confidentialite = lazy(() => import("@/pages/Confidentialite"));
 const Couts = lazy(() => import("@/pages/Couts"));
@@ -132,6 +133,7 @@ function App() {
                         <Route path="/calculateur-drm" element={<PublicDRMCalculator />} />
                         <Route path="/change-password" element={<Protected><ChangePassword /></Protected>} />
                         <Route path="/admin/users" element={<Protected><AdminUsers /></Protected>} />
+                        <Route path="/admin/orgs" element={<Protected><AdminOrgs /></Protected>} />
                         <Route path="/admin/couts" element={<Protected><Couts /></Protected>} />
                         <Route path="/paiements" element={<Protected><Paiements /></Protected>} />
                         <Route path="/confidentialite" element={<Protected><Confidentialite /></Protected>} />
