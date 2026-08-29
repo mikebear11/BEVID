@@ -13360,11 +13360,26 @@ async def _seed_demo_users_on_startup():
 
 @app.on_event("startup")
 async def _startup_seed_demo():
+    """Amorçage démarrage : seed démo (dev/preview uniquement) + bootstrap owners (toujours).
+
+    Le seed démo est GARDÉ par BEVID_ENV. En production, il est SAUTÉ pour
+    ne jamais recréer les comptes/organisations de démonstration au boot.
+    Le bootstrap des owners (exemption + super_admin) reste actif partout —
+    c'est un pur `update_one` idempotent sans risque en prod.
+    """
+    env = (os.environ.get("BEVID_ENV") or "").strip().lower()
+    is_prod = env == "production"
+    logger.info(f"[startup] BEVID_ENV={env!r} is_prod={is_prod}")
     try:
-        await _seed_demo_users_on_startup()
+        if is_prod:
+            logger.warning("[seed] BEVID_ENV=production → seed démo SAUTÉ (comptes et organisation de démonstration NON créés).")
+        else:
+            logger.info("[seed] BEVID_ENV != production → seed démo exécuté.")
+            await _seed_demo_users_on_startup()
+        # Bootstrap owners : toujours actif, y compris en production.
         await _bootstrap_owner_exemptions()
     except Exception as e:
-        logger.warning(f"[seed] demo users skipped: {e}")
+        logger.warning(f"[seed] startup skipped: {e}")
 
 
 async def _bootstrap_owner_exemptions():

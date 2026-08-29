@@ -4,6 +4,19 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#4A154B" />
+        <!--
+          CSP en meta http-equiv — repli tant que les en-têtes HTTP ne sont pas
+          posés au niveau nginx du conteneur Emergent (couche non accessible
+          depuis ce dépôt). Attention : cette forme NE COUVRE PAS :
+            - frame-ancestors (ignoré en meta, requiert un header HTTP)
+            - X-Frame-Options DENY (HTTP-only)
+            - Permissions-Policy (HTTP-only)
+          Ces trois-là doivent être ajoutés au conteneur ou via support Emergent
+          pour couvrir le clickjacking. Cf /app/memory/security_headers.md.
+        -->
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://assets.emergent.sh https://ap.emergent.sh https://*.i.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://api.qrserver.com https://*.tile.openstreetmap.org; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://www.bevid-crm.com https://drink-sales-hub-8.preview.emergentagent.com https://*.i.posthog.com https://api.emergent.sh; worker-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests" />
+        <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="BEVID" />
