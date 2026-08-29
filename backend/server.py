@@ -2753,6 +2753,10 @@ def _compute_effective_status(org: dict) -> str:
     """Retourne le statut effectif : trial | active | past_due | read_only | suspended.
 
     Priorités (dans l'ordre) :
+    0. **`billing_exempt=True` → toujours `active`.** Une organisation exemptée
+       (fondateur, partenaire, compte de test interne) n'est jamais dégradée,
+       quelle que soit la date ou le statut Stripe. C'est le seul court-circuit.
+       Verrouillé par `/app/backend/tests/test_billing_exempt.py`.
     1. `billing_status_stripe=past_due` (webhook Stripe) → past_due
     2. `billing_status_stripe` ∈ {canceled, unpaid} → suspended
     3. `status=active` en base → active
@@ -2761,6 +2765,10 @@ def _compute_effective_status(org: dict) -> str:
        - après échéance depuis < READ_ONLY_DAYS_AFTER_TRIAL → read_only
        - au-delà → suspended
     """
+    # Court-circuit exemption — jamais de dégradation pour une org exemptée.
+    if org.get("billing_exempt") is True:
+        return "active"
+
     stripe_status = (org.get("billing_status_stripe") or "").lower()
     if stripe_status == "past_due":
         return "past_due"
@@ -3285,15 +3293,28 @@ async def get_checkout_lookup_keys():
 # --- Exemption fondateur : accès gratuit illimité pour les orgs marquées ---
 # Utile pour le créateur de BEVID qui utilise sa propre app avec ses commerciaux
 # sans facturation. Contrôle via `organizations.billing_exempt = True`.
+# Court-circuit exemption — jamais de dégradation pour une org exemptée.
+# Verrouillé par /app/backend/tests/test_billing_exempt.py.
 FOUNDER_EMAILS = {e.strip().lower() for e in os.environ.get("BEVID_FOUNDER_EMAILS", "").split(",") if e.strip()}
+OWNER_EMAILS = {e.strip().lower() for e in os.environ.get("OWNER_EMAILS", "").split(",") if e.strip()}
+# Union : les deux variables donnent le même privilège d'exemption + super_admin.
+# `OWNER_EMAILS` est la nouvelle variable canonique ; `BEVID_FOUNDER_EMAILS` reste
+# pour compatibilité rétrograde.
+PRODUCT_OWNER_EMAILS = FOUNDER_EMAILS | OWNER_EMAILS
+
+
+def _is_product_owner(email: str) -> bool:
+    """L'utilisateur a-t-il le rôle produit `super_admin` ?
+    Piloté par la config `OWNER_EMAILS` (survivre aux migrations)."""
+    return bool(email) and email.lower() in PRODUCT_OWNER_EMAILS
 
 
 async def _ensure_founder_exemption(user_email: str, org_id: str) -> bool:
-    """Applique l'exemption fondateur si l'email du user (owner d'une org) est
-    listé dans BEVID_FOUNDER_EMAILS. Retourne True si l'exemption a été activée."""
+    """Applique l'exemption si l'email du user (owner d'une org) est
+    listé dans OWNER_EMAILS ou BEVID_FOUNDER_EMAILS. Retourne True si accordée."""
     if not user_email or not org_id:
         return False
-    if user_email.lower() not in FOUNDER_EMAILS:
+    if user_email.lower() not in PRODUCT_OWNER_EMAILS:
         return False
     await db_raw.organizations.update_one(
         {"id": org_id, "$or": [{"billing_exempt": {"$ne": True}}, {"billing_exempt": {"$exists": False}}]},
@@ -3309,7 +3330,7 @@ async def _ensure_founder_exemption(user_email: str, org_id: str) -> bool:
 async def admin_exempt_org(org_id: str, reason: Optional[str] = "founder",
                             user=Depends(get_current_user)):
     """Manuel : accorde l'exemption fondateur à une org (accès gratuit illimité).
-    Réservé aux users listés dans BEVID_FOUNDER_EMAILS. Idempotent."""
+    Réservé aux users listés dans OWNER_EMAILS/BEVID_FOUNDER_EMAILS. Idempotent."""
     if (user.get("email") or "").lower() not in FOUNDER_EMAILS:
         raise HTTPException(403, "Réservé au fondateur BEVID")
     org = await db_raw.organizations.find_one({"id": org_id}, {"_id": 0, "id": 1, "name": 1})
@@ -3327,8 +3348,8 @@ async def admin_exempt_org(org_id: str, reason: Optional[str] = "founder",
 
 @api_router.delete("/billing/exempt/{org_id}")
 async def admin_clear_exempt(org_id: str, user=Depends(get_current_user)):
-    if (user.get("email") or "").lower() not in FOUNDER_EMAILS:
-        raise HTTPException(403, "Réservé au fondateur BEVID")
+    if (user.get("email") or "").lower() not in PRODUCT_OWNER_EMAILS:
+        raise HTTPException(403, "Réservé aux propriétaires produit")
     await db_raw.organizations.update_one(
         {"id": org_id},
         {"$set": {"billing_exempt": False},
@@ -3398,6 +3419,48 @@ async def create_invitation(data: OrgInvitationCreate, user=Depends(get_current_
     }
     await db_raw.invitations.insert_one(doc)
     doc.pop("_id", None)
+
+    # === Dispatch canal EMAIL ===
+    # Envoi réel si EMERGENT_EMAIL_KEY est fourni, sinon simulation transparente
+    # (log serveur + delivery_status="simulated"). Dans tous les cas, `activate_url`
+    # est retourné pour que le manager puisse copier le lien et l'envoyer lui-même.
+    if channel == "email":
+        recipient = (data.email or "").strip().lower()
+        if not recipient:
+            raise HTTPException(422, "Adresse e-mail requise pour un envoi email")
+        prefill = (getattr(data, "name", None) or "").strip()
+        greeting = f"Bonjour {prefill}," if prefill else "Bonjour,"
+        org_name = ((await db_raw.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})) or {}).get("name") or "votre équipe"
+        subject = f"Invitation à rejoindre {org_name} sur BEVID"
+        html = (
+            f"<p>{greeting}</p>"
+            f"<p>Vous êtes invité(e) à rejoindre <strong>{org_name}</strong> sur BEVID, "
+            f"le CRM des brasseurs.</p>"
+            f'<p style="margin:24px 0"><a href="{activate_url}" '
+            f'style="background:#4A154B;color:#fff;padding:12px 20px;text-decoration:none;'
+            f'border-radius:8px;font-weight:600">Activer mon compte</a></p>'
+            f"<p>Ou copiez ce lien dans votre navigateur : {activate_url}</p>"
+            f"<p style=\"color:#666;font-size:13px\">Ce lien est valable 7 jours. "
+            f"Si vous n'êtes pas à l'origine de cette invitation, ignorez ce message.</p>"
+        )
+        new_status = "sent"
+        reason = None
+        if not EMAIL_KEY:
+            new_status = "simulated"
+            reason = "email_not_configured"
+            logging.info(f"[invitation.email.simulate] to={recipient} url={activate_url}")
+        else:
+            try:
+                await send_email(to=recipient, subject=subject, html=html)
+            except HTTPException as e:
+                new_status = "failed"
+                reason = e.detail
+                logging.error(f"[invitation.email.failed] to={recipient} reason={reason}")
+        await db_raw.invitations.update_one(
+            {"id": doc["id"]}, {"$set": {"delivery_status": new_status, "delivery_reason": reason}}
+        )
+        doc["delivery_status"] = new_status
+        doc["delivery_reason"] = reason
 
     # === Dispatch canal SMS ===
     # Envoi réel si TWILIO_ACCOUNT_SID/AUTH_TOKEN/SMS_FROM sont fournis, sinon
@@ -13296,8 +13359,134 @@ async def _seed_demo_users_on_startup():
 async def _startup_seed_demo():
     try:
         await _seed_demo_users_on_startup()
+        await _bootstrap_owner_exemptions()
     except Exception as e:
         logger.warning(f"[seed] demo users skipped: {e}")
+
+
+async def _bootstrap_owner_exemptions():
+    """Amorçage idempotent — rétablit l'exemption pour chaque email listé dans
+    OWNER_EMAILS/BEVID_FOUNDER_EMAILS à chaque redémarrage. Survit aux migrations
+    et aux réinitialisations de base."""
+    if not PRODUCT_OWNER_EMAILS:
+        return
+    now = now_iso()
+    for email in PRODUCT_OWNER_EMAILS:
+        user = await db_raw.users.find_one({"email": email}, {"_id": 0, "id": 1, "org_id": 1})
+        if not user or not user.get("org_id"):
+            logger.info(f"[owner-bootstrap] {email} : compte absent ou sans org, skip")
+            continue
+        await db_raw.users.update_one(
+            {"id": user["id"]},
+            {"$set": {"super_admin_role": True, "super_admin_since": now}},
+        )
+        await db_raw.organizations.update_one(
+            {"id": user["org_id"]},
+            {"$set": {
+                "billing_exempt": True, "billing_exempt_reason": "product_owner",
+                "plan": "entreprise", "status": "active", "trial_ends_at": None,
+                "unlimited_seats": True, "unlimited_ai_quota": True,
+                "exempted_at": now,
+            }},
+        )
+        logger.info(f"[owner-bootstrap] {email} : exemption + super_admin appliqués (org={user['org_id'][:8]})")
+
+
+# =============================================================================
+# ROLE PRODUIT `super_admin` — accès méta-organisations uniquement.
+# AUCUN accès aux données métier des orgs clientes. Cf /app/memory/product_owner.md
+# =============================================================================
+async def require_super_admin(user=Depends(get_current_user)):
+    """Garde d'endpoint. `super_admin` = piloté par OWNER_EMAILS (config), pas
+    par un rôle en base modifiable. Retour 403 sinon."""
+    if not _is_product_owner(user.get("email") or ""):
+        raise HTTPException(403, "Réservé aux propriétaires produit")
+    return user
+
+
+@api_router.get("/admin/orgs")
+async def admin_list_orgs(user=Depends(require_super_admin)):
+    """Liste des organisations clientes — métadonnées seules, jamais leurs données métier."""
+    orgs = await db_raw.organizations.find({}, {
+        "_id": 0, "id": 1, "name": 1, "created_at": 1, "plan": 1,
+        "status": 1, "trial_ends_at": 1, "billing_exempt": 1,
+        "billing_exempt_reason": 1, "billing_status_stripe": 1,
+    }).sort("created_at", -1).to_list(1000)
+    for o in orgs:
+        o["effective_status"] = _compute_effective_status(o)
+        o["seats_active"] = await db_raw.users.count_documents({"org_id": o["id"], "active": True})
+    return {"orgs": orgs, "count": len(orgs)}
+
+
+@api_router.get("/admin/kpis")
+async def admin_kpis(user=Depends(require_super_admin)):
+    """Indicateurs produit — nombre d'orgs, essais, résiliations. Aucune donnée métier."""
+    total = await db_raw.organizations.count_documents({})
+    active = await db_raw.organizations.count_documents({"status": "active"})
+    trial = await db_raw.organizations.count_documents({"status": "trial"})
+    exempt = await db_raw.organizations.count_documents({"billing_exempt": True})
+    return {"total_orgs": total, "active": active, "trial": trial, "exempt": exempt}
+
+
+class SupportAccessGrant(BaseModel):
+    duration_hours: int = 24
+    reason: str
+
+
+@api_router.post("/support-access/grant")
+async def support_grant(data: SupportAccessGrant, user=Depends(get_current_user)):
+    """Un client autorise le support à accéder à son org pour N heures.
+    Journalisation intégrale, révocation automatique à l'échéance."""
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Réservé aux managers de l'organisation")
+    org_id = user.get("org_id")
+    if not org_id:
+        raise HTTPException(400, "Compte sans organisation")
+    duration = min(max(1, data.duration_hours), 72)  # cap 72h
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=duration)).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()), "org_id": org_id,
+        "granted_by": user["id"], "granted_by_email": user.get("email"),
+        "reason": data.reason[:280], "granted_at": now_iso(),
+        "expires_at": expires_at, "revoked_at": None,
+    }
+    await db_raw.support_access_grants.insert_one(doc)
+    doc.pop("_id", None)
+    return {"grant": doc}
+
+
+@api_router.post("/support-access/{grant_id}/revoke")
+async def support_revoke(grant_id: str, user=Depends(get_current_user)):
+    """Le client révoque un accès de support avant échéance."""
+    org_id = user.get("org_id")
+    r = await db_raw.support_access_grants.update_one(
+        {"id": grant_id, "org_id": org_id, "revoked_at": None},
+        {"$set": {"revoked_at": now_iso()}},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Accès introuvable ou déjà révoqué")
+    return {"ok": True}
+
+
+@api_router.get("/support-access")
+async def support_list(user=Depends(get_current_user)):
+    """Journal visible côté client — qui a eu accès, quand, pourquoi, encore actif ?"""
+    org_id = user.get("org_id")
+    grants = await db_raw.support_access_grants.find(
+        {"org_id": org_id}, {"_id": 0}
+    ).sort("granted_at", -1).to_list(200)
+    now = datetime.now(timezone.utc).isoformat()
+    for g in grants:
+        g["is_active"] = (not g.get("revoked_at")) and g.get("expires_at", "") > now
+    return {"grants": grants}
+
+
+def _support_access_valid(support_user_email: str, target_org_id: str) -> bool:
+    """Vérification à utiliser dans les endpoints qui autorisent l'accès de support.
+    NON UTILISÉ ACTUELLEMENT — l'accès aux données métier reste interdit
+    aux super_admins. Prévu pour un futur endpoint explicite de support avec
+    portée limitée. Cf /app/memory/product_owner.md."""
+    return False  # Verrou explicite tant que le flow de support n'est pas construit.
 
 
 async def _merge_clients_into_establishments():

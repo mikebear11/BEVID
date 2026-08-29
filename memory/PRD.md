@@ -70,6 +70,24 @@
 
 **Points 4 & 5 (densité desktop, mode terrain) et Phases B→F du plan** : en attente, ordre validé le 27/02.
 
+**Point 4 — Compte propriétaire et rôle super_admin (livré 29 août 2026)**
+- Variable `OWNER_EMAILS` dans `backend/.env` — liste canonique des propriétaires produit. Alias historique `BEVID_FOUNDER_EMAILS` conservé.
+- Union calculée à l'import : `PRODUCT_OWNER_EMAILS = FOUNDER_EMAILS | OWNER_EMAILS`. Helper `_is_product_owner(email)`.
+- **Bootstrap idempotent au démarrage** (`_bootstrap_owner_exemptions()`) : pour chaque email listé, applique automatiquement `billing_exempt=True`, `plan=entreprise`, `status=active`, `trial_ends_at=None`, `unlimited_seats=True`, `unlimited_ai_quota=True`, et `super_admin_role=True` sur le user. **Survit aux migrations et aux réamorçages de base.**
+- **Court-circuit dans `_compute_effective_status`** : `billing_exempt=True` → toujours `"active"`. Priorité 0, avant Stripe et calcul de trial. Vérifié par 8 assertions dans `tests/test_billing_exempt.py`.
+- **Endpoints super_admin** (garde `require_super_admin`) :
+  - `GET /api/admin/orgs` — liste métadonnées orgs + `effective_status` calculé
+  - `GET /api/admin/kpis` — `{total_orgs, active, trial, exempt}`
+  - `POST/DELETE /api/billing/exempt/{org_id}` — accorder/retirer exemption
+- **La limite dure** : super_admin **n'a AUCUN accès aux données métier**. `scoped_db` filtre toutes les collections métier par `org_id` du contextvar. Un super_admin qui appelle `/api/clients` ne voit que son propre org.
+- **Accès de support** (client-driven) :
+  - `POST /api/support-access/grant {duration_hours ≤ 72, reason}` — le manager de l'org autorise
+  - `POST /api/support-access/{id}/revoke` — révocation avant échéance
+  - `GET /api/support-access` — journal visible côté client
+  - `_support_access_valid()` retourne `False` en dur pour l'instant : le grant est journalisé, mais **ne débloque encore rien**. Verrou explicite tant que le flow réel n'est pas construit.
+- Tests : 12/12 verts (8 exempt + 4 owner). Documentation : `/app/memory/billing_exemption.md` + `/app/memory/product_owner.md`.
+- Vérification runtime : `guillaume@sulauze.com` connecté → `effective_status=active`, `plan=entreprise`, aucun bandeau essai. `commercial.demo@bevidcrm.fr` → `GET /api/admin/orgs` = 403.
+
 ## Problème d'origine
 CRM mobile-first pour la distribution de boissons (bars, restaurants, cavistes, hôtels).
 Objectif : maximiser le temps terrain des commerciaux, réduire le DSO, éliminer la double saisie
