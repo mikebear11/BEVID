@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useI18n } from "@/contexts/I18nContext";
@@ -70,9 +71,14 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-6" data-testid="admin-users-page">
-      <div>
-        <p className="overline">Administration</p>
-        <h2 className="font-display text-3xl mt-1">{t("users")}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="overline">Administration</p>
+          <h2 className="font-display text-3xl mt-1">{t("users")}</h2>
+        </div>
+        <Link to="/team" className="btn-primary min-h-[44px] inline-flex items-center gap-2" data-testid="go-to-team-btn">
+          <UserPlus size={16} aria-hidden="true" /> Inviter des commerciaux
+        </Link>
       </div>
 
       {lastTemp && (

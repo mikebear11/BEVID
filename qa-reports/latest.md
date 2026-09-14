@@ -1,6 +1,6 @@
 # BEVID — Rapport de qualité
 
-**Généré** : 2026-08-27T08:49:43.806637+00:00
+**Généré** : 2026-09-14T14:49:48.522964+00:00
 **URL** : https://drink-sales-hub-8.preview.emergentagent.com
 **Routes auditées** : 15 × 3 viewports = **45 audits**
 
@@ -24,55 +24,55 @@
 | console_errors | ✅ 0 | 0 |
 | csp_violations | ✅ 0 | 0 |
 | transient_load_failures | ✅ 0 | 3 |
-| bundle_size_kb | ✅ 3924 | 5000 |
-| lcp_ms | ✅ 684 | 3500 |
+| bundle_size_kb | ✅ 3929 | 5000 |
+| lcp_ms | ✅ 692 | 3500 |
 
 ## Détail par écran
 
-- ⚠️ `/` (mobile) — lcp_ms=680
-- ⚠️ `/pricing` (mobile) — lcp_ms=228
-- ⚠️ `/login` (mobile) — lcp_ms=228
-- ⚠️ `/register` (mobile) — lcp_ms=252
-- ⚠️ `/calculateur-drm` (mobile) — lcp_ms=220
-- ⚠️ `/` (mobile) — lcp_ms=656
-- ⚠️ `/clients` (mobile) — lcp_ms=764
-- ⚠️ `/orders` (mobile) — lcp_ms=704
-- ⚠️ `/tournee` (mobile) — lcp_ms=416
-- ⚠️ `/products` (mobile) — lcp_ms=400
-- ⚠️ `/reports` (mobile) — lcp_ms=620
-- ⚠️ `/paiements` (mobile) — lcp_ms=636
-- ⚠️ `/drm` (mobile) — lcp_ms=516
-- ⚠️ `/team` (mobile) — lcp_ms=472
-- ⚠️ `/pwa-status` (mobile) — lcp_ms=480
-- ⚠️ `/` (tablet) — lcp_ms=948
-- ⚠️ `/pricing` (tablet) — lcp_ms=260
-- ⚠️ `/login` (tablet) — lcp_ms=364
-- ⚠️ `/register` (tablet) — lcp_ms=556
-- ⚠️ `/calculateur-drm` (tablet) — lcp_ms=256
-- ⚠️ `/` (tablet) — lcp_ms=836
-- ⚠️ `/clients` (tablet) — lcp_ms=700
-- ⚠️ `/orders` (tablet) — lcp_ms=692
-- ⚠️ `/tournee` (tablet) — lcp_ms=656
-- ⚠️ `/products` (tablet) — lcp_ms=652
-- ⚠️ `/reports` (tablet) — lcp_ms=616
-- ⚠️ `/paiements` (tablet) — lcp_ms=684
-- ⚠️ `/drm` (tablet) — lcp_ms=652
-- ⚠️ `/team` (tablet) — lcp_ms=636
-- ⚠️ `/pwa-status` (tablet) — lcp_ms=624
-- ⚠️ `/` (desktop) — lcp_ms=1024
-- ⚠️ `/pricing` (desktop) — lcp_ms=268
-- ⚠️ `/login` (desktop) — lcp_ms=288
-- ⚠️ `/register` (desktop) — lcp_ms=532
-- ⚠️ `/calculateur-drm` (desktop) — lcp_ms=372
-- ⚠️ `/` (desktop) — lcp_ms=648
-- ⚠️ `/clients` (desktop) — lcp_ms=676
-- ⚠️ `/orders` (desktop) — lcp_ms=744
-- ⚠️ `/tournee` (desktop) — lcp_ms=520
-- ⚠️ `/products` (desktop) — lcp_ms=620
-- ⚠️ `/reports` (desktop) — lcp_ms=684
-- ⚠️ `/paiements` (desktop) — lcp_ms=684
-- ⚠️ `/drm` (desktop) — lcp_ms=604
-- ⚠️ `/team` (desktop) — lcp_ms=684
-- ⚠️ `/pwa-status` (desktop) — lcp_ms=680
+- ✅ `/` (mobile)
+- ✅ `/pricing` (mobile)
+- ✅ `/login` (mobile)
+- ✅ `/register` (mobile)
+- ✅ `/calculateur-drm` (mobile)
+- ✅ `/` (mobile)
+- ✅ `/clients` (mobile)
+- ✅ `/orders` (mobile)
+- ✅ `/tournee` (mobile)
+- ✅ `/products` (mobile)
+- ✅ `/reports` (mobile)
+- ✅ `/paiements` (mobile)
+- ✅ `/drm` (mobile)
+- ✅ `/team` (mobile)
+- ✅ `/pwa-status` (mobile)
+- ✅ `/` (tablet)
+- ✅ `/pricing` (tablet)
+- ✅ `/login` (tablet)
+- ✅ `/register` (tablet)
+- ✅ `/calculateur-drm` (tablet)
+- ✅ `/` (tablet)
+- ✅ `/clients` (tablet)
+- ✅ `/orders` (tablet)
+- ✅ `/tournee` (tablet)
+- ✅ `/products` (tablet)
+- ✅ `/reports` (tablet)
+- ✅ `/paiements` (tablet)
+- ✅ `/drm` (tablet)
+- ✅ `/team` (tablet)
+- ✅ `/pwa-status` (tablet)
+- ✅ `/` (desktop)
+- ✅ `/pricing` (desktop)
+- ✅ `/login` (desktop)
+- ✅ `/register` (desktop)
+- ✅ `/calculateur-drm` (desktop)
+- ✅ `/` (desktop)
+- ✅ `/clients` (desktop)
+- ✅ `/orders` (desktop)
+- ✅ `/tournee` (desktop)
+- ✅ `/products` (desktop)
+- ✅ `/reports` (desktop)
+- ✅ `/paiements` (desktop)
+- ✅ `/drm` (desktop)
+- ✅ `/team` (desktop)
+- ✅ `/pwa-status` (desktop)
 
 _Rapport JSON complet : `qa-reports/latest.json`_

@@ -64,6 +64,8 @@ const CORE_KEYS = new Set([
   "dashboard",
   // Core operations (visible for a new manager account)
   "clients", "orders", "products", "stock",
+  // Équipe : inviter / gérer ses commerciaux doit toujours être accessible
+  "team", "users",
 ]);
 
 // Entrées considérées « avancées » — masquées par défaut sur un nouveau compte.
@@ -103,6 +105,7 @@ const SECTIONS = [
     { to: "/prospection", key: "prospecting", feature: "page:prospection", icon: Compass },
   ]},
   { key: "section_admin", icon: Building2, entries: [
+    { to: "/team",              key: "team",         feature: "manager_only",       icon: UserCog },
     { to: "/admin/users",       key: "users",        feature: "page:users",         icon: Users },
     { to: "/portefeuilles",     key: "portfolios",   feature: "manager_only",       icon: Users },
     { to: "/approvals",         key: "approvals",    feature: null,                 icon: ClipboardCheck },

@@ -1836,3 +1836,11 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 1. Ajoutez votre email à `BEVID_FOUNDER_EMAILS` dans `backend/.env` (séparés par virgule si plusieurs)
 2. **OU** lancez directement : `python /app/backend/scripts/grant_founder_exemption.py votre@email.fr`
 3. Vous verrez la bannière « 🎁 Compte fondateur » dans `/billing` et aucune facturation ne s'applique.
+
+### Correctif — accès « Mon équipe » perdu (14 septembre 2026)
+- Cause : le commit « Sidebar refondue — Lot 8 » avait retiré `/team` de la barre latérale en annonçant une fusion dans `/admin/users` qui n'a jamais été faite. De plus, `users` (Membres) était classée « avancée » → masquée par défaut. Résultat : aucun accès à l'invitation des commerciaux.
+- Fix : entrée « Mon équipe » (`/team`, manager_only, icône UserCog) rétablie dans la section Administration de `Layout.jsx` ; `team` et `users` ajoutées à `CORE_KEYS` (toujours visibles) ; bouton « Inviter des commerciaux » → `/team` en tête de `/admin/users` ; libellé nav i18n `team` : « Inviter » → « Mon équipe ».
+- Bonus porte QA : `WeeklyReviewCard` boutons `weekly-toggle` / `weekly-save` passés à 44 px (2 violations mobiles pré-existantes).
+- Porte QA : ✅ verte (0 violation dure, bundle 3929 KB, LCP 692 ms).
+- Note : `PUT /admin/users/{uid}` est bien scopé par org via `TenantDB` (collection `users` dans `SCOPED_COLLECTIONS`) — la « fuite » signalée au handoff n'est pas réelle.
+- En attente : réponse utilisateur au plan « Scorecard commerciaux » (KPI) et arbitrage Modifier/Supprimer agents.

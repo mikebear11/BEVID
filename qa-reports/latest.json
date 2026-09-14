@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-27T08:49:43.806637+00:00",
+  "generated_at": "2026-09-14T14:49:48.522964+00:00",
   "base_url": "https://drink-sales-hub-8.preview.emergentagent.com",
   "budgets": {
     "overflow_horizontal": {
@@ -93,8 +93,8 @@
     "console_errors": 0,
     "csp_violations": 0,
     "transient_load_failures": 0,
-    "bundle_size_kb": 3924,
-    "lcp_ms": 684
+    "bundle_size_kb": 3929,
+    "lcp_ms": 692
   },
   "audits": [
     {
@@ -114,14 +114,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 680
+        "lcp_ms": 692
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
         "viewport": "mobile",
         "title": "Tableau de bord · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 680,
+        "lcp_ms": 692,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -162,14 +162,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 228
+        "lcp_ms": 236
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
         "viewport": "mobile",
         "title": "Tarifs · BEVID — Le CRM des brasseurs",
         "title_missing_or_generic": false,
-        "lcp_ms": 228,
+        "lcp_ms": 236,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -210,14 +210,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 228
+        "lcp_ms": 240
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
         "viewport": "mobile",
         "title": "Connexion · BEVID — Le CRM des brasseurs",
         "title_missing_or_generic": false,
-        "lcp_ms": 228,
+        "lcp_ms": 240,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -258,14 +258,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 252
+        "lcp_ms": 352
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
         "viewport": "mobile",
         "title": "Créer un compte · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 252,
+        "lcp_ms": 352,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -306,14 +306,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 220
+        "lcp_ms": 260
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
         "viewport": "mobile",
         "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 220,
+        "lcp_ms": 260,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -354,14 +354,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 656
+        "lcp_ms": 636
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
         "viewport": "mobile",
         "title": "Tableau de bord · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 656,
+        "lcp_ms": 636,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -402,14 +402,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 764
+        "lcp_ms": 780
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/clients",
         "viewport": "mobile",
         "title": "Clients · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 764,
+        "lcp_ms": 780,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -450,14 +450,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 704
+        "lcp_ms": 480
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/orders",
         "viewport": "mobile",
         "title": "Commandes · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 704,
+        "lcp_ms": 480,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -498,14 +498,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 416
+        "lcp_ms": 452
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/tournee",
         "viewport": "mobile",
         "title": "BEVID · CRM Boisson",
         "title_missing_or_generic": false,
-        "lcp_ms": 416,
+        "lcp_ms": 452,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -546,14 +546,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 400
+        "lcp_ms": 456
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/products",
         "viewport": "mobile",
         "title": "Catalogue · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 400,
+        "lcp_ms": 456,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -594,14 +594,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 620
+        "lcp_ms": 512
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/reports",
         "viewport": "mobile",
         "title": "Rapports · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 620,
+        "lcp_ms": 512,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -642,14 +642,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 636
+        "lcp_ms": 676
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/paiements",
         "viewport": "mobile",
         "title": "Paiements et relances · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 636,
+        "lcp_ms": 676,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -690,14 +690,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 516
+        "lcp_ms": 524
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/drm",
         "viewport": "mobile",
         "title": "DRM · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 516,
+        "lcp_ms": 524,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -738,14 +738,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 472
+        "lcp_ms": 776
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/team",
         "viewport": "mobile",
         "title": "Mon équipe · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 472,
+        "lcp_ms": 776,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -786,14 +786,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 480
+        "lcp_ms": 720
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/pwa-status",
         "viewport": "mobile",
         "title": "Diagnostic hors-ligne · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 480,
+        "lcp_ms": 720,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -834,14 +834,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 948
+        "lcp_ms": 1000
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
         "viewport": "tablet",
         "title": "Tableau de bord · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 948,
+        "lcp_ms": 1000,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -921,7 +921,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:rg:",
+            "selector": "#radix-:rd:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -961,14 +961,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 260
+        "lcp_ms": 292
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
         "viewport": "tablet",
         "title": "Tarifs · BEVID — Le CRM des brasseurs",
         "title_missing_or_generic": false,
-        "lcp_ms": 260,
+        "lcp_ms": 292,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1009,14 +1009,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 364
+        "lcp_ms": 264
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
         "viewport": "tablet",
         "title": "Connexion · BEVID — Le CRM des brasseurs",
         "title_missing_or_generic": false,
-        "lcp_ms": 364,
+        "lcp_ms": 264,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1057,14 +1057,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 556
+        "lcp_ms": 564
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
         "viewport": "tablet",
         "title": "Créer un compte · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 556,
+        "lcp_ms": 564,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1105,14 +1105,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 256
+        "lcp_ms": 308
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
         "viewport": "tablet",
         "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 256,
+        "lcp_ms": 308,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1153,14 +1153,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 836
+        "lcp_ms": 820
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
         "viewport": "tablet",
         "title": "Tableau de bord · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 836,
+        "lcp_ms": 820,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1280,157 +1280,12 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 700
+        "lcp_ms": 692
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/clients",
         "viewport": "tablet",
         "title": "Clients · BEVID",
-        "title_missing_or_generic": false,
-        "lcp_ms": 700,
-        "console_errors": [],
-        "csp_violations": [],
-        "transient_load_failure": 0,
-        "overflow_horizontal": [],
-        "tables_overflowing": [],
-        "touch_targets_small": [
-          {
-            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
-            "text": "Réduire la barre latérale",
-            "width": 32,
-            "height": 32
-          },
-          {
-            "selector": "button[data-testid=\"palette-trigger\"]",
-            "text": "Rechercher…⌘K",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-dashboard\"]",
-            "text": "Tableau de bord",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-tournee\"]",
-            "text": "Ma tournée",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-new_visit\"]",
-            "text": "Visite",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-scan\"]",
-            "text": "Scanner",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
-            "text": "Clients et ventes",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "a[data-testid=\"nav-clients\"]",
-            "text": "Clients",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-orders\"]",
-            "text": "Commandes0",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-products\"]",
-            "text": "Catalogue",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
-            "text": "Logistique",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
-            "text": "Argent",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
-            "text": "Pilotage",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "a[data-testid=\"nav-reports\"]",
-            "text": "Rapports",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
-            "text": "Administration",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "#radix-:re:",
-            "text": "Menu utilisateur",
-            "width": 36,
-            "height": 36
-          }
-        ],
-        "missing_labels": [],
-        "buttons_no_name": [],
-        "images_without_alt": [],
-        "h1_count_not_one": [],
-        "heading_skips": [],
-        "title_meta": {
-          "title": "Clients · BEVID",
-          "missing_or_generic": false
-        },
-        "text_small": [],
-        "scroll": {
-          "scrollWidth": 768,
-          "innerWidth": 768,
-          "docHeight": 1024
-        }
-      }
-    },
-    {
-      "route": "/orders",
-      "route_name": "orders",
-      "viewport": "tablet",
-      "summary": {
-        "overflow_horizontal": 0,
-        "tables_overflowing_container": 0,
-        "touch_targets_below_44px_mobile": 0,
-        "missing_labels": 0,
-        "images_without_alt": 0,
-        "h1_count_not_one": 0,
-        "heading_level_skips": 0,
-        "title_missing_or_generic": 0,
-        "text_below_12px": 0,
-        "console_errors": 0,
-        "csp_violations": 0,
-        "transient_load_failures": 0,
-        "lcp_ms": 692
-      },
-      "raw": {
-        "url": "https://drink-sales-hub-8.preview.emergentagent.com/orders",
-        "viewport": "tablet",
-        "title": "Commandes · BEVID",
         "title_missing_or_generic": false,
         "lcp_ms": 692,
         "console_errors": [],
@@ -1542,7 +1397,7 @@
         "h1_count_not_one": [],
         "heading_skips": [],
         "title_meta": {
-          "title": "Commandes · BEVID",
+          "title": "Clients · BEVID",
           "missing_or_generic": false
         },
         "text_small": [],
@@ -1554,8 +1409,8 @@
       }
     },
     {
-      "route": "/tournee",
-      "route_name": "tournee",
+      "route": "/orders",
+      "route_name": "orders",
       "viewport": "tablet",
       "summary": {
         "overflow_horizontal": 0,
@@ -1570,14 +1425,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 656
+        "lcp_ms": 596
       },
       "raw": {
-        "url": "https://drink-sales-hub-8.preview.emergentagent.com/tournee",
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/orders",
         "viewport": "tablet",
-        "title": "BEVID · CRM Boisson",
+        "title": "Commandes · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 656,
+        "lcp_ms": 596,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1675,7 +1530,152 @@
             "height": 32
           },
           {
-            "selector": "#radix-:re:",
+            "selector": "#radix-:r8:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Commandes · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 768,
+          "innerWidth": 768,
+          "docHeight": 1024
+        }
+      }
+    },
+    {
+      "route": "/tournee",
+      "route_name": "tournee",
+      "viewport": "tablet",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "transient_load_failures": 0,
+        "lcp_ms": 716
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/tournee",
+        "viewport": "tablet",
+        "title": "BEVID · CRM Boisson",
+        "title_missing_or_generic": false,
+        "lcp_ms": 716,
+        "console_errors": [],
+        "csp_violations": [],
+        "transient_load_failure": 0,
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "#radix-:rd:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -1715,14 +1715,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 652
+        "lcp_ms": 600
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/products",
         "viewport": "tablet",
         "title": "Catalogue · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 652,
+        "lcp_ms": 600,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1820,7 +1820,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:rd:",
+            "selector": "#radix-:ra:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -1860,14 +1860,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 616
+        "lcp_ms": 664
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/reports",
         "viewport": "tablet",
         "title": "Rapports · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 616,
+        "lcp_ms": 664,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -1965,7 +1965,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:re:",
+            "selector": "#radix-:rg:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -2005,14 +2005,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 684
+        "lcp_ms": 664
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/paiements",
         "viewport": "tablet",
         "title": "Paiements et relances · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 684,
+        "lcp_ms": 664,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2116,7 +2116,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:rd:",
+            "selector": "#radix-:re:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -2156,14 +2156,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 652
+        "lcp_ms": 560
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/drm",
         "viewport": "tablet",
         "title": "DRM · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 652,
+        "lcp_ms": 560,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2279,7 +2279,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:rd:",
+            "selector": "#radix-:ra:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -2319,14 +2319,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 636
+        "lcp_ms": 572
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/team",
         "viewport": "tablet",
         "title": "Mon équipe · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 636,
+        "lcp_ms": 572,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2440,6 +2440,30 @@
             "text": "Administration",
             "width": 229,
             "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-team\"]",
+            "text": "Mon équipe",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-users\"]",
+            "text": "Membres",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-pwa_status\"]",
+            "text": "Diagnostic mobile",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-settings\"]",
+            "text": "Paramètres",
+            "width": 217,
+            "height": 40
           },
           {
             "selector": "#radix-:rd:",
@@ -2482,14 +2506,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 624
+        "lcp_ms": 700
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/pwa-status",
         "viewport": "tablet",
         "title": "Diagnostic hors-ligne · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 624,
+        "lcp_ms": 700,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2605,6 +2629,18 @@
             "height": 32
           },
           {
+            "selector": "a[data-testid=\"nav-team\"]",
+            "text": "Mon équipe",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-users\"]",
+            "text": "Membres",
+            "width": 217,
+            "height": 40
+          },
+          {
             "selector": "a[data-testid=\"nav-pwa_status\"]",
             "text": "Diagnostic mobile",
             "width": 217,
@@ -2636,7 +2672,7 @@
         "scroll": {
           "scrollWidth": 768,
           "innerWidth": 768,
-          "docHeight": 1068
+          "docHeight": 1048
         }
       }
     },
@@ -2657,14 +2693,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 1024
+        "lcp_ms": 724
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
         "viewport": "desktop",
         "title": "Tableau de bord · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 1024,
+        "lcp_ms": 724,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2784,14 +2820,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 268
+        "lcp_ms": 288
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/pricing",
         "viewport": "desktop",
         "title": "Tarifs · BEVID — Le CRM des brasseurs",
         "title_missing_or_generic": false,
-        "lcp_ms": 268,
+        "lcp_ms": 288,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2832,14 +2868,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 288
+        "lcp_ms": 276
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/login",
         "viewport": "desktop",
         "title": "Connexion · BEVID — Le CRM des brasseurs",
         "title_missing_or_generic": false,
-        "lcp_ms": 288,
+        "lcp_ms": 276,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2880,14 +2916,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 532
+        "lcp_ms": 660
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/register",
         "viewport": "desktop",
         "title": "Créer un compte · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 532,
+        "lcp_ms": 660,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2928,14 +2964,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 372
+        "lcp_ms": 292
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/calculateur-drm",
         "viewport": "desktop",
         "title": "Calculateur DRM gratuit · Accise bière, vin, spiritueux — BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 372,
+        "lcp_ms": 292,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -2976,14 +3012,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 648
+        "lcp_ms": 660
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/",
         "viewport": "desktop",
         "title": "Tableau de bord · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 648,
+        "lcp_ms": 660,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -3063,7 +3099,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:re:",
+            "selector": "#radix-:rg:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -3103,14 +3139,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 676
+        "lcp_ms": 684
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/clients",
         "viewport": "desktop",
         "title": "Clients · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 676,
+        "lcp_ms": 684,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -3208,7 +3244,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:rd:",
+            "selector": "#radix-:re:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -3248,14 +3284,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 744
+        "lcp_ms": 652
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/orders",
         "viewport": "desktop",
         "title": "Commandes · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 744,
+        "lcp_ms": 652,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -3393,14 +3429,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 520
+        "lcp_ms": 552
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/tournee",
         "viewport": "desktop",
         "title": "BEVID · CRM Boisson",
         "title_missing_or_generic": false,
-        "lcp_ms": 520,
+        "lcp_ms": 552,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -3498,7 +3534,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:ra:",
+            "selector": "#radix-:rb:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -3538,14 +3574,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 620
+        "lcp_ms": 664
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/products",
         "viewport": "desktop",
         "title": "Catalogue · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 620,
+        "lcp_ms": 664,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -3683,14 +3719,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 684
+        "lcp_ms": 644
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/reports",
         "viewport": "desktop",
         "title": "Rapports · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 684,
+        "lcp_ms": 644,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -3788,7 +3824,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:ra:",
+            "selector": "#radix-:re:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -3828,14 +3864,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 684
+        "lcp_ms": 672
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/paiements",
         "viewport": "desktop",
         "title": "Paiements et relances · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 684,
+        "lcp_ms": 672,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -3939,7 +3975,7 @@
             "height": 32
           },
           {
-            "selector": "#radix-:rg:",
+            "selector": "#radix-:re:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36
@@ -3979,177 +4015,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 604
+        "lcp_ms": 700
       },
       "raw": {
         "url": "https://drink-sales-hub-8.preview.emergentagent.com/drm",
         "viewport": "desktop",
         "title": "DRM · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 604,
-        "console_errors": [],
-        "csp_violations": [],
-        "transient_load_failure": 0,
-        "overflow_horizontal": [],
-        "tables_overflowing": [],
-        "touch_targets_small": [
-          {
-            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
-            "text": "Réduire la barre latérale",
-            "width": 32,
-            "height": 32
-          },
-          {
-            "selector": "button[data-testid=\"palette-trigger\"]",
-            "text": "Rechercher…⌘K",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-dashboard\"]",
-            "text": "Tableau de bord",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-tournee\"]",
-            "text": "Ma tournée",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-new_visit\"]",
-            "text": "Visite",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-scan\"]",
-            "text": "Scanner",
-            "width": 231,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
-            "text": "Clients et ventes",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "a[data-testid=\"nav-clients\"]",
-            "text": "Clients",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-orders\"]",
-            "text": "Commandes0",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-products\"]",
-            "text": "Catalogue",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
-            "text": "Logistique",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "a[data-testid=\"nav-stock\"]",
-            "text": "Stock",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "a[data-testid=\"nav-drm\"]",
-            "text": "DRM",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
-            "text": "Argent",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "a[data-testid=\"nav-payments\"]",
-            "text": "Paiements et relances0",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
-            "text": "Pilotage",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "a[data-testid=\"nav-reports\"]",
-            "text": "Rapports",
-            "width": 217,
-            "height": 40
-          },
-          {
-            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
-            "text": "Administration",
-            "width": 229,
-            "height": 32
-          },
-          {
-            "selector": "#radix-:rb:",
-            "text": "Menu utilisateur",
-            "width": 36,
-            "height": 36
-          }
-        ],
-        "missing_labels": [],
-        "buttons_no_name": [],
-        "images_without_alt": [],
-        "h1_count_not_one": [],
-        "heading_skips": [],
-        "title_meta": {
-          "title": "DRM · BEVID",
-          "missing_or_generic": false
-        },
-        "text_small": [],
-        "scroll": {
-          "scrollWidth": 1440,
-          "innerWidth": 1440,
-          "docHeight": 900
-        }
-      }
-    },
-    {
-      "route": "/team",
-      "route_name": "team",
-      "viewport": "desktop",
-      "summary": {
-        "overflow_horizontal": 0,
-        "tables_overflowing_container": 0,
-        "touch_targets_below_44px_mobile": 0,
-        "missing_labels": 0,
-        "images_without_alt": 0,
-        "h1_count_not_one": 0,
-        "heading_level_skips": 0,
-        "title_missing_or_generic": 0,
-        "text_below_12px": 0,
-        "console_errors": 0,
-        "csp_violations": 0,
-        "transient_load_failures": 0,
-        "lcp_ms": 684
-      },
-      "raw": {
-        "url": "https://drink-sales-hub-8.preview.emergentagent.com/team",
-        "viewport": "desktop",
-        "title": "Mon équipe · BEVID",
-        "title_missing_or_generic": false,
-        "lcp_ms": 684,
+        "lcp_ms": 700,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -4277,7 +4150,7 @@
         "h1_count_not_one": [],
         "heading_skips": [],
         "title_meta": {
-          "title": "Mon équipe · BEVID",
+          "title": "DRM · BEVID",
           "missing_or_generic": false
         },
         "text_small": [],
@@ -4289,8 +4162,8 @@
       }
     },
     {
-      "route": "/pwa-status",
-      "route_name": "pwa-status",
+      "route": "/team",
+      "route_name": "team",
       "viewport": "desktop",
       "summary": {
         "overflow_horizontal": 0,
@@ -4305,14 +4178,14 @@
         "console_errors": 0,
         "csp_violations": 0,
         "transient_load_failures": 0,
-        "lcp_ms": 680
+        "lcp_ms": 776
       },
       "raw": {
-        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pwa-status",
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/team",
         "viewport": "desktop",
-        "title": "Diagnostic hors-ligne · BEVID",
+        "title": "Mon équipe · BEVID",
         "title_missing_or_generic": false,
-        "lcp_ms": 680,
+        "lcp_ms": 776,
         "console_errors": [],
         "csp_violations": [],
         "transient_load_failure": 0,
@@ -4428,6 +4301,18 @@
             "height": 32
           },
           {
+            "selector": "a[data-testid=\"nav-team\"]",
+            "text": "Mon équipe",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-users\"]",
+            "text": "Membres",
+            "width": 217,
+            "height": 40
+          },
+          {
             "selector": "a[data-testid=\"nav-pwa_status\"]",
             "text": "Diagnostic mobile",
             "width": 217,
@@ -4440,7 +4325,194 @@
             "height": 40
           },
           {
-            "selector": "#radix-:rb:",
+            "selector": "#radix-:rd:",
+            "text": "Menu utilisateur",
+            "width": 36,
+            "height": 36
+          }
+        ],
+        "missing_labels": [],
+        "buttons_no_name": [],
+        "images_without_alt": [],
+        "h1_count_not_one": [],
+        "heading_skips": [],
+        "title_meta": {
+          "title": "Mon équipe · BEVID",
+          "missing_or_generic": false
+        },
+        "text_small": [],
+        "scroll": {
+          "scrollWidth": 1440,
+          "innerWidth": 1440,
+          "docHeight": 900
+        }
+      }
+    },
+    {
+      "route": "/pwa-status",
+      "route_name": "pwa-status",
+      "viewport": "desktop",
+      "summary": {
+        "overflow_horizontal": 0,
+        "tables_overflowing_container": 0,
+        "touch_targets_below_44px_mobile": 0,
+        "missing_labels": 0,
+        "images_without_alt": 0,
+        "h1_count_not_one": 0,
+        "heading_level_skips": 0,
+        "title_missing_or_generic": 0,
+        "text_below_12px": 0,
+        "console_errors": 0,
+        "csp_violations": 0,
+        "transient_load_failures": 0,
+        "lcp_ms": 688
+      },
+      "raw": {
+        "url": "https://drink-sales-hub-8.preview.emergentagent.com/pwa-status",
+        "viewport": "desktop",
+        "title": "Diagnostic hors-ligne · BEVID",
+        "title_missing_or_generic": false,
+        "lcp_ms": 688,
+        "console_errors": [],
+        "csp_violations": [],
+        "transient_load_failure": 0,
+        "overflow_horizontal": [],
+        "tables_overflowing": [],
+        "touch_targets_small": [
+          {
+            "selector": "button[data-testid=\"sidebar-collapse-toggle\"]",
+            "text": "Réduire la barre latérale",
+            "width": 32,
+            "height": 32
+          },
+          {
+            "selector": "button[data-testid=\"palette-trigger\"]",
+            "text": "Rechercher…⌘K",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-dashboard\"]",
+            "text": "Tableau de bord",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-tournee\"]",
+            "text": "Ma tournée",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-new_visit\"]",
+            "text": "Visite",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-scan\"]",
+            "text": "Scanner",
+            "width": 231,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_sales\"]",
+            "text": "Clients et ventes",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-clients\"]",
+            "text": "Clients",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-orders\"]",
+            "text": "Commandes0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-products\"]",
+            "text": "Catalogue",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_logistics\"]",
+            "text": "Logistique",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-stock\"]",
+            "text": "Stock",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-drm\"]",
+            "text": "DRM",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_finance\"]",
+            "text": "Argent",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-payments\"]",
+            "text": "Paiements et relances0",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_pilotage\"]",
+            "text": "Pilotage",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-reports\"]",
+            "text": "Rapports",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "button[data-testid=\"nav-section-toggle-section_admin\"]",
+            "text": "Administration",
+            "width": 229,
+            "height": 32
+          },
+          {
+            "selector": "a[data-testid=\"nav-team\"]",
+            "text": "Mon équipe",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-users\"]",
+            "text": "Membres",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-pwa_status\"]",
+            "text": "Diagnostic mobile",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "a[data-testid=\"nav-settings\"]",
+            "text": "Paramètres",
+            "width": 217,
+            "height": 40
+          },
+          {
+            "selector": "#radix-:re:",
             "text": "Menu utilisateur",
             "width": 36,
             "height": 36

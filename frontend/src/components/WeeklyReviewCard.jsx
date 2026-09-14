@@ -53,7 +53,7 @@ export default function WeeklyReviewCard() {
           <h2 className="font-display text-lg">Revue de la semaine passée</h2>
           <span className="text-xs text-stone-500">· {rev.auto?.range?.start} → {rev.auto?.range?.end}</span>
         </div>
-        <button onClick={() => setCollapsed(v => !v)} className="text-xs text-stone-500 hover:underline min-h-[32px]" data-testid="weekly-toggle">
+        <button onClick={() => setCollapsed(v => !v)} className="text-xs text-stone-500 hover:underline min-h-[44px] min-w-[44px] px-2" data-testid="weekly-toggle">
           {collapsed ? "Ouvrir" : "Réduire"}
         </button>
       </div>
@@ -86,7 +86,7 @@ export default function WeeklyReviewCard() {
           </label>
           <div className="flex justify-end">
             <button onClick={save} disabled={saving}
-              className="btn-primary text-sm min-h-[36px] px-4 flex items-center gap-1" data-testid="weekly-save">
+              className="btn-primary text-sm min-h-[44px] px-4 flex items-center gap-1" data-testid="weekly-save">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Enregistrer
             </button>
