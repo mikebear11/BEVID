@@ -1844,3 +1844,9 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 - Porte QA : ✅ verte (0 violation dure, bundle 3929 KB, LCP 692 ms).
 - Note : `PUT /admin/users/{uid}` est bien scopé par org via `TenantDB` (collection `users` dans `SCOPED_COLLECTIONS`) — la « fuite » signalée au handoff n'est pas réelle.
 - En attente : réponse utilisateur au plan « Scorecard commerciaux » (KPI) et arbitrage Modifier/Supprimer agents.
+
+## LOT MOBILE TERRAIN (priorité client, 16 septembre 2026) — Scorecard commerciaux en pause
+- Périmètre : < 768 px uniquement, aucun retrait de fonctionnalité, aucun refactor backend, réutiliser l'existant.
+- Sous-lots : M0 état des lieux ✅ · M1 accueil Terrain + nav · M2 trouver/créer client · M3 fiche mobile · M4 note de visite + historique · M5 vendre + infos de vente. Un sous-lot à la fois, preuves, arrêt.
+- **M0 livré** : rapport `memory/mobile/M0_ETAT_DES_LIEUX.md` + captures `memory/mobile/m0_*.png`. Constats bloquants : page Clients vide (API legacy `/clients` vs `/establishments`), CTA fiche recouverts par la nav du bas, route `/etab/:id/visite` inexistante, aucun « refaire commande » mobile. Références : fiche 3 touchers (via Tournée seulement), note 6 touchers, refaire commande non réalisable.
+- Objectifs fin de lot : fiche ≤ 3 touchers ; note < 30 s ; refaire < 20 s ; mode avion complet ; porte QA verte.
