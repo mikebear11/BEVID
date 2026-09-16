@@ -8,6 +8,8 @@ import PuceEtat from "@/components/system/PuceEtat";
 import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
 import { usePageMeta } from "@/lib/pageMeta";
+import { useIsMobile } from "@/lib/mobile";
+import MobileClients from "@/pages/MobileClients";
 
 const TYPES = ["bar", "restaurant", "caviste", "supermarche", "hotel", "autre"];
 const STATUSES = ["prospect", "actif", "vip", "inactif"];
@@ -70,6 +72,9 @@ export default function Clients() {
     } catch(e) { toast.error(t("toast.erreur_parsing")); }
     finally { setParsing(false); }
   };
+
+  const mobile = useIsMobile();
+  if (mobile) return <MobileClients />;
 
   return (
     <div className="space-y-6" data-testid="clients-page">

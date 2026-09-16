@@ -54,7 +54,7 @@ export default function Paiements() {
   const dismiss = async (aid) => { await api.post(`/alerts/bad-payers/${aid}/dismiss`); load(); };
 
   if (user?.role !== "manager") return <div className="p-8 text-stone-500">{t("manager_only")}</div>;
-  if (loading || !settings) return <div className="p-8 text-stone-500">{t("loading")}</div>;
+  if (loading || !settings) return <div className="p-8 text-stone-500"><h1 className="sr-only">{t("payments")}</h1>{t("loading")}</div>;
   const trendUp = dso && dso.trend > 0;
 
   return (

@@ -19,6 +19,8 @@
     ],
     "auth": [
       { "path": "/",             "name": "dashboard" },
+      { "path": "/terrain",      "name": "terrain"   },
+      { "path": "/dashboard",    "name": "dashboard-direct" },
       { "path": "/clients",      "name": "clients"   },
       { "path": "/orders",       "name": "orders"    },
       { "path": "/tournee",      "name": "tournee"   },
@@ -42,6 +44,7 @@
     "text_below_12px":                { "max": 0,  "unit": "count", "severity": "hard" },
     "console_errors":                 { "max": 0,  "unit": "count", "severity": "hard" },
     "csp_violations":                 { "max": 0,  "unit": "count", "severity": "hard" },
+    "dead_links":                     { "max": 0,  "unit": "count", "severity": "hard" },
     "transient_load_failures":        { "max": 3,  "unit": "count", "severity": "soft" },
     "bundle_size_kb":                 { "max": 5000, "unit": "kb",  "severity": "soft" },
     "lcp_ms":                         { "max": 3500, "unit": "ms",  "severity": "soft" }

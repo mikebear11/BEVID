@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { X, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
 
 /**
  * Guided onboarding — 3 étapes clés pour un commercial au premier login.
@@ -34,6 +35,8 @@ export default function OnboardingTour() {
   useEffect(() => {
     if (!user) return;
     if (localStorage.getItem("bevid_onboarded") === "1") return;
+    // Persistance serveur : fermé une fois = plus jamais, quel que soit l'appareil (M1-D)
+    if ((user.sidebar_prefs?.visited_features || []).includes("onboarding_tour")) { localStorage.setItem("bevid_onboarded", "1"); return; }
     setActive(true);
   }, [user]);
 
@@ -61,6 +64,7 @@ export default function OnboardingTour() {
 
   const finish = () => {
     localStorage.setItem("bevid_onboarded", "1");
+    api.post("/me/visit-feature", { key: "onboarding_tour" }).catch(() => {});
     setActive(false);
   };
   const next = () => step < STEPS.length - 1 ? setStep(step + 1) : finish();

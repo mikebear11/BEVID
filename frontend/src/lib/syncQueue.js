@@ -13,8 +13,12 @@ async function flushMutations() {
   let flushed = 0, failed = 0, conflict = 0;
   for (const it of items) {
     try {
-      await api.request({ url: it.url, method: it.method || "POST", data: it.data });
+      const { data } = await api.request({ url: it.url, method: it.method || "POST", data: it.data });
       await db.sync_queue.update(it.id, { status: "synced", synced_at: new Date().toISOString() });
+      // Fiche créée hors ligne : remplace la version locale « à synchroniser » par la version serveur
+      if (it.url === "/establishments" && data?.id) {
+        try { await db.establishments.put(data); } catch { /* cache local uniquement */ }
+      }
       flushed++;
     } catch (err) {
       const status = err?.response?.status;

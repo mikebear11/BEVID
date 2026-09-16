@@ -6,15 +6,19 @@ import { ArrowLeft, Zap } from "lucide-react";
 import SirenAutocomplete from "@/components/SirenAutocomplete";
 import PuceEtat from "@/components/system/PuceEtat";
 import { t } from "@/lib/i18n";
+import { useIsMobile } from "@/lib/mobile";
+import MobileProspectNew from "@/pages/MobileProspectNew";
 
 const TYPES = ["bar", "restaurant", "caviste", "hotel", "epicerie", "autre"];
 
 export default function EstablishmentNew() {
   const nav = useNavigate();
+  const mobile = useIsMobile();
   const [form, setForm] = useState({ name: "", siret: "", type: "bar", address: "", city: "", postal_code: "" });
   const [picked, setPicked] = useState(null);
   const [creating, setCreating] = useState(false);
   const [autoEnrich, setAutoEnrich] = useState(true);
+  if (mobile) return <MobileProspectNew />;
 
   const onSelect = (item) => {
     setPicked(item);

@@ -1,12 +1,13 @@
 # BEVID — Rapport de qualité
 
-**Généré** : 2026-09-14T14:49:48.522964+00:00
+**Généré** : 2026-09-16T17:06:45.076403+00:00
 **URL** : https://drink-sales-hub-8.preview.emergentagent.com
-**Routes auditées** : 15 × 3 viewports = **45 audits**
+**Routes auditées** : 17 × 3 viewports = **51 audits**
 
 ## Résultat global
 
-✅ **Tous les budgets respectés, aucune régression détectée.**
+### ⚠️ Régressions par rapport au rapport précédent
+- bundle_size_kb: 4014 → 4015
 
 ## Totaux par métrique
 
@@ -23,9 +24,10 @@
 | text_below_12px | ✅ 0 | 0 |
 | console_errors | ✅ 0 | 0 |
 | csp_violations | ✅ 0 | 0 |
+| dead_links | ✅ 0 | 0 |
 | transient_load_failures | ✅ 0 | 3 |
-| bundle_size_kb | ✅ 3929 | 5000 |
-| lcp_ms | ✅ 692 | 3500 |
+| bundle_size_kb | ✅ 4015 | 5000 |
+| lcp_ms | ✅ 736 | 3500 |
 
 ## Détail par écran
 
@@ -35,6 +37,8 @@
 - ✅ `/register` (mobile)
 - ✅ `/calculateur-drm` (mobile)
 - ✅ `/` (mobile)
+- ✅ `/terrain` (mobile)
+- ✅ `/dashboard` (mobile)
 - ✅ `/clients` (mobile)
 - ✅ `/orders` (mobile)
 - ✅ `/tournee` (mobile)
@@ -50,6 +54,8 @@
 - ✅ `/register` (tablet)
 - ✅ `/calculateur-drm` (tablet)
 - ✅ `/` (tablet)
+- ✅ `/terrain` (tablet)
+- ✅ `/dashboard` (tablet)
 - ✅ `/clients` (tablet)
 - ✅ `/orders` (tablet)
 - ✅ `/tournee` (tablet)
@@ -65,6 +71,8 @@
 - ✅ `/register` (desktop)
 - ✅ `/calculateur-drm` (desktop)
 - ✅ `/` (desktop)
+- ✅ `/terrain` (desktop)
+- ✅ `/dashboard` (desktop)
 - ✅ `/clients` (desktop)
 - ✅ `/orders` (desktop)
 - ✅ `/tournee` (desktop)

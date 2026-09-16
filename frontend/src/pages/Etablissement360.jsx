@@ -13,6 +13,8 @@ import ContactsPanel from "@/components/ContactsPanel";
 import ContactsPanelV2 from "@/components/ContactsPanelV2";
 import FourQuestions from "@/components/FourQuestions";
 import MessageThread from "@/components/MessageThread";
+import { pushRecent, useIsMobile } from "@/lib/mobile";
+import MobileEtab360 from "@/pages/MobileEtab360";
 
 const CREDIT_COLOR = { vert: "#2D5A4C", orange: "#C78B3A", rouge: "#8C2A2A" };
 const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", rouge: "COMPTE BLOQUÉ" };
@@ -20,6 +22,7 @@ const CREDIT_LABEL = { vert: "En règle", orange: "Retard — à relancer", roug
 export default function Etablissement360() {
   const { id } = useParams();
   const nav = useNavigate();
+  const mobile = useIsMobile();
   const [e, setE] = useState(null);
   const [team, setTeam] = useState([]);
   const [showDerog, setShowDerog] = useState(false);
@@ -28,14 +31,16 @@ export default function Etablissement360() {
   const [memoryVer, setMemoryVer] = useState(0);  // Fix iter21 — recompute événementiel après pin comment
 
   const load = async () => {
-    try { const { data } = await api.get(`/establishments/${id}`); setE(data); }
+    if (mobile) return;
+    try { const { data } = await api.get(`/establishments/${id}`); setE(data); pushRecent(data); }
     catch { toast.error(t("toast.erreur_chargement")); }
   };
   useEffect(() => {
     load();
+    if (mobile) return;
     // Catalogue d'équipe pour l'autocomplete des @mentions
     api.get("/team/members").then(r => setTeam(r.data || [])).catch(() => setTeam([]));
-  }, [id]);
+  }, [id, mobile]);
 
   const askDerog = async () => {
     if (!derogReason.trim()) { toast.error(t("toast.motif_requis")); return; }
@@ -43,6 +48,8 @@ export default function Etablissement360() {
     toast.success(t("toast.demande_envoyee_au_gerant"));
     setShowDerog(false); setDerogReason(""); setAmt("");
   };
+
+  if (mobile) return <MobileEtab360 />;
 
   if (!e) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div>;
 

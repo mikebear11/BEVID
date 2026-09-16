@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sun, Moon, Sunrise, Monitor, MoreHorizontal, Languages } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { BottomNav } from "@/components/mobile/BottomNav";
+import { useIsMobile } from "@/lib/mobile";
 
 /**
  * Sidebar intelligente (Lot 8 + suite) :
@@ -152,7 +154,7 @@ FLAT_ENTRIES[HOME_ENTRY.key] = { ...HOME_ENTRY, sectionKey: null };
 
 const FIXED_PIN_KEYS = new Set(PINNED_FIXED.map(p => p.key));
 
-const MOBILE_NAV = [
+const MOBILE_NAV_LEGACY = [
   { to: "/tournee", key: "tournee", label: "Ma tournée", icon: RouteIcon },
   { to: "/visit", key: "visit", label: "Visite", icon: ClipboardCheck },
   { to: "/scan", key: "scan", label: "Scanner", icon: QrCode },
@@ -310,6 +312,7 @@ function computePlanLock(feature, planFeatures) {
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
+  const isMobileView = useIsMobile();
   const { t, lang, setLanguage, languages } = useI18n();
   const { has, loading: permsLoading } = usePerms();
   const { theme, resolved: resolvedTheme, setTheme } = useTheme();
@@ -973,18 +976,8 @@ export default function Layout({ children }) {
             </button>
             <ThemeToggle variant="icon" />
             <InboxDropdown />
-            <PushHistoryBell />
             <NotificationBell />
-            <select
-              value={lang}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="text-xs font-medium px-2 py-1 border rounded min-h-[36px] bg-white dark:bg-stone-800 dark:text-stone-200 dark:border-stone-600"
-              data-testid="lang-select-mobile"
-              aria-label={t("language")}
-            >
-              {languages.map(l => <option key={l.code} value={l.code}>{l.flag}</option>)}
-            </select>
-            <button onClick={logout} data-testid="logout-mobile" aria-label={t("logout")} className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-700 dark:text-stone-300"><LogOut size={18} /></button>
+            {/* M1 : bascule de langue et déconnexion déplacées dans « Plus » / Mon profil — le bandeau tenait sur 7 icônes et débordait à 390 px */}
           </div>
         </div>
 
@@ -997,31 +990,12 @@ export default function Layout({ children }) {
           </div>
         </main>
 
-        {/* Mobile bottom tab bar */}
-        <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-stone-900 border-t border-stone-200 dark:border-stone-700 flex justify-around py-2 pb-safe"
-          data-testid="mobile-bottom-nav"
-          aria-label="Navigation rapide"
-        >
-          {MOBILE_NAV.map(({ to, key, label, icon: Icon }) => {
-            const active = isActive(to);
-            return (
-              <button
-                key={to} onClick={() => nav_(to)} data-testid={`nav-mobile-${key}`}
-                aria-label={label}
-                aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 px-2 py-1 min-w-[48px] min-h-[48px] ${active ? "text-[#4A154B] dark:text-[#B076B4]" : "text-stone-500 dark:text-stone-400"}`}
-              >
-                <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
-                <span className="text-xs font-medium">{label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* Mobile bottom tab bar — Terrain · Clients · + · Tournée · Plus (M1) */}
+        <BottomNav />
 
         <CommandPalette items={paletteItems} />
         <VoiceFAB />
-        <OnboardingTour />
+        {!isMobileView && <OnboardingTour />}
       </div>
     </TooltipProvider>
   );

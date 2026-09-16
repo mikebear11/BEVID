@@ -2820,6 +2820,7 @@ async def public_features():
         "stripe_configured": bool(os.environ.get("STRIPE_SECRET_KEY", "").strip()),
         "email_configured": bool(os.environ.get("EMERGENT_EMAIL_KEY", "").strip()),
         "places_configured": bool(os.environ.get("GOOGLE_PLACES_KEY", "").strip()),
+        "is_production": (os.environ.get("BEVID_ENV") or "").strip().lower() == "production",
     }
 
 
@@ -3830,6 +3831,140 @@ async def migrate_legacy_clients(user=Depends(get_current_user)):
     return report
 
 
+# ---------- LEGACY MIGRATION v2 (M1-A) — idempotente, toutes orgs, remap commandes/visites ----------
+_LEGACY_TYPE_MAP = {"supermarche": "epicerie", "bar": "bar", "restaurant": "restaurant", "caviste": "caviste", "hotel": "hotel", "autre": "autre"}
+
+
+async def migrate_legacy_clients_for_org(org_id: str) -> dict:
+    """clients (legacy) → establishments. Rejouable sans doublon :
+    - clé d'idempotence : `clients.migrated_to_establishment_id` + `establishments.legacy_client_id`
+    - fusion douce si SIRET ou nom identique déjà présent
+    - remap `client_id` des orders / visits / activities / deals liés
+    - la collection legacy n'est JAMAIS supprimée."""
+    import re as _re
+    clients = await db_raw.clients.find(
+        {"org_id": org_id, "migrated_to_establishment_id": {"$exists": False}}, {"_id": 0}
+    ).to_list(5000)
+    report = {"org_id": org_id, "total": len(clients), "moved": 0, "merged": 0,
+              "remapped": {"orders": 0, "visits": 0, "activities": 0, "deals": 0}, "errors": [], "items": []}
+    for c in clients:
+        cid = c.get("id")
+        try:
+            name = (c.get("name") or c.get("company_name") or "").strip()
+            if not name:
+                report["errors"].append({"client_id": cid, "reason": "no_name"}); continue
+            siret = (c.get("siret") or "").strip() or None
+            existing = await db_raw.establishments.find_one(
+                {"org_id": org_id, "$or": [{"legacy_client_id": cid}, {"id": cid}]}, {"_id": 0})
+            if not existing and siret:
+                existing = await db_raw.establishments.find_one({"org_id": org_id, "siret": siret}, {"_id": 0})
+            if not existing:
+                existing = await db_raw.establishments.find_one(
+                    {"org_id": org_id, "name": {"$regex": f"^{_re.escape(name)}$", "$options": "i"}}, {"_id": 0})
+            if existing:
+                patch = {k: c[k] for k in ("email", "phone", "address", "city", "postal_code", "lat", "lng", "notes", "contact_name", "assigned_to")
+                         if not existing.get(k) and c.get(k)}
+                patch["legacy_client_id"] = cid
+                patch["updated_at"] = now_iso()
+                await db_raw.establishments.update_one({"id": existing["id"]}, {"$set": patch})
+                est_id = existing["id"]; action = "merged"; report["merged"] += 1
+            else:
+                # Même id que le client legacy : les commandes/visites pointent déjà dessus et la copie
+                # miroir (_merge_clients_into_establishments) ne pourra jamais recréer un doublon.
+                est_id = cid
+                await db_raw.establishments.insert_one({
+                    "id": est_id, "org_id": org_id, "name": name, "siret": siret or "",
+                    "type": _LEGACY_TYPE_MAP.get(c.get("type") or "bar", "autre"),
+                    "email": c.get("email") or "", "phone": c.get("phone") or "",
+                    "contact_name": c.get("contact_name") or "",
+                    "address": c.get("address") or "", "city": c.get("city") or "",
+                    "postal_code": c.get("postal_code") or "", "lat": c.get("lat"), "lng": c.get("lng"),
+                    "notes": c.get("notes") or "", "status": c.get("status") or "actif",
+                    "tags": [], "contacts": [], "active": True,
+                    "credit_limit": 0.0, "current_credit": 0.0, "overdue_amount": 0.0, "overdue_days": 0,
+                    "assigned_to": c.get("assigned_to") or c.get("owner_id"), "owner_id": c.get("owner_id"),
+                    "legacy_client_id": cid,
+                    "created_at": c.get("created_at") or now_iso(), "updated_at": now_iso(),
+                    "migrated_from_legacy_at": now_iso(),
+                })
+                action = "moved"; report["moved"] += 1
+            if est_id != cid:
+                for coll in ("orders", "visits", "activities", "deals"):
+                    r = await getattr(db_raw, coll).update_many(
+                        {"org_id": org_id, "client_id": cid}, {"$set": {"client_id": est_id, "legacy_client_id": cid}})
+                    report["remapped"][coll] += r.modified_count
+            await db_raw.clients.update_one({"id": cid}, {"$set": {"migrated_to_establishment_id": est_id, "migrated_at": now_iso()}})
+            report["items"].append({"client_id": cid, "name": name, "establishment_id": est_id, "action": action})
+        except Exception as e:  # noqa: BLE001
+            report["errors"].append({"client_id": cid, "reason": str(e)[:200]})
+    if report["total"]:
+        await db_raw.migration_journal.insert_one({"id": str(uuid.uuid4()), "kind": "legacy_clients_to_establishments", "at": now_iso(), **report})
+        logger.info(f"[legacy-migration] org={org_id} total={report['total']} moved={report['moved']} merged={report['merged']} remapped={report['remapped']} errors={len(report['errors'])}")
+    return report
+
+
+async def _dedupe_mirror_establishments(org_id: str) -> dict:
+    """Répare les doublons miroir : E (legacy_client_id=L, id≠L) + M (id=L) → tout fusionne dans M.
+    Champs non vides de E copiés dans M, commandes/visites/activités/opportunités remappées vers L, E supprimé."""
+    report = {"merged_pairs": 0, "remapped": {"orders": 0, "visits": 0, "activities": 0, "deals": 0}}
+    dups = await db_raw.establishments.find(
+        {"org_id": org_id, "legacy_client_id": {"$exists": True, "$ne": None}, "$expr": {"$ne": ["$id", "$legacy_client_id"]}}, {"_id": 0}).to_list(5000)
+    for e in dups:
+        lid = e["legacy_client_id"]
+        mirror = await db_raw.establishments.find_one({"org_id": org_id, "id": lid}, {"_id": 0})
+        if not mirror:
+            continue
+        patch = {k: v for k, v in e.items() if k not in ("id", "_id", "org_id", "legacy_client_id", "created_at") and v not in (None, "", [], 0, 0.0) and mirror.get(k) in (None, "", [], 0, 0.0)}
+        patch["legacy_client_id"] = lid
+        patch["updated_at"] = now_iso()
+        await db_raw.establishments.update_one({"id": lid}, {"$set": patch})
+        for coll in ("orders", "visits", "activities", "deals"):
+            r = await getattr(db_raw, coll).update_many({"org_id": org_id, "client_id": e["id"]}, {"$set": {"client_id": lid}})
+            report["remapped"][coll] += r.modified_count
+        await db_raw.establishments.delete_one({"id": e["id"]})
+        await db_raw.clients.update_one({"id": lid}, {"$set": {"migrated_to_establishment_id": lid}})
+        report["merged_pairs"] += 1
+    if report["merged_pairs"]:
+        await db_raw.migration_journal.insert_one({"id": str(uuid.uuid4()), "kind": "dedupe_mirror_establishments", "at": now_iso(), "org_id": org_id, **report})
+        logger.info(f"[legacy-migration] dedupe org={org_id} {report}")
+    return report
+
+
+async def migrate_legacy_clients_all_orgs() -> list:
+    org_ids = await db_raw.clients.distinct("org_id", {"migrated_to_establishment_id": {"$exists": False}})
+    out = []
+    for oid in org_ids:
+        if oid:
+            out.append(await migrate_legacy_clients_for_org(oid))
+    for oid in await db_raw.establishments.distinct("org_id", {"legacy_client_id": {"$exists": True, "$ne": None}}):
+        if oid:
+            await _dedupe_mirror_establishments(oid)
+    orphans = await db_raw.clients.count_documents({"org_id": {"$in": [None, ""]}, "migrated_to_establishment_id": {"$exists": False}})
+    if orphans:
+        logger.warning(f"[legacy-migration] {orphans} client(s) legacy sans org_id — non migrés (rattachement manuel requis)")
+    return out
+
+
+@api_router.post("/admin/legacy/migrate-clients-to-establishments/v2")
+async def migrate_legacy_clients_v2(user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    if not user.get("org_id"):
+        raise HTTPException(404, "Aucune organisation")
+    report = await migrate_legacy_clients_for_org(user["org_id"])
+    report["dedupe"] = await _dedupe_mirror_establishments(user["org_id"])
+    await audit_log(user["id"], "legacy_migration_v2", {"moved": report["moved"], "merged": report["merged"], "errors": len(report["errors"])})
+    return report
+
+
+@api_router.get("/admin/legacy/migration-journal")
+async def legacy_migration_journal(user=Depends(get_current_user)):
+    if user.get("role") != "manager":
+        raise HTTPException(403, "Manager only")
+    items = await db_raw.migration_journal.find({"org_id": user.get("org_id")}, {"_id": 0}).sort("at", -1).to_list(50)
+    return items
+
+
 # =============================================================
 # Lot 9 — Sociétés (companies) : entité mère d'un ou plusieurs
 # établissements. Une société porte l'identité juridique (SIREN,
@@ -4179,6 +4314,7 @@ async def kpis(user=Depends(get_current_user)):
         "total_ca": round(total_ca, 2),
         "orders_count": len(orders),
         "clients_count": len(clients),
+        "establishments_count": await db.establishments.count_documents({}),
         "active_clients": active_clients,
         "vip_clients": vip,
         "chart": chart,
@@ -4787,8 +4923,8 @@ async def predicted_runouts(cid: str, user=Depends(get_current_user)):
         « Blonde 20 L — probablement à sec vendredi. Commande tous les
           21 jours en moyenne, dernière il y a 23 jours. »
     """
-    # Vérifie l'existence du client (tenant-scoped via db)
-    client = await db.clients.find_one({"id": cid}, {"_id": 0})
+    # Vérifie l'existence du client (tenant-scoped via db) — legacy OU établissement
+    client = await db.clients.find_one({"id": cid}, {"_id": 0}) or await db.establishments.find_one({"id": cid}, {"_id": 0})
     if not client:
         raise HTTPException(404, "Client introuvable")
     orders = await db.orders.find(
@@ -4842,6 +4978,9 @@ class VisitReport(BaseModel):
     summary: str = ""
     voice_transcript: Optional[str] = ""
     gps: Optional[dict] = None
+    objections: List[str] = []              # M4 — puces d'objections fréquentes
+    photo: Optional[str] = None             # M4 — miniature JPEG (data URL ≤ 100 Ko)
+    checkin_at: Optional[str] = None        # M4 — heure d'ouverture du formulaire
     owner_id: str
     client_uuid: Optional[str] = None  # idempotence pour resync offline
     created_at: str = Field(default_factory=now_iso)
@@ -6969,6 +7108,10 @@ class Establishment(BaseModel):
     credit_status_updated_at: Optional[str] = None
     tags: List[str] = []
     notes: Optional[str] = ""
+    phone: Optional[str] = ""
+    contact_name: Optional[str] = ""
+    client_uuid: Optional[str] = None      # idempotence resync offline (M2)
+    facade_photo: Optional[str] = None     # miniature JPEG (data URL ≤ 100 Ko) — transition avant stockage objet
     contacts: List[EstablishmentContact] = []
     assigned_to: Optional[str] = None
     active: bool = True
@@ -7035,6 +7178,14 @@ async def list_establishments(user=Depends(get_current_user)):
 
 @api_router.post("/establishments")
 async def create_establishment(data: dict, user=Depends(get_current_user)):
+    # Idempotence resync offline (M2) : même client_uuid → on renvoie la fiche déjà créée
+    cu = data.get("client_uuid")
+    if cu:
+        existing = await db.establishments.find_one({"$or": [{"client_uuid": cu}, {"id": cu}]}, {"_id": 0})
+        if existing:
+            return existing
+    if data.get("facade_photo") and len(data["facade_photo"]) > 150_000:
+        raise HTTPException(413, "Photo trop lourde (100 Ko max)")
     data["owner_id"] = user["id"]
     data.setdefault("assigned_to", user["id"])
     e = Establishment(**data)
@@ -7042,6 +7193,59 @@ async def create_establishment(data: dict, user=Depends(get_current_user)):
     doc["credit_status"] = credit_color(doc)
     await db.establishments.insert_one(doc.copy())
     return doc
+
+
+def _norm_phone(p: str) -> str:
+    d = "".join(ch for ch in (p or "") if ch.isdigit())
+    return d[-9:] if len(d) >= 9 else d
+
+
+@api_router.get("/establishments/check-duplicate")
+async def check_duplicate_establishment(name: str = "", lat: Optional[float] = None, lng: Optional[float] = None, phone: str = "", user=Depends(get_current_user)):
+    """Doublon probable avant création (M2) : même téléphone, ou nom proche à moins de 200 m."""
+    import difflib, unicodedata
+    def norm(s):
+        s = unicodedata.normalize("NFD", (s or "").lower())
+        return "".join(ch for ch in s if unicodedata.category(ch) != "Mn" and (ch.isalnum() or ch == " ")).strip()
+    nname, nphone = norm(name), _norm_phone(phone)
+    if len(nname) < 2 and not nphone:
+        return {"matches": []}
+    items = await db.establishments.find({}, {"_id": 0, "id": 1, "name": 1, "city": 1, "phone": 1, "lat": 1, "lng": 1, "type": 1}).to_list(3000)
+    out = []
+    for e in items:
+        reason = None
+        if nphone and _norm_phone(e.get("phone")) == nphone:
+            reason = "phone"
+        elif len(nname) >= 2:
+            en = norm(e.get("name"))
+            ratio = difflib.SequenceMatcher(None, nname, en).ratio()
+            similar = ratio >= 0.8 or (len(nname) >= 4 and (nname in en or en in nname))
+            if similar:
+                if lat is not None and lng is not None and e.get("lat") is not None and e.get("lng") is not None:
+                    dist = _haversine_m(lat, lng, e["lat"], e["lng"])
+                    if dist <= 200:
+                        reason = "name_nearby"; e["distance_m"] = round(dist)
+                elif ratio >= 0.9:
+                    reason = "name"
+        if reason:
+            out.append({**e, "reason": reason})
+    return {"matches": out[:5]}
+
+
+@api_router.get("/geo/reverse")
+async def geo_reverse(lat: float, lng: float, user=Depends(get_current_user)):
+    """Adresse proposée depuis la position GPS (Nominatim, côté serveur pour rester dans la CSP)."""
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as hx:
+            r = await hx.get("https://nominatim.openstreetmap.org/reverse",
+                             params={"lat": lat, "lon": lng, "format": "json", "zoom": 18, "addressdetails": 1},
+                             headers={"User-Agent": "BEVIDCRM/1.0", "Accept-Language": "fr"})
+        a = (r.json() or {}).get("address", {}) if r.status_code == 200 else {}
+    except Exception:  # noqa: BLE001 — réseau externe : on rend une adresse vide, jamais une 500
+        a = {}
+    road = " ".join(x for x in [a.get("house_number"), a.get("road")] if x)
+    city = a.get("city") or a.get("town") or a.get("village") or a.get("municipality") or ""
+    return {"address": road, "city": city, "postal_code": a.get("postcode", ""), "found": bool(road or city)}
 
 @api_router.get("/establishments/{eid}")
 async def get_establishment(eid: str, user=Depends(get_current_user)):
@@ -7064,6 +7268,81 @@ async def get_establishment(eid: str, user=Depends(get_current_user)):
     top3 = sorted([{"product_id": k, **v} for k, v in stats.items()], key=lambda x: -x["qty"])[:3]
     last_visit = await db.visits.find_one({"client_id": eid}, {"_id": 0}, sort=[("created_at", -1)])
     return {**e, "top_products": top3, "volumes_12m": [{"month": k, "ca": round(v, 2)} for k, v in sorted(volumes_by_month.items())], "last_visit": last_visit}
+
+@api_router.get("/establishments/{eid}/mobile-summary")
+async def establishment_mobile_summary(eid: str, user=Depends(get_current_user)):
+    """Fiche mobile (M3/M5) : premier écran sans défilement + onglets Notes · Commandes · Ventes."""
+    from collections import defaultdict
+    e = await db.establishments.find_one({"id": eid}, {"_id": 0})
+    if not e:
+        raise HTTPException(404, "Établissement introuvable")
+    now = datetime.now(timezone.utc)
+    today = now.date().isoformat()
+    since12 = (now - timedelta(days=365)).isoformat()
+    since24 = (now - timedelta(days=730)).isoformat()
+    orders = await db.orders.find({"client_id": eid, "status": {"$ne": "annule"}}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    visits = await db.visits.find({"client_id": eid}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    ca_12 = sum(o.get("total", 0) for o in orders if o.get("created_at", "") >= since12)
+    ca_prev = sum(o.get("total", 0) for o in orders if since24 <= o.get("created_at", "") < since12)
+    trend = None if ca_prev == 0 else round((ca_12 - ca_prev) / ca_prev * 100)
+    monthly = defaultdict(float)
+    for i in range(12):
+        m = (now.replace(day=1) - timedelta(days=30 * i)).strftime("%Y-%m")
+        monthly.setdefault(m, 0.0)
+    for o in orders:
+        if o.get("created_at", "") >= since12:
+            monthly[o["created_at"][:7]] += o.get("total", 0)
+    # produits achetés : dernière date, dernier prix, quantité 12 m
+    bought = {}
+    for o in orders:
+        for l in o.get("lines", []):
+            b = bought.setdefault(l["product_id"], {"product_id": l["product_id"], "name": l["product_name"], "last_date": o["created_at"][:10], "last_price": l["unit_price"], "qty_12m": 0})
+            if o.get("created_at", "") >= since12:
+                b["qty_12m"] += l["quantity"]
+    cutoff90 = (now - timedelta(days=90)).date().isoformat()
+    products = await db.products.find({}, {"_id": 0, "id": 1, "name": 1, "price": 1, "category": 1}).to_list(1000)
+    opportunities = [{"product_id": p["id"], "name": p["name"], "price": p.get("price", 0), "category": p.get("category"),
+                      "reason": "jamais" if p["id"] not in bought else "plus depuis 90 j"}
+                     for p in products if p["id"] not in bought or bought[p["id"]]["last_date"] < cutoff90]
+    # fréquence et prochaine commande probable
+    dates = sorted({o["created_at"][:10] for o in orders})
+    freq_days = None; next_date = None
+    if len(dates) >= 3:
+        from datetime import date as _d
+        ds = [_d.fromisoformat(x) for x in dates[-8:]]
+        gaps = [(ds[i + 1] - ds[i]).days for i in range(len(ds) - 1) if (ds[i + 1] - ds[i]).days > 0]
+        if gaps:
+            freq_days = round(sum(gaps) / len(gaps)); next_date = (ds[-1] + timedelta(days=freq_days)).isoformat()
+    futs = await db.containers.count_documents({"current_location": eid, "status": "chez_client"})
+    eng_due = await db.engagements.count_documents({"establishment_id": eid, "status": "ouvert", "due_date": {"$lte": today}})
+    lv = visits[0] if visits else None
+    alerts = []
+    if (e.get("overdue_amount") or 0) > 0 or credit_color(e) == "rouge":
+        alerts.append({"key": "impaye", "label": f"Impayé {round(e.get('overdue_amount') or e.get('current_credit') or 0):,} €".replace(",", " ")})
+    if futs:
+        alerts.append({"key": "fut", "label": f"{futs} fût{'s' if futs > 1 else ''} non rendu{'s' if futs > 1 else ''}"})
+    if eng_due or (lv and lv.get("next_date") and lv["next_date"][:10] <= today and lv.get("next_action") != "aucune"):
+        alerts.append({"key": "relance", "label": "Relance due"})
+    try:
+        from analytics.runout import compute_runouts
+        from datetime import date as _date
+        preds = compute_runouts(sorted(orders, key=lambda o: o.get("created_at", "")), {p["id"]: p for p in await db.products.find({}, {"_id": 0}).to_list(1000)}, today=_date.today())
+        preds = preds.get("predictions", preds) if isinstance(preds, dict) else preds
+        if preds:
+            alerts.append({"key": "rupture", "label": f"Rupture probable : {preds[0].get('product_name') or preds[0].get('name', '')}".strip(" :")})
+    except Exception:  # noqa: BLE001 — la prédiction ne bloque jamais la fiche
+        pass
+    return {
+        "establishment": {**e, "credit_status": credit_color(e)},
+        "last_visit": lv, "last_order": orders[0] if orders else None,
+        "ca_12m": round(ca_12, 2), "ca_prev_12m": round(ca_prev, 2), "trend_pct": trend,
+        "alerts": alerts, "contacts": e.get("contacts") or [],
+        "visits": visits[:30], "orders": orders[:30],
+        "sales": {"monthly": [{"month": k, "ca": round(v, 2)} for k, v in sorted(monthly.items())[-12:]],
+                  "bought": sorted(bought.values(), key=lambda b: b["last_date"], reverse=True),
+                  "opportunities": opportunities[:12], "freq_days": freq_days, "next_order_date": next_date},
+    }
+
 
 @api_router.put("/establishments/{eid}")
 async def update_est(eid: str, data: dict, user=Depends(get_current_user)):
@@ -13380,6 +13659,12 @@ async def _startup_seed_demo():
         await _bootstrap_owner_exemptions()
     except Exception as e:
         logger.warning(f"[seed] startup skipped: {e}")
+    # M1-A — migration idempotente clients legacy → establishments (toutes orgs, journalisée)
+    try:
+        reports = await migrate_legacy_clients_all_orgs()
+        logger.info(f"[legacy-migration] startup : {len(reports)} org(s) traitée(s)")
+    except Exception as e:
+        logger.warning(f"[legacy-migration] startup skipped: {e}")
 
 
 async def _bootstrap_owner_exemptions():
@@ -13546,8 +13831,8 @@ async def _merge_clients_into_establishments():
     n_added = 0
     async for raw in db_raw.clients.find({}, {"_id": 0}):
         cid = raw.get("id")
-        if not cid:
-            continue
+        if not cid or raw.get("migrated_to_establishment_id"):
+            continue  # déjà pris en charge par la migration v2 (M1-A) — jamais de seconde copie
         exists = await db_raw.establishments.find_one({"id": cid}, {"_id": 0, "id": 1})
         if exists:
             continue
@@ -13905,5 +14190,75 @@ async def cron_automations_tick(request: Request):
             scheduled += 1
     await db_raw.automation_rules_v2.update_many({"enabled": True}, {"$set": {"last_run_at": now_iso()}})
     return {"ok": True, "scheduled": scheduled, "skipped": {"cap_14d": skipped_cap, "contact_48h": skipped_contact, "excluded": skipped_excluded}}
+
+
+# ---------- MOBILE TERRAIN (M1) ----------
+def _haversine_m(lat1, lng1, lat2, lng2) -> float:
+    import math
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = math.radians(lat2 - lat1), math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+@api_router.get("/terrain/summary")
+async def terrain_summary(lat: Optional[float] = None, lng: Optional[float] = None, limit: int = 8, user=Depends(get_current_user)):
+    """Écran Terrain mobile : près de moi (distance + badges), tournée du jour restante, CA jour/mois."""
+    from collections import Counter
+    is_mgr = user["role"] in ("manager", "gerant")
+    q = {} if is_mgr else {"assigned_to": user["id"]}
+    etabs = await db.establishments.find(q, {"_id": 0, "contacts": 0, "notes": 0}).to_list(2000)
+    now = datetime.now(timezone.utc)
+    today = now.date().isoformat()
+    ids = [e["id"] for e in etabs]
+    due_eng = await db.engagements.find({"establishment_id": {"$in": ids}, "status": "ouvert", "due_date": {"$lte": today}},
+                                        {"_id": 0, "establishment_id": 1}).to_list(5000)
+    due_set = {x["establishment_id"] for x in due_eng}
+    futs = await db.containers.find({"current_location": {"$in": ids}, "status": "chez_client"}, {"_id": 0, "current_location": 1}).to_list(10000)
+    fut_count = Counter(f["current_location"] for f in futs)
+    visits = await db.visits.find({"client_id": {"$in": ids}}, {"_id": 0, "client_id": 1, "next_date": 1, "created_at": 1, "next_action": 1, "agent_id": 1}
+                                  ).sort("created_at", -1).to_list(10000)
+    last_visit = {}
+    for v in visits:
+        last_visit.setdefault(v["client_id"], v)
+    for e in etabs:
+        e["credit_status"] = credit_color(e)
+        lv = last_visit.get(e["id"])
+        badges = []
+        if (e.get("overdue_amount") or 0) > 0 or e["credit_status"] == "rouge":
+            badges.append({"key": "impaye", "label": "Impayé"})
+        if e["id"] in due_set or (lv and lv.get("next_date") and lv["next_date"][:10] <= today and lv.get("next_action") != "aucune"):
+            badges.append({"key": "relance", "label": "À relancer"})
+        n = fut_count.get(e["id"], 0)
+        if n:
+            badges.append({"key": "fut", "label": f"{n} fût{'s' if n > 1 else ''} non rendu{'s' if n > 1 else ''}"})
+        e["badges"] = badges
+        e["last_visit_at"] = lv.get("created_at") if lv else None
+        e["distance_m"] = (round(_haversine_m(lat, lng, e["lat"], e["lng"])) if lat is not None and lng is not None
+                           and e.get("lat") is not None and e.get("lng") is not None else None)
+    nearby = sorted([e for e in etabs if e["distance_m"] is not None], key=lambda x: x["distance_m"])[:limit]
+    tq = {"date": {"$regex": f"^{today}"}}
+    if not is_mgr:
+        tq["agent_id"] = user["id"]
+    tours = await db.tours.find(tq, {"_id": 0}).to_list(50)
+    by_id = {e["id"]: e for e in etabs}
+    visited_today = {v["client_id"] for v in visits if (v.get("created_at") or "")[:10] == today and v.get("agent_id") == user["id"]}
+    stops = [by_id[cid] for t in tours for cid in t.get("client_ids", []) if cid in by_id]
+    month = today[:7]
+    my_orders = await db.orders.find({"agent_id": user["id"], "created_at": {"$regex": f"^{month}"}, "status": {"$ne": "annule"}},
+                                     {"_id": 0, "total": 1, "created_at": 1}).to_list(5000)
+    goal = await db.goals.find_one({"agent_id": user["id"], "year": now.year, "month": now.month}, {"_id": 0})
+    return {
+        "nearby": nearby,
+        "tour_today": [s for s in stops if s["id"] not in visited_today],
+        "tour_total": len(stops),
+        "etab_count": len(etabs),
+        "stats": {
+            "ca_today": round(sum(o.get("total", 0) for o in my_orders if (o.get("created_at") or "")[:10] == today), 2),
+            "ca_month": round(sum(o.get("total", 0) for o in my_orders), 2),
+            "target_month": (goal or {}).get("target_ca", 0),
+        },
+    }
 
 app.include_router(api_router)

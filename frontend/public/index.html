@@ -37,6 +37,8 @@
         <title>BEVID · CRM Boisson</title>
         <link rel="canonical" href="https://drink-sales-hub-8.preview.emergentagent.com/" />
         <script>
+          // Anti-clickjacking de transition (M1-F) : en cadre d'une autre origine → rien n'est rendu, on sort du cadre.
+          (function(){try{if(window.self!==window.top){var s=document.createElement("style");s.textContent="body{display:none !important}";document.head.appendChild(s);try{window.top.location.replace(window.location.href);}catch(e){}}}catch(e){}})();
           // Applique le thème AVANT le rendu pour éviter le flash (FOUC)
           (function(){try{var t=localStorage.getItem("bevid.theme")||"system";var h=document.documentElement;h.classList.remove("dark","sun");var eff=t;if(t==="system"){eff=(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";}if(eff==="dark"){h.classList.add("dark");h.style.colorScheme="dark";}else if(eff==="sun"){h.classList.add("sun");h.style.colorScheme="light";}else{h.style.colorScheme="light";}}catch(e){}})();
         </script>

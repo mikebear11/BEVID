@@ -1,3 +1,5 @@
+import FramedBlock from "@/components/FramedBlock";
+import { isFramed } from "@/lib/frameGuard";
 import React, { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,6 +60,7 @@ export default function Login() {
     } finally { setLoading(false); }
   };
 
+  if (isFramed()) return <FramedBlock />;
   return (
     <div className="min-h-screen flex">
       <div data-testid="brand-panel" className="hidden md:flex md:w-1/2 relative bg-[#4A154B] text-white p-12 flex-col justify-between overflow-hidden">

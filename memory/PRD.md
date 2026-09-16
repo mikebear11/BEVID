@@ -1850,3 +1850,13 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 - Sous-lots : M0 état des lieux ✅ · M1 accueil Terrain + nav · M2 trouver/créer client · M3 fiche mobile · M4 note de visite + historique · M5 vendre + infos de vente. Un sous-lot à la fois, preuves, arrêt.
 - **M0 livré** : rapport `memory/mobile/M0_ETAT_DES_LIEUX.md` + captures `memory/mobile/m0_*.png`. Constats bloquants : page Clients vide (API legacy `/clients` vs `/establishments`), CTA fiche recouverts par la nav du bas, route `/etab/:id/visite` inexistante, aucun « refaire commande » mobile. Références : fiche 3 touchers (via Tournée seulement), note 6 touchers, refaire commande non réalisable.
 - Objectifs fin de lot : fiche ≤ 3 touchers ; note < 30 s ; refaire < 20 s ; mode avion complet ; porte QA verte.
+
+### Lot mobile terrain — avancement (16 septembre 2026, nuit autonome)
+- **M1 livré + relecture traitée** (`memory/mobile/M1_RAPPORT.md`) : écran Terrain `/terrain` (accueil mobile par défaut), nav Terrain · Clients · + · Tournée · Plus, feuille d'actions rapides + sélecteur client, migration legacy→établissements idempotente **à l'id du client legacy** + réparation des doublons miroir au démarrage, nav masquée sur écrans à barre propre, route `/etab/:id/visite`, contrôle `dead_links` dans la porte QA, anti-cadre JS, dédup/concurrence des GET dans `lib/api.js` (0 × 429).
+- **M2 livré** (`M2_RAPPORT.md`) : recherche accents/casse/fautes légères + hors ligne, création prospect GPS → adresse (`/api/geo/reverse`), doublon (`/api/establishments/check-duplicate`), photo, hors ligne idempotent (`client_uuid`), fiches « À synchroniser ».
+- **M3 livré** (`M3_RAPPORT.md`) : fiche mobile `MobileEtab360` (`/api/establishments/{id}/mobile-summary`), 4 CTA fixes 56 px, onglets Notes · Commandes · Ventes · Infos en cartes.
+- **M4 livré** (`M4_RAPPORT.md`) : `MobileVisit` — check-in, résultat en boutons, dictée d'abord, objections, photo, puces de relance, hors ligne, enchaînement commande ; historique en cartes.
+- **M5 partiellement livré** : onglet Ventes + CA jour/mois Terrain OK ; **prise de commande mobile (refaire / habituels / total fixe / filtre produits test / signature) NON FAITE** — voir fin de `M4_RAPPORT.md`.
+- **Plan apps iPhone/Android (N0–N8) : non commencé.**
+- Fichiers clés : `frontend/src/lib/mobile.js`, `components/mobile/*`, `pages/Terrain.jsx`, `MobileClients.jsx`, `MobileProspectNew.jsx`, `MobileEtab360.jsx`, `MobileVisit.jsx`, `components/mobile/SalesTab.jsx` ; backend : `terrain/summary`, `geo/reverse`, `establishments/check-duplicate`, `establishments/{eid}/mobile-summary`, `migrate_legacy_clients_*`, `_dedupe_mirror_establishments`.
+- Blocages / tickets : `memory/BLOCAGES.md`.

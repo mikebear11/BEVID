@@ -14,6 +14,28 @@ export const API = `${BACKEND_URL}/api`;
  */
 export const api = axios.create({ baseURL: API, withCredentials: true });
 
+// --- Lectures : déduplication des GET identiques en vol + file à concurrence bornée (max 6) ---
+// Cause des 429 relevés par la porte QA : ~25 GET simultanés au montage du tableau de bord
+// (bandeau + widgets), certains en double (/alerts/follow-ups, /inbox…). Le proxy limite les rafales.
+const MAX_INFLIGHT = 6;
+const inflight = new Map();
+let active = 0;
+const waiting = [];
+const acquire = () => new Promise((res) => { if (active < MAX_INFLIGHT) { active++; res(); } else waiting.push(res); });
+const release = () => { const next = waiting.shift(); if (next) next(); else active--; };
+const defaultAdapter = axios.getAdapter(axios.defaults.adapter);
+api.defaults.adapter = async (config) => {
+  if ((config.method || "get").toLowerCase() !== "get") return defaultAdapter(config);
+  const key = `${config.baseURL || ""}${config.url}${config.params ? JSON.stringify(config.params) : ""}`;
+  if (inflight.has(key)) return inflight.get(key).then((r) => ({ ...r, config }));
+  const p = (async () => {
+    await acquire();
+    try { return await defaultAdapter(config); } finally { release(); }
+  })();
+  inflight.set(key, p);
+  try { return await p; } finally { inflight.delete(key); }
+};
+
 api.interceptors.response.use(
   (r) => r,
   (err) => {

@@ -23,11 +23,14 @@ export default function Dashboard() {
   const [k, setK] = useState(null);
   const [seeding, setSeeding] = useState(false);
   const [lowStock, setLowStock] = useState({ items: [], count: 0 });
+  const [isProd, setIsProd] = useState(false);
 
   const load = async () => {
     try {
-      const [{ data: kpi }, { data: ls }] = await Promise.all([api.get("/dashboard/kpis"), api.get("/alerts/low-stock?threshold=30")]);
-      setK(kpi); setLowStock(ls);
+      const [{ data: kpi }, { data: ls }, { data: feat }] = await Promise.all([
+        api.get("/dashboard/kpis"), api.get("/alerts/low-stock?threshold=30"), api.get("/config/features").catch(() => ({ data: {} })),
+      ]);
+      setK(kpi); setLowStock(ls); setIsProd(!!feat.is_production);
     }
     catch(e) { toast.error(t("toast.erreur_chargement_kpis")); }
   };
@@ -49,7 +52,8 @@ export default function Dashboard() {
     { label: t("kpi_vip_clients"), value: k.vip_clients, icon: Award, color: "#4A154B" },
   ];
 
-  const empty = k.orders_count === 0 && k.clients_count === 0;
+  // M1-D : jamais en production, et uniquement sur une organisation réellement vide
+  const empty = !isProd && k.orders_count === 0 && k.clients_count === 0 && (k.establishments_count || 0) === 0;
 
   return (
     <div className="space-y-8" data-testid="dashboard-page">

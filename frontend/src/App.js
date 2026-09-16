@@ -14,6 +14,7 @@ import "leaflet/dist/leaflet.css";
 import "@/design-system/tokens.css";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { isMobile } from "@/lib/mobile";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { I18nProvider } from "@/contexts/I18nContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -41,6 +42,15 @@ const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const PublicSignature = lazy(() => import("@/pages/PublicSignature"));
 const ChangePassword = lazy(() => import("@/pages/ChangePassword"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Terrain = lazy(() => import("@/pages/Terrain"));
+const MobileVisit = lazy(() => import("@/pages/MobileVisit"));
+function VisitRoute() {
+  return isMobile() ? <MobileVisit /> : <VisitReport />;
+}
+// Accueil : sur mobile (< 768 px) l'écran par défaut est « Terrain », le tableau de bord reste sur /dashboard (M1)
+function HomeRoute() {
+  return isMobile() ? <Navigate to="/terrain" replace /> : <Dashboard />;
+}
 const Clients = lazy(() => import("@/pages/Clients"));
 const ClientDetail = lazy(() => import("@/pages/ClientDetail"));
 const Products = lazy(() => import("@/pages/Products"));
@@ -137,7 +147,10 @@ function App() {
                         <Route path="/admin/couts" element={<Protected><Couts /></Protected>} />
                         <Route path="/paiements" element={<Protected><Paiements /></Protected>} />
                         <Route path="/confidentialite" element={<Protected><Confidentialite /></Protected>} />
-                        <Route path="/" element={<Protected><Dashboard /></Protected>} />
+                        <Route path="/" element={<Protected><HomeRoute /></Protected>} />
+                        <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                        <Route path="/terrain" element={<Protected><Terrain /></Protected>} />
+                        <Route path="/etab/:id/visite" element={<Protected><VisitRoute /></Protected>} />
                         <Route path="/clients" element={<Protected><Clients /></Protected>} />
                         <Route path="/clients/:id" element={<Protected><ClientDetail /></Protected>} />
                         <Route path="/products" element={<Protected><Products /></Protected>} />

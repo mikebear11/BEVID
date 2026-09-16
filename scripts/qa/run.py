@@ -366,6 +366,19 @@ def build_markdown(report: dict, violations: list[str], regressions: list[str]) 
     return "\n".join(lines)
 
 
+
+async def collect_internal_links(page) -> list[str]:
+    """Liens internes (`a[href^='/']`) présents sur l'écran courant, sans ancre ni query."""
+    try:
+        return await page.evaluate("""() => [...document.querySelectorAll('a[href]')]
+            .map(a => a.getAttribute('href') || '')
+            .filter(h => h.startsWith('/') && !h.startsWith('//') && !h.startsWith('/api/'))
+            .map(h => h.split('#')[0].split('?')[0])
+            .filter(Boolean)""")
+    except Exception:
+        return []
+
+
 async def main(args):
     config = load_config()
     base_url = load_backend_url()
@@ -379,6 +392,8 @@ async def main(args):
         auth_routes = []
 
     audits = []
+    internal_links: set = set()
+    dead_links: list = []
     print(f"→ Base URL : {base_url}")
     print(f"→ Routes publiques : {len(public_routes)}")
     print(f"→ Routes auth      : {len(auth_routes)}")
@@ -449,6 +464,8 @@ async def main(args):
                         try:
                             audit = await audit_page(page, url, vp["name"], checks_js, generic_titles)
                             summary = summarize_route(audit, vp["name"])
+                            if vp["name"] == "mobile":
+                                internal_links |= set(await collect_internal_links(page))
                         except Exception as e:
                             print(f"      ! erreur: {e}", file=sys.stderr)
                             audit = {"error": str(e)[:200], "url": url}
@@ -461,6 +478,22 @@ async def main(args):
                             "raw": audit,
                         })
                         await asyncio.sleep(0.8)
+
+                # Liens morts (M1-C) : chaque lien interne vu sur les écrans mobiles doit répondre sans 404.
+                if vp["name"] == "mobile" and internal_links:
+                    audited = {r["path"] for r in auth_routes + public_routes}
+                    to_check = sorted(l for l in internal_links if l not in audited)
+                    print(f"    ▸ Vérification des liens internes ({len(to_check)})")
+                    for link in to_check:
+                        try:
+                            await page.goto(f"{base_url}{link}", wait_until="networkidle", timeout=20000)
+                            await page.wait_for_timeout(600)
+                            if await page.locator('[data-testid="not-found-page"]').count() > 0:
+                                dead_links.append(link)
+                                print(f"      ✗ 404 : {link}")
+                        except Exception as e:
+                            print(f"      ! {link} : {str(e)[:80]}", file=sys.stderr)
+                        await asyncio.sleep(0.4)
 
                 await context.close()
             except Exception as e:
@@ -501,6 +534,7 @@ async def main(args):
     # Bundle size (une seule mesure)
     bundle_kb = await get_bundle_size_kb(base_url)
     totals["bundle_size_kb"] = bundle_kb
+    totals["dead_links"] = len(dead_links)
 
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -509,6 +543,8 @@ async def main(args):
         "viewports": [vp["name"] for vp in config["viewports"]],
         "routes_count": len(public_routes) + len(auth_routes),
         "audits_count": len(audits),
+        "internal_links_checked": sorted(internal_links),
+        "dead_links": dead_links,
         "totals": totals,
         "audits": audits,
     }

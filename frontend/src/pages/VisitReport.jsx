@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { api, postOffline } from "@/lib/api";
 import { useVoice } from "@/hooks/useVoice";
 import { Mic, Check, Sparkles, Loader2, CloudOff, ShoppingCart } from "lucide-react";
@@ -31,9 +31,10 @@ const ACTIONS = [
 export default function VisitReport() {
   const nav = useNavigate();
   const [params] = useSearchParams();
+  const { id: routeEtabId } = useParams();
   const [clients, setClients] = useState([]);
   const [form, setForm] = useState({
-    client_id: params.get("client_id") || "",
+    client_id: routeEtabId || params.get("client_id") || "",
     mood: "bon", interest: "tiede", next_action: "relance",
     next_date: "", summary: "",
   });
@@ -54,7 +55,8 @@ export default function VisitReport() {
       api.get("/establishments").catch(() => ({ data: [] })),
     ]).then(([rc, re]) => {
       const merged = new Map();
-      for (const c of (rc.data || [])) merged.set(c.id, { id: c.id, name: c.name, city: c.city });
+      // M1-A : les clients legacy déjà migrés vers un établissement ne sont plus proposés (source unique)
+      for (const c of (rc.data || [])) if (!c.migrated_to_establishment_id) merged.set(c.id, { id: c.id, name: c.name, city: c.city });
       for (const e of (re.data || [])) if (!merged.has(e.id)) merged.set(e.id, { id: e.id, name: e.name, city: e.city });
       setClients(Array.from(merged.values()));
     });

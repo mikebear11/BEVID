@@ -1,3 +1,5 @@
+import FramedBlock from "@/components/FramedBlock";
+import { isFramed } from "@/lib/frameGuard";
 import React, { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -30,6 +32,7 @@ export default function ResetPassword() {
     } finally { setLoading(false); }
   };
 
+  if (isFramed()) return <FramedBlock />;
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-stone-50">
       <div className="w-full max-w-sm bg-white rounded-2xl p-8 shadow-sm border border-stone-200" data-testid="reset-password-page">
