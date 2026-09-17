@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only regression run after P0 code-review fixes (useCallback hook deps + stable React keys with _k/uid + annotated catch blocks). Login as manager.demo. Visited /orders, /documents, /products (hecto tiers), /drm, /rapprochement, /containers, /tours, /companies, /approvals, /etab/{id}. Zero React warnings observed (no 'Maximum update depth exceeded', no 'Each child in a list should have a unique key', no hook-deps warnings). No infinite request loops detected on any page (each filter/select change triggered exactly ONE GET). Orders line-keys stable after deleting a middle row (line1 v1 + line3 v3 preserved). Documents doc-line-desc-0 and doc-line-desc-2 preserved after adding another line. Products hecto tiers modal: PUT /api/products/{id} returned 200 OK after edit. Overall: regression suite is GREEN.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_25.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Only ambient (unrelated) console errors observed: CSP violation for https://static.cloudflareinsights.com/beacon.min.js and https://ap.emergent.sh/flags/?v=2 — these are third-party beacons blocked by the app CSP. Non-blocking but noisy; consider adding them to CSP script-src/connect-src OR removing the beacon loader if not required.",
+    "The hecto-tier delete button inside the Paliers modal has no data-testid; testing via generic trash icon scoped to [role=dialog] failed to find a button. Recommend adding data-testid='delete-tier-{index}' (or on the _k) to align with add-tier data-testid.",
+    "Orders row product select has no data-testid (only 'order-client-select' on the header client select). Add data-testid='order-line-product-{index}' and data-testid='order-line-delete-{index}' to make row-level tests deterministic (spec references this convention).",
+    "Orders form: the row grid uses `.grid grid-cols-12` — verify order line rendering still uses key={l._k} everywhere (confirmed via runtime test: values follow rows when a middle line is removed, so keys are indeed stable)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only scope)", "frontend": "10/10 flows GREEN — no regressions detected" },
+  "test_credentials": "manager.demo@bevidcrm.fr / Manager!2026Demo — login OK",
+  "seed_data_creation": "None. Did not submit orders/documents. The idempotent PUT on /api/products/{id} was executed once with edited hecto_tiers and returned 200; state persists but is safe per spec instructions.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Key selectors discovered: [data-testid=add-line-btn] on Orders form, [data-testid=doc-add-line] + [data-testid=doc-line-desc-N] on Documents, [data-testid=add-tier] inside Products Paliers modal, [data-testid=companies-search] on Companies list. Product row selects on Orders have NO data-testid — you must use `document.querySelectorAll('[data-testid=\"order-client-select\"], select')`. Order line delete requires scanning the row parent for `button svg.lucide-trash-2` (only present on added rows, not the first row). /approvals still needs pushState trick to render (SPA fallback 404 on hard nav — pre-existing issue from iteration_24). Onboarding tour modal + cookie banner appear on first manager login — dismiss before interacting.",
+  "rca_of_the_issue": "N/A — no bugs found in this iteration; all P0 fixes verified functional."
+}
