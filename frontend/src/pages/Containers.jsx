@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { Link } from "react-router-dom";
 import { QrCode, Plus, MapPin, Package } from "lucide-react";
@@ -18,7 +18,7 @@ export default function Containers() {
   const [show, setShow] = useState(false);
   const [form, setForm] = useState({ type: "fut", product_id: "", batch_lot: "", deposit_amount: 50, filled_volume_l: 30, barcode: "" });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const q = new URLSearchParams();
     if (filter.status) q.set("status", filter.status);
     if (filter.type) q.set("type", filter.type);
@@ -28,8 +28,8 @@ export default function Containers() {
     ]);
     setItems(c.data);
     setProducts(p.data);
-  };
-  useEffect(() => { load(); }, [filter]);
+  }, [filter]);
+  useEffect(() => { load(); }, [load]);
 
   const submit = async (e) => {
     e.preventDefault();

@@ -31,17 +31,18 @@ export function pushRecent(e) {
 
 export const normalize = (s) => (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-// Distance d'édition bornée à 1 (fautes légères : lettre manquante, en trop ou permutée)
+// Distance de Damerau-Levenshtein bornée à 1 (lettre manquante, en trop, substituée ou deux lettres permutées)
 function within1(a, b) {
   if (a === b) return true;
-  if (Math.abs(a.length - b.length) > 1) return false;
-  let i = 0, j = 0, edits = 0;
-  while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) { i++; j++; continue; }
-    if (++edits > 1) return false;
-    if (a.length > b.length) i++; else if (a.length < b.length) j++; else { i++; j++; }
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  let i = 0;
+  while (i < la && i < lb && a[i] === b[i]) i++;
+  if (la === lb) {
+    if (i + 1 < la && a[i] === b[i + 1] && a[i + 1] === b[i]) return a.slice(i + 2) === b.slice(i + 2); // transposition
+    return a.slice(i + 1) === b.slice(i + 1); // substitution
   }
-  return edits + (a.length - i) + (b.length - j) <= 1;
+  return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1); // insertion / suppression
 }
 
 /** Recherche insensible aux accents/casse, sous-chaîne ou faute légère par mot (≥ 4 lettres). */
@@ -67,6 +68,11 @@ export function daysAgo(iso) {
 let posCache = null;
 export function getPosition({ maxAgeMs = 120000, timeout = 8000 } = {}) {
   if (posCache && Date.now() - posCache.at < maxAgeMs) return Promise.resolve(posCache.pos);
+  // Natif : plugin Geolocation (premier plan, permission « pendant l'utilisation » uniquement)
+  if (window.Capacitor?.isNativePlatform?.()) {
+    return import("@/lib/native").then(({ nativePosition }) => nativePosition({ timeout, maxAgeMs }))
+      .then((pos) => { posCache = { at: Date.now(), pos }; return pos; });
+  }
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("no-geo"));
     navigator.geolocation.getCurrentPosition(

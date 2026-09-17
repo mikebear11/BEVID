@@ -25,7 +25,7 @@ export default function PaymentModal({ orderId, onClose, onPaid }) {
         const { data } = await api.get(`/payments/status/${session.session_id}`);
         setStatus(data.payment_status);
         if (data.payment_status === "paid") { clearInterval(iv); toast.success(t("toast.paiement_recu")); onPaid && onPaid(); }
-      } catch {}
+      } catch { /* best-effort : ignoré volontairement */ }
     }, 2500);
     return () => clearInterval(iv);
   }, [session, status, onPaid]);

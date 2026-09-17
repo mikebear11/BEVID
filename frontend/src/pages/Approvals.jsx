@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -41,15 +41,15 @@ export default function Approvals() {
   const [reviewText, setReviewText] = useState("");
   const [establishments, setEstablishments] = useState([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (filter && filter !== "all") params.set("status", filter);
       const { data } = await api.get(`/approvals?${params.toString()}`);
       setItems(data);
     } catch (e) { toast.error("Chargement impossible"); }
-  };
-  useEffect(() => { load(); }, [filter]);
+  }, [filter]);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get("/establishments").then(r => setEstablishments(r.data || [])).catch(() => {}); }, []);
 
   const submit = async (e) => {

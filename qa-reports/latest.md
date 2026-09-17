@@ -1,13 +1,13 @@
 # BEVID — Rapport de qualité
 
-**Généré** : 2026-09-16T17:06:45.076403+00:00
+**Généré** : 2026-09-17T10:12:15.750463+00:00
 **URL** : https://drink-sales-hub-8.preview.emergentagent.com
 **Routes auditées** : 17 × 3 viewports = **51 audits**
 
 ## Résultat global
 
 ### ⚠️ Régressions par rapport au rapport précédent
-- bundle_size_kb: 4014 → 4015
+- bundle_size_kb: 4078 → 4079
 
 ## Totaux par métrique
 
@@ -26,8 +26,8 @@
 | csp_violations | ✅ 0 | 0 |
 | dead_links | ✅ 0 | 0 |
 | transient_load_failures | ✅ 0 | 3 |
-| bundle_size_kb | ✅ 4015 | 5000 |
-| lcp_ms | ✅ 736 | 3500 |
+| bundle_size_kb | ✅ 4079 | 5000 |
+| lcp_ms | ✅ 708 | 3500 |
 
 ## Détail par écran
 

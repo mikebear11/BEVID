@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Pin, PinOff, Trash2, Loader2, Send, Edit3, Check, X, MessageSquare } from "lucide-react";
@@ -18,16 +18,16 @@ export default function CommentsThread({ establishmentId, onMemoryChange }) {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get(`/establishments/${establishmentId}/comments`);
       setItems(Array.isArray(data) ? data : []);
     } catch { setItems([]); }
     finally { setLoading(false); }
-  };
+  }, [establishmentId]);
 
-  useEffect(() => { if (establishmentId) load(); }, [establishmentId]);
+  useEffect(() => { if (establishmentId) load(); }, [establishmentId, load]);
 
   const post = async (e) => {
     e?.preventDefault();

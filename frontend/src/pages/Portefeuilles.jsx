@@ -143,7 +143,7 @@ export default function Portefeuilles() {
           ) : (
             <ul className="space-y-2" data-testid="workload-suggestions">
               {(wl.suggestions || []).map((s, i) => (
-                <li key={i} className="flex items-center justify-between gap-3 p-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 rounded-lg" data-testid={`suggestion-${i}`}>
+                <li key={`${s.from_user_name}-${s.to_user_name}`} className="flex items-center justify-between gap-3 p-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 rounded-lg" data-testid={`suggestion-${i}`}>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Sparkles size={14} className="text-amber-700 dark:text-amber-400" aria-hidden="true" />

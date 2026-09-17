@@ -20,7 +20,7 @@ export default function MobileClients() {
   useEffect(() => {
     (async () => {
       let list = [];
-      try { const { data } = await api.get("/establishments"); list = data; db.establishments.bulkPut(data).catch(() => {}); }
+      try { const { data } = await api.get("/establishments"); list = data; db.establishments.bulkPut(data).catch(() => {}); import("@/lib/nativeStore").then((m) => m.mirrorEstablishments(data)).catch(() => {}); }
       catch { list = await db.establishments.toArray().catch(() => []); }
       setOffline(!navigator.onLine);
       // Prospects créés hors ligne, pas encore synchronisés → visibles immédiatement

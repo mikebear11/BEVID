@@ -2,6 +2,8 @@ import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Inbox, AtSign, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { t } from "@/lib/i18n";
 
 /**
  * Boîte de réception dans la barre du haut. Compteur non-lus + liste des
@@ -32,7 +34,7 @@ export default function InboxDropdown() {
   }, []);
 
   const markRead = async (msgId) => {
-    try { await api.post(`/messages/${msgId}/mark-read`); load(); } catch {}
+    try { await api.post(`/messages/${msgId}/mark-read`); load(); } catch { toast.error(t("toast.erreur")); }
   };
 
   return (

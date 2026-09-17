@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -15,7 +15,7 @@ export default function Companies() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const url = q ? `/companies?q=${encodeURIComponent(q)}` : "/companies";
@@ -23,8 +23,8 @@ export default function Companies() {
       setItems(data);
     } catch { toast.error("Chargement impossible"); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t); }, [q]);
+  }, [q]);
+  useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t); }, [load]);
 
   const canCreate = user?.role === "manager";
 

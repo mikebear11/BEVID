@@ -37,7 +37,7 @@ export default function ScanContainer() {
   };
 
   const stop = async () => {
-    try { await scannerRef.current?.stop(); await scannerRef.current?.clear(); } catch {}
+    try { await scannerRef.current?.stop(); await scannerRef.current?.clear(); } catch { /* best-effort : ignoré volontairement */ }
     scannerRef.current = null;
     setRunning(false);
   };

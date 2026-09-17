@@ -15,9 +15,14 @@ async function flushMutations() {
     try {
       const { data } = await api.request({ url: it.url, method: it.method || "POST", data: it.data });
       await db.sync_queue.update(it.id, { status: "synced", synced_at: new Date().toISOString() });
+      import("@/lib/nativeStore").then((m) => m.mirrorQueueStatus(it.id, "synced")).catch(() => {});
       // Fiche créée hors ligne : remplace la version locale « à synchroniser » par la version serveur
       if (it.url === "/establishments" && data?.id) {
         try { await db.establishments.put(data); } catch { /* cache local uniquement */ }
+      }
+      // Commande signée hors ligne : le bon de commande part au moment de la synchronisation
+      if (it.url === "/orders" && data?.id) {
+        api.post(`/orders/${data.id}/send-pdf-email`, {}).catch(() => {});
       }
       flushed++;
     } catch (err) {
@@ -82,7 +87,7 @@ async function flushMessageOutbox() {
       });
       flushed++;
       // Notifie l'UI qu'un message a été délivré (le fil peut se recharger)
-      try { window.dispatchEvent(new CustomEvent("bevid:message-delivered", { detail: { local_id: m.id, server_id: data?.id } })); } catch {}
+      try { window.dispatchEvent(new CustomEvent("bevid:message-delivered", { detail: { local_id: m.id, server_id: data?.id } })); } catch { /* best-effort : ignoré volontairement */ }
     } catch (err) {
       const tries = (m.tries || 0) + 1;
       if (tries >= 5) {
@@ -113,7 +118,7 @@ export async function flushQueue({ onProgress } = {}) {
     onProgress?.(result);
   } finally {
     flushing = false;
-    try { window.__SYNC_PENDING__ = await pendingCount(); } catch {}
+    try { window.__SYNC_PENDING__ = await pendingCount(); } catch { /* best-effort : ignoré volontairement */ }
   }
   return result;
 }
@@ -123,7 +128,7 @@ export function startSyncListener() {
   window.addEventListener("online", trigger);
   const iv = setInterval(trigger, 60000);
   const cIv = setInterval(async () => {
-    try { window.__SYNC_PENDING__ = await pendingCount(); } catch {}
+    try { window.__SYNC_PENDING__ = await pendingCount(); } catch { /* best-effort : ignoré volontairement */ }
   }, 2000);
   if (typeof navigator !== "undefined" && navigator.onLine) trigger();
   return () => { window.removeEventListener("online", trigger); clearInterval(iv); clearInterval(cIv); };

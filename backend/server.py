@@ -9,6 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Literal, Dict
 from datetime import datetime, timezone, timedelta
+import hashlib, secrets
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import httpx, stripe, re, ipaddress
 from html import escape
@@ -252,6 +253,14 @@ async def validation_exception_handler(request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"errors": errors})
 
 # ---------- MODELS ----------
+_TEST_PRODUCT_RE = re.compile(r"^(test[_ \-]|biere_[0-9a-f]{4,}|prod_[0-9a-f]{4,}|p_[0-9a-f]{6,}|zz+)", re.I)
+
+
+def is_test_product(p: dict) -> bool:
+    """Produits de test / fixtures (E) : jamais dans un catalogue, une alerte, une prévision ou une opportunité."""
+    return bool(_TEST_PRODUCT_RE.match((p or {}).get("name") or ""))
+
+
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
@@ -375,12 +384,62 @@ def hash_password(pwd: str) -> str:
 def verify_password(pwd: str, hashed: str) -> bool:
     return bcrypt.checkpw(pwd.encode(), hashed.encode())
 
-def create_token(user_id: str, org_id: Optional[str] = None) -> str:
-    # Session longue (90j) pour éviter les reconnexions terrain
-    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=90)}
+def create_token(user_id: str, org_id: Optional[str] = None, minutes: Optional[int] = None) -> str:
+    # Session longue (90j) pour éviter les reconnexions terrain ; natif (N2) : accès court + refresh rotatif
+    exp = datetime.now(timezone.utc) + (timedelta(minutes=minutes) if minutes else timedelta(days=90))
+    payload = {"sub": user_id, "exp": exp}
     if org_id:
         payload["org"] = org_id
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+
+# ---------- N2 — Jetons natifs : accès 30 min + refresh 30 j, rotation, révocation ----------
+NATIVE_ACCESS_MIN = 30
+NATIVE_REFRESH_DAYS = 30
+
+
+def _is_native_client(request: Request) -> bool:
+    return (request.headers.get("x-bevid-client") or "").lower() == "native"
+
+
+async def _issue_refresh_token(user_id: str, request: Request, family: Optional[str] = None) -> str:
+    raw = secrets.token_urlsafe(48)
+    await db_raw.refresh_tokens.insert_one({
+        "id": str(uuid.uuid4()), "user_id": user_id, "family": family or str(uuid.uuid4()),
+        "hash": hashlib.sha256(raw.encode()).hexdigest(),
+        "created_at": now_iso(), "expires_at": (datetime.now(timezone.utc) + timedelta(days=NATIVE_REFRESH_DAYS)).isoformat(),
+        "revoked": False, "ua": (request.headers.get("user-agent") or "")[:120], "ip": _client_ip(request),
+    })
+    return raw
+
+
+async def revoke_user_refresh_tokens(user_id: str, reason: str = "logout") -> int:
+    r = await db_raw.refresh_tokens.update_many({"user_id": user_id, "revoked": False}, {"$set": {"revoked": True, "revoked_at": now_iso(), "reason": reason}})
+    return r.modified_count
+
+
+@api_router.post("/auth/refresh")
+async def refresh_access_token(data: dict, request: Request):
+    """Rotation : le refresh présenté est révoqué, un nouveau couple est émis. Réutilisation d'un refresh révoqué → toute la famille est révoquée."""
+    raw = (data.get("refresh_token") or "").strip()
+    if not raw:
+        raise HTTPException(401, "Refresh token manquant")
+    h = hashlib.sha256(raw.encode()).hexdigest()
+    rt = await db_raw.refresh_tokens.find_one({"hash": h}, {"_id": 0})
+    if not rt:
+        raise HTTPException(401, "Refresh token inconnu")
+    if rt.get("revoked"):
+        await db_raw.refresh_tokens.update_many({"family": rt["family"]}, {"$set": {"revoked": True, "revoked_at": now_iso(), "reason": "reuse_detected"}})
+        raise HTTPException(401, "Session révoquée")
+    if rt["expires_at"] < now_iso():
+        raise HTTPException(401, "Session expirée")
+    user = await db_raw.users.find_one({"id": rt["user_id"]}, {"_id": 0, "password": 0})
+    if not user or user.get("active") is False or user.get("disabled"):
+        await revoke_user_refresh_tokens(rt["user_id"], "account_disabled")
+        raise HTTPException(401, "Compte désactivé")
+    await db_raw.refresh_tokens.update_one({"hash": h}, {"$set": {"revoked": True, "revoked_at": now_iso(), "reason": "rotated"}})
+    new_refresh = await _issue_refresh_token(user["id"], request, family=rt["family"])
+    return {"token": create_token(user["id"], user.get("org_id"), minutes=NATIVE_ACCESS_MIN), "refresh_token": new_refresh, "expires_in": NATIVE_ACCESS_MIN * 60}
 
 async def get_current_user(
     request: Request,
@@ -508,18 +567,38 @@ async def login(data: UserLogin, request: Request, response: Response):
         raise HTTPException(401, "Identifiants invalides")
     _rate_limit_clear_login(ip=ip, email=email_norm)
     org_id = doc.get("org_id")
+    doc.pop("password", None)
+    doc.pop("_id", None)
+    if _is_native_client(request):
+        # App native : pas de cookie, accès court + refresh rotatif (stocké dans Keychain/Keystore côté app)
+        set_current_org(org_id)
+        refresh = await _issue_refresh_token(doc["id"], request)
+        return {"token": create_token(doc["id"], org_id, minutes=NATIVE_ACCESS_MIN), "refresh_token": refresh,
+                "expires_in": NATIVE_ACCESS_MIN * 60, "user": doc}
     token = create_token(doc["id"], org_id)
     _set_auth_cookie(response, token)
     set_current_org(org_id)
-    doc.pop("password", None)
-    doc.pop("_id", None)
     return {"token": token, "user": doc}
 
 
 @api_router.post("/auth/logout")
-async def logout(response: Response):
-    """Efface la cookie d'authentification. Idempotent : ne renvoie jamais d'erreur."""
+async def logout(request: Request, response: Response, data: Optional[dict] = None):
+    """Efface la cookie d'authentification et révoque les refresh tokens natifs du compte. Idempotent."""
     _clear_auth_cookie(response)
+    raw = (data or {}).get("refresh_token") if isinstance(data, dict) else None
+    if raw:
+        rt = await db_raw.refresh_tokens.find_one({"hash": hashlib.sha256(raw.encode()).hexdigest()}, {"_id": 0, "user_id": 1})
+        if rt:
+            await revoke_user_refresh_tokens(rt["user_id"], "logout")
+    else:
+        try:
+            tok = (request.headers.get("authorization") or "").removeprefix("Bearer ").strip() or request.cookies.get(AUTH_COOKIE_NAME)
+            if tok:
+                uid = jwt.decode(tok, JWT_SECRET, algorithms=[JWT_ALGO]).get("sub")
+                if uid:
+                    await revoke_user_refresh_tokens(uid, "logout")
+        except Exception:  # noqa: BLE001 — logout toujours idempotent
+            pass
     return {"ok": True}
 
 
@@ -4795,7 +4874,7 @@ async def order_signature(oid: str, data: dict, user=Depends(get_current_user)):
 # ---------- LOW STOCK ALERTS ----------
 @api_router.get("/alerts/low-stock")
 async def low_stock(threshold: int = 20, user=Depends(get_current_user)):
-    items = await db.products.find({"stock": {"$lt": threshold}}, {"_id": 0}).sort("stock", 1).to_list(200)
+    items = [p for p in await db.products.find({"stock": {"$lt": threshold}}, {"_id": 0}).sort("stock", 1).to_list(200) if not is_test_product(p)]
     return {"threshold": threshold, "items": items, "count": len(items)}
 
 # ---------- CSV BULK IMPORT ----------
@@ -4931,7 +5010,7 @@ async def predicted_runouts(cid: str, user=Depends(get_current_user)):
         {"client_id": cid},
         {"_id": 0, "created_at": 1, "lines": 1},
     ).sort("created_at", 1).to_list(500)
-    products = await db.products.find({}, {"_id": 0}).to_list(1000)
+    products = [p for p in await db.products.find({}, {"_id": 0}).to_list(1000) if not is_test_product(p)]
     products_by_id = {p["id"]: p for p in products}
     from analytics.runout import compute_runouts
     from datetime import date as _date
@@ -7300,7 +7379,9 @@ async def establishment_mobile_summary(eid: str, user=Depends(get_current_user))
             if o.get("created_at", "") >= since12:
                 b["qty_12m"] += l["quantity"]
     cutoff90 = (now - timedelta(days=90)).date().isoformat()
-    products = await db.products.find({}, {"_id": 0, "id": 1, "name": 1, "price": 1, "category": 1}).to_list(1000)
+    products = [p for p in await db.products.find({}, {"_id": 0, "id": 1, "name": 1, "price": 1, "category": 1}).to_list(1000) if not is_test_product(p)]
+    valid_ids = {p["id"] for p in products}
+    bought = {k: v for k, v in bought.items() if k in valid_ids}
     opportunities = [{"product_id": p["id"], "name": p["name"], "price": p.get("price", 0), "category": p.get("category"),
                       "reason": "jamais" if p["id"] not in bought else "plus depuis 90 j"}
                      for p in products if p["id"] not in bought or bought[p["id"]]["last_date"] < cutoff90]
@@ -7326,8 +7407,9 @@ async def establishment_mobile_summary(eid: str, user=Depends(get_current_user))
     try:
         from analytics.runout import compute_runouts
         from datetime import date as _date
-        preds = compute_runouts(sorted(orders, key=lambda o: o.get("created_at", "")), {p["id"]: p for p in await db.products.find({}, {"_id": 0}).to_list(1000)}, today=_date.today())
+        preds = compute_runouts(sorted(orders, key=lambda o: o.get("created_at", "")), {p["id"]: p for p in await db.products.find({}, {"_id": 0}).to_list(1000) if not is_test_product(p)}, today=_date.today())
         preds = preds.get("predictions", preds) if isinstance(preds, dict) else preds
+        preds = [x for x in preds if x.get("product_id") in valid_ids and not is_test_product({"name": x.get("product_name") or x.get("name")})]
         if preds:
             alerts.append({"key": "rupture", "label": f"Rupture probable : {preds[0].get('product_name') or preds[0].get('name', '')}".strip(" :")})
     except Exception:  # noqa: BLE001 — la prédiction ne bloque jamais la fiche
@@ -8226,11 +8308,11 @@ async def upsert_price_list_item(plid: str, data: dict, user=Depends(get_current
 
 @api_router.get("/establishments/{eid}/catalog")
 async def establishment_catalog(eid: str, user=Depends(get_current_user)):
-    """Retourne le catalogue avec les prix personnalisés + quantités habituelles depuis historique."""
+    """Catalogue trié terrain : habituels du client → meilleures ventes → reste. + dernière commande à refaire."""
     e = await db.establishments.find_one({"id": eid}, {"_id": 0})
     if not e:
         raise HTTPException(404, "Établissement introuvable")
-    products = await db.products.find({}, {"_id": 0}).to_list(2000)
+    products = [p for p in await db.products.find({}, {"_id": 0}).to_list(2000) if not is_test_product(p)]
     pl_id = e.get("price_list_id")
     price_map = {}
     if pl_id:
@@ -8239,12 +8321,18 @@ async def establishment_catalog(eid: str, user=Depends(get_current_user)):
     # habitual qty from last 6 months
     from datetime import timedelta as _td
     since = (datetime.now(timezone.utc) - _td(days=180)).isoformat()
+    since12 = (datetime.now(timezone.utc) - _td(days=365)).isoformat()
     orders = await db.orders.find({"client_id": eid, "created_at": {"$gte": since}}, {"_id": 0}).to_list(500)
     from collections import defaultdict
     qty_stats = defaultdict(list)
     for o in orders:
         for l in o.get("lines", []):
             qty_stats[l["product_id"]].append(l["quantity"])
+    # meilleures ventes de l'organisation (12 mois)
+    best = defaultdict(int)
+    async for o in db.orders.find({"created_at": {"$gte": since12}, "status": {"$ne": "annule"}}, {"_id": 0, "lines": 1}):
+        for l in o.get("lines", []):
+            best[l["product_id"]] += l.get("quantity", 0)
     result = []
     for p in products:
         pm = price_map.get(p["id"])
@@ -8254,15 +8342,24 @@ async def establishment_catalog(eid: str, user=Depends(get_current_user)):
         result.append(strip_cost_fields(user["role"], {
             **p, "unit_price_client": unit_price,
             "habitual_qty": habitual_qty,
+            "sold_12m": best.get(p["id"], 0),
+            "section": "habituel" if habitual_qty > 0 else ("best" if best.get(p["id"], 0) > 0 else "reste"),
             "on_price_list": pm is not None,
             "volume_liters": p.get("volume_liters"),
             "hecto_tiers": p.get("hecto_tiers", []),
         }))
+    order_key = {"habituel": 0, "best": 1, "reste": 2}
+    result.sort(key=lambda x: (order_key[x["section"]], -x["habitual_qty"], -x["sold_12m"], x.get("name", "")))
+    last_order = await db.orders.find_one({"client_id": eid, "status": {"$ne": "annule"}}, {"_id": 0}, sort=[("created_at", -1)])
+    if last_order:
+        valid = {p["id"] for p in products}
+        last_order["lines"] = [l for l in last_order.get("lines", []) if l["product_id"] in valid]
     max_discount = 15.0
     if pl_id:
         pl = await db.price_lists.find_one({"id": pl_id}, {"_id": 0}) or {}
         max_discount = pl.get("max_discount_pct", 15.0)
-    return {"establishment": {**e, "credit_status": credit_color(e)}, "products": result, "max_discount_pct": max_discount}
+    return {"establishment": {**e, "credit_status": credit_color(e)}, "products": result, "max_discount_pct": max_discount,
+            "client_discount_pct": e.get("default_discount_pct") or 0, "last_order": last_order}
 
 @api_router.post("/derogations")
 async def create_derogation(data: dict, user=Depends(get_current_user)):
@@ -9137,6 +9234,8 @@ async def admin_update_user(uid: str, data: dict, user=Depends(get_current_user)
         res = await db.users.update_one({"id": uid}, {"$set": updates})
         if res.matched_count == 0:
             raise HTTPException(404, "Utilisateur introuvable")
+        if updates.get("active") is False:
+            await revoke_user_refresh_tokens(uid, "account_disabled")
         await audit_log(user["id"], "user_update", {"target_user_id": uid, "fields": list(updates.keys())})
     updated = await db.users.find_one({"id": uid}, {"_id": 0, "password": 0})
     if not updated:
@@ -9150,6 +9249,7 @@ async def admin_reset_password(uid: str, user=Depends(get_current_user)):
     import secrets, string
     tmp_pwd = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
     res = await db.users.update_one({"id": uid}, {"$set": {"password": hash_password(tmp_pwd), "must_reset": True}})
+    await revoke_user_refresh_tokens(uid, "password_reset_admin")
     if res.matched_count == 0:
         raise HTTPException(404, "Utilisateur introuvable")
     await audit_log(user["id"], "password_reset_admin", {"target_user_id": uid})
@@ -9229,6 +9329,7 @@ async def reset_password(data: dict):
     if datetime.now(timezone.utc) > exp:
         raise HTTPException(400, "Lien expiré — redemandez une réinitialisation")
     await db.users.update_one({"id": doc["user_id"]}, {"$set": {"password": hash_password(new), "must_reset": False}})
+    await revoke_user_refresh_tokens(doc["user_id"], "password_reset")
     await db.password_reset_tokens.update_one({"token": token}, {"$set": {"used": True, "used_at": now_iso()}})
     await audit_log(doc["user_id"], "password_reset_via_email", {"email": doc.get("email")})
     return {"ok": True}
@@ -9389,6 +9490,7 @@ async def reset_password_with_code(data: dict, request: Request):
         {"id": u["id"]},
         {"$set": {"password": hash_password(new), "must_reset": False}},
     )
+    await revoke_user_refresh_tokens(u["id"], "password_changed")
     await db.password_reset_tokens.update_one(
         {"id": doc["id"]},
         {"$set": {"used": True, "used_at": now_iso()}},
@@ -9435,6 +9537,7 @@ async def change_password(data: dict, user=Depends(get_current_user)):
     if not doc or not verify_password(old, doc["password"]):
         raise HTTPException(401, "Ancien mot de passe invalide")
     await db.users.update_one({"id": user["id"]}, {"$set": {"password": hash_password(new), "must_reset": False}})
+    await revoke_user_refresh_tokens(user["id"], "password_changed")
     await audit_log(user["id"], "password_change", {})
     return {"ok": True}
 
@@ -11572,6 +11675,8 @@ async def send_order_pdf_email(oid: str, data: dict = None, user=Depends(get_cur
 # plus jamais accepté par défaut depuis le passage au cookie httpOnly.
 _cors_env = (os.environ.get('CORS_ORIGINS') or os.environ.get('FRONTEND_URL') or '').strip()
 _cors_origins = [o.strip() for o in _cors_env.split(',') if o.strip()]
+# Applications natives Capacitor (N2) : origines du WebView iOS / Android
+_cors_origins += [o for o in ("capacitor://localhost", "https://localhost") if o not in _cors_origins]
 if not _cors_origins:
     # Sécurité par défaut : aucun origin autorisé plutôt que d'ouvrir en grand.
     _cors_origins = ["https://drink-sales-hub-8.preview.emergentagent.com"]
@@ -14260,5 +14365,68 @@ async def terrain_summary(lat: Optional[float] = None, lng: Optional[float] = No
             "target_month": (goal or {}).get("target_ca", 0),
         },
     }
+
+# ---------- N4/N5/N6 — natif : appareils push, liens profonds, version minimale, suppression de compte ----------
+@api_router.post("/me/devices")
+async def register_device(data: dict, user=Depends(get_current_user)):
+    """Jeton push de l'appareil (APNs/FCM). Préférences par type ; idempotent par jeton."""
+    token = (data.get("token") or "").strip()
+    if not token:
+        raise HTTPException(400, "token requis")
+    prefs = data.get("prefs") or {"relances": True, "commandes": True, "impayes": True, "equipe": True}
+    await db_raw.devices.update_one({"token": token}, {"$set": {
+        "token": token, "user_id": user["id"], "org_id": user.get("org_id"), "platform": data.get("platform", "unknown"),
+        "prefs": prefs, "app_version": data.get("app_version"), "updated_at": now_iso()}, "$setOnInsert": {"created_at": now_iso()}}, upsert=True)
+    return {"ok": True}
+
+
+@api_router.delete("/me/devices/{token}")
+async def unregister_device(token: str, user=Depends(get_current_user)):
+    await db_raw.devices.delete_one({"token": token, "user_id": user["id"]})
+    return {"ok": True}
+
+
+@api_router.get("/app/version")
+async def app_version():
+    """Version minimale / suggérée de l'app native (N6). Valeurs par variables d'environnement."""
+    return {"min_version": os.environ.get("APP_MIN_VERSION", "1.0.0"), "latest_version": os.environ.get("APP_LATEST_VERSION", "1.0.0"),
+            "store_ios": os.environ.get("APP_STORE_URL", ""), "store_android": os.environ.get("PLAY_STORE_URL", ""),
+            "message": os.environ.get("APP_UPDATE_MESSAGE", "Une nouvelle version de BEVID est disponible.")}
+
+
+@api_router.delete("/me/account")
+async def delete_my_account(data: dict, user=Depends(get_current_user)):
+    """Suppression de compte par l'utilisateur (exigence Apple 5.1.1(v) / Play). Confirmation par mot de passe.
+    Propriétaire d'organisation : refusé tant qu'il reste d'autres membres (transfert requis) ; seul membre → org supprimée après export."""
+    full = await db_raw.users.find_one({"id": user["id"]})
+    if not full or not verify_password(data.get("password") or "", full.get("password", "")):
+        raise HTTPException(403, "Mot de passe incorrect")
+    org_id = user.get("org_id")
+    if user.get("role") == "manager" and org_id:
+        others = await db_raw.users.count_documents({"org_id": org_id, "id": {"$ne": user["id"]}, "active": {"$ne": False}})
+        if others > 0 and not data.get("transfer_to"):
+            raise HTTPException(409, "Vous êtes propriétaire : transférez l'organisation à un autre membre (transfer_to) avant de supprimer votre compte")
+        if others > 0:
+            r = await db_raw.users.update_one({"id": data["transfer_to"], "org_id": org_id}, {"$set": {"role": "manager"}})
+            if r.matched_count == 0:
+                raise HTTPException(404, "Membre cible introuvable")
+        elif data.get("delete_org"):
+            await db_raw.orgs.update_one({"id": org_id}, {"$set": {"deleted_at": now_iso(), "deleted_by": user["id"]}})
+    await revoke_user_refresh_tokens(user["id"], "account_deleted")
+    await db_raw.devices.delete_many({"user_id": user["id"]})
+    anon = f"deleted-{user['id'][:8]}@anonyme.invalid"
+    await db_raw.users.update_one({"id": user["id"]}, {"$set": {"email": anon, "name": "Compte supprimé", "phone": "", "active": False,
+                                                              "password": hash_password(secrets.token_urlsafe(24)), "deleted_at": now_iso()}})
+    await audit_log(user["id"], "account_deleted", {"org_id": org_id})
+    return {"ok": True}
+
+
+# N6 — Sentry côté serveur : activé uniquement si SENTRY_DSN est défini, jamais de PII
+if os.environ.get("SENTRY_DSN"):
+    try:
+        import sentry_sdk
+        sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], send_default_pii=False, traces_sample_rate=0.05, environment=os.environ.get("BEVID_ENV", "preview"))
+    except Exception as _e:  # noqa: BLE001
+        logger.warning(f"[sentry] désactivé : {_e}")
 
 app.include_router(api_router)

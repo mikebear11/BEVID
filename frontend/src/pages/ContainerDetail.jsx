@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { QRCodeCanvas } from "qrcode.react";
@@ -16,7 +16,7 @@ export default function ContainerDetail() {
   const [move, setMove] = useState({ to_location: "", status: "", kind: "transfert", note: "" });
   const qrRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [cont, est] = await Promise.all([
         api.get(`/containers/${id}`),
@@ -25,8 +25,8 @@ export default function ContainerDetail() {
       setC(cont.data);
       setEstablishments(est.data);
     } catch { toast.error(t("toast.introuvable")); }
-  };
-  useEffect(() => { load(); }, [id]);
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   const doMove = async (e) => {
     e.preventDefault();

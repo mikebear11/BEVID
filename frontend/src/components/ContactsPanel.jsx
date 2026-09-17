@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -77,16 +77,16 @@ export default function ContactsPanel({ establishmentId }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get(`/establishments/${establishmentId}/contacts`);
       setContacts(Array.isArray(data) ? data : []);
     } catch { setContacts([]); }
     finally { setLoading(false); }
-  };
+  }, [establishmentId]);
 
-  useEffect(() => { if (establishmentId) load(); }, [establishmentId]);
+  useEffect(() => { if (establishmentId) load(); }, [establishmentId, load]);
 
   const sorted = useMemo(() => {
     const roleOrder = ROLES.reduce((acc, r, i) => { acc[r.v] = i; return acc; }, {});

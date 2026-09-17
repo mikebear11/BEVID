@@ -42,7 +42,7 @@ export default function MorningChecklist() {
       </div>
       <div className="space-y-2 mt-4">
         {data.tasks.map((t, i) => (
-          <Link key={i} to={t.action_path} className="flex items-center gap-3 p-3 rounded-lg bg-stone-50 hover:bg-white hover:border hover:border-[#4A154B] transition border border-transparent" data-testid={`task-${i}`}>
+          <Link key={t.action_path || t.title} to={t.action_path} className="flex items-center gap-3 p-3 rounded-lg bg-stone-50 hover:bg-white hover:border hover:border-[#4A154B] transition border border-transparent" data-testid={`task-${i}`}>
             <span className="text-2xl">{t.icon}</span>
             <div className="flex-1">
               <div className="text-sm font-medium">{t.title}</div>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perm_location_rationale">BEVID uses your location only while the app is open, to show nearby customers and timestamp your visits. No background tracking.</string>
+    <string name="perm_camera_rationale">Take a photo of a storefront or shelf, or scan a keg.</string>
+    <string name="perm_mic_rationale">Dictate your visit notes.</string>
+    <string name="perm_notifications_rationale">Receive due follow-ups, unpaid alerts and order confirmations.</string>
+</resources>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { uid, stripKeys } from "@/lib/uid";
 import { Plus, Trash2, Wine, Beer, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -117,11 +118,11 @@ export default function Products() {
 }
 
 function HectoTiersModal({ product, onClose }) {
-  const [tiers, setTiers] = useState(product.hecto_tiers || []);
+  const [tiers, setTiers] = useState(() => (product.hecto_tiers || []).map(t => ({ ...t, _k: uid() })));
   const [volume, setVolume] = useState(product.volume_liters || 0);
   const [saving, setSaving] = useState(false);
 
-  const addTier = () => setTiers([...tiers, { min_hl: 5, discount_pct: 3 }]);
+  const addTier = () => setTiers([...tiers, { _k: uid(), min_hl: 5, discount_pct: 3 }]);
   const updateTier = (i, field, val) => {
     const c = [...tiers]; c[i] = { ...c[i], [field]: parseFloat(val) || 0 }; setTiers(c);
   };
@@ -130,7 +131,7 @@ function HectoTiersModal({ product, onClose }) {
   const save = async () => {
     setSaving(true);
     try {
-      const sorted = [...tiers].filter(t => t.min_hl > 0).sort((a, b) => a.min_hl - b.min_hl);
+      const sorted = stripKeys([...tiers].filter(t => t.min_hl > 0).sort((a, b) => a.min_hl - b.min_hl));
       await api.put(`/products/${product.id}`, { hecto_tiers: sorted, volume_liters: parseFloat(volume) || null });
       toast.success(t("toast.tarif_hecto_sauvegarde"));
       onClose();
@@ -151,7 +152,7 @@ function HectoTiersModal({ product, onClose }) {
         <div className="space-y-2 max-h-64 overflow-y-auto">
           <p className="text-xs font-medium text-stone-700">Paliers</p>
           {tiers.map((t, i) => (
-            <div key={i} className="flex items-center gap-2" data-testid={`tier-row-${i}`}>
+            <div key={t._k} className="flex items-center gap-2" data-testid={`tier-row-${i}`}>
               <span className="text-xs text-stone-500">à partir de</span>
               <input type="number" step="0.5" value={t.min_hl} onChange={e => updateTier(i, "min_hl", e.target.value)} className="input-crm w-20 min-h-[44px]" />
               <span className="text-xs">hL →</span>

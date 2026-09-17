@@ -1,0 +1,13 @@
+{
+  "appId": "com.bevidcrm.app",
+  "appName": "BEVID",
+  "webDir": "build",
+  "server": { "androidScheme": "https", "iosScheme": "capacitor" },
+  "android": { "allowMixedContent": false, "backgroundColor": "#F8F6F2" },
+  "ios": { "contentInset": "always", "backgroundColor": "#F8F6F2", "preferredContentMode": "mobile" },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#4A154B", "showSpinner": false },
+    "StatusBar": { "style": "LIGHT", "backgroundColor": "#4A154B" },
+    "CapacitorSQLite": { "iosDatabaseLocation": "Library/CapacitorDatabase", "androidIsEncryption": false }
+  }
+}

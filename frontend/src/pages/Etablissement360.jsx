@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Phone, ArrowLeft, ClipboardCheck, ShoppingCart, MessageSquare, AlertOctagon, TrendingUp, Loader2 } from "lucide-react";
@@ -30,17 +30,17 @@ export default function Etablissement360() {
   const [amt, setAmt] = useState("");
   const [memoryVer, setMemoryVer] = useState(0);  // Fix iter21 — recompute événementiel après pin comment
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (mobile) return;
     try { const { data } = await api.get(`/establishments/${id}`); setE(data); pushRecent(data); }
     catch { toast.error(t("toast.erreur_chargement")); }
-  };
+  }, [id, mobile]);
   useEffect(() => {
     load();
     if (mobile) return;
     // Catalogue d'équipe pour l'autocomplete des @mentions
     api.get("/team/members").then(r => setTeam(r.data || [])).catch(() => setTeam([]));
-  }, [id, mobile]);
+  }, [load, mobile]);
 
   const askDerog = async () => {
     if (!derogReason.trim()) { toast.error(t("toast.motif_requis")); return; }

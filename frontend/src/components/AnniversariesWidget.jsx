@@ -26,7 +26,7 @@ export default function AnniversariesWidget() {
       </div>
       <div className="space-y-2 max-h-72 overflow-y-auto">
         {data.items.slice(0, 8).map((it, i) => (
-          <div key={i} className="flex items-center gap-3 p-2 rounded-lg border-l-2 bg-stone-50 dark:bg-stone-800" style={{ borderLeftColor: "var(--ds-state-warning)" }} data-testid={`anniv-${i}`}>
+          <div key={`${it.client_id}-${it.label}`} className="flex items-center gap-3 p-2 rounded-lg border-l-2 bg-stone-50 dark:bg-stone-800" style={{ borderLeftColor: "var(--ds-state-warning)" }} data-testid={`anniv-${i}`}>
             <Gift size={14} style={{ color: "var(--ds-state-warning)" }} />
             <div className="flex-1 min-w-0">
               <Link to={`/clients/${it.client_id}`} className="text-sm font-medium hover:text-[#4A154B] truncate block">{it.client_name}</Link>

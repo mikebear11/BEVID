@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { api, API } from "@/lib/api";
 import { toast } from "sonner";
 import { Send, MessageSquare, AtSign, Loader2, Pencil, X, Check, Mic, Square, CloudOff } from "lucide-react";
@@ -79,26 +79,26 @@ export default function MessageThread({ objectType, objectId, mentionsCatalog = 
     setRecording(false);
   };
 
-  const loadOutbox = async () => {
-    try { setOutbox(await listOutboxForObject(objectType, objectId || "")); } catch {}
-  };
+  const loadOutbox = useCallback(async () => {
+    try { setOutbox(await listOutboxForObject(objectType, objectId || "")); } catch { /* best-effort : ignoré volontairement */ }
+  }, [objectType, objectId]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get(`/messages?object_type=${objectType}&object_id=${encodeURIComponent(objectId)}`);
       setItems(data);
     } catch { /* silencieux : hors-ligne on affiche uniquement l'outbox */ }
     finally { setLoading(false); await loadOutbox(); }
-  };
-  useEffect(() => { if (objectId) load(); }, [objectType, objectId]);
+  }, [objectType, objectId, loadOutbox]);
+  useEffect(() => { if (objectId) load(); }, [objectId, load]);
 
   // Rechargement quand un message quitte la file d'envoi
   useEffect(() => {
     const onDelivered = () => { load(); };
     window.addEventListener("bevid:message-delivered", onDelivered);
     return () => window.removeEventListener("bevid:message-delivered", onDelivered);
-  }, [objectType, objectId]);
+  }, [load]);
 
   const parseMentions = (t) => {
     const found = [];

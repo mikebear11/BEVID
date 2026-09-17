@@ -68,13 +68,11 @@ export async function getOfflineBrief(establishmentId) {
 }
 
 export async function enqueueMutation({ url, method = "POST", data }) {
-  return db.sync_queue.add({
-    at: new Date().toISOString(),
-    url, method, data,
-    status: "pending",
-    tries: 0,
-    last_error: null,
-  });
+  const item = { at: new Date().toISOString(), url, method, data, status: "pending", tries: 0, last_error: null };
+  const id = await db.sync_queue.add(item);
+  // Natif : miroir SQLite durable (N4), no-op sur le web
+  import("@/lib/nativeStore").then((m) => m.mirrorQueueItem({ ...item, id })).catch(() => {});
+  return id;
 }
 
 export async function enqueueVoiceRecording({ blob, mime, lang = "fr-FR" }) {

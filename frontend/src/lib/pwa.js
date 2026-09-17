@@ -22,7 +22,7 @@ if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     _deferredInstall = e;
-    try { window.dispatchEvent(new CustomEvent("bevid:install-available")); } catch {}
+    try { window.dispatchEvent(new CustomEvent("bevid:install-available")); } catch { /* best-effort : ignoré volontairement */ }
   });
 }
 
@@ -45,7 +45,7 @@ export function installDismissed() {
   try { return localStorage.getItem(INSTALL_DISMISSED_KEY) === "1"; } catch { return false; }
 }
 export function dismissInstall() {
-  try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch {}
+  try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch { /* best-effort : ignoré volontairement */ }
 }
 
 /** Ouvre le prompt d'installation (Android/Chrome/Edge). iOS = pas de prompt natif. */
@@ -78,7 +78,7 @@ export async function requestPersistentStorage() {
     if (!navigator.storage || !navigator.storage.persist) return { ok: false, reason: "unsupported" };
     // Idempotent : si déjà accordé, ne redemande pas.
     if (await navigator.storage.persisted()) return { ok: true, already: true };
-    try { localStorage.setItem(PERSIST_ASKED_KEY, new Date().toISOString()); } catch {}
+    try { localStorage.setItem(PERSIST_ASKED_KEY, new Date().toISOString()); } catch { /* best-effort : ignoré volontairement */ }
     const granted = await navigator.storage.persist();
     return { ok: granted };
   } catch (e) {
@@ -179,7 +179,7 @@ export async function enableFullOfflineMode() {
     result.reasons.persist = e?.message || "error";
   }
   result.ready = result.persist; // Le vrai critère de succès = base non purgeable
-  try { localStorage.setItem(OFFLINE_READY_ASKED_KEY, new Date().toISOString()); } catch {}
+  try { localStorage.setItem(OFFLINE_READY_ASKED_KEY, new Date().toISOString()); } catch { /* best-effort : ignoré volontairement */ }
   return result;
 }
 
@@ -188,7 +188,7 @@ export function offlineReadyDismissed() {
   try { return localStorage.getItem(OFFLINE_READY_DISMISSED_KEY) === "1"; } catch { return false; }
 }
 export function dismissOfflineReady() {
-  try { localStorage.setItem(OFFLINE_READY_DISMISSED_KEY, "1"); } catch {}
+  try { localStorage.setItem(OFFLINE_READY_DISMISSED_KEY, "1"); } catch { /* best-effort : ignoré volontairement */ }
 }
 
 /**
@@ -215,7 +215,7 @@ export async function shouldPromptOfflineReady() {
 export async function pwaDiagnostics() {
   const [persisted, quotaEst] = await Promise.all([isPersistentStorage(), estimateQuota()]);
   let notifPerm = "default";
-  try { notifPerm = (typeof Notification !== "undefined") ? Notification.permission : "unsupported"; } catch {}
+  try { notifPerm = (typeof Notification !== "undefined") ? Notification.permission : "unsupported"; } catch { /* best-effort : ignoré volontairement */ }
   let pendingCount = 0;
   let messageOutboxCount = 0;
   let snapshotAt = null;
@@ -230,7 +230,7 @@ export async function pwaDiagnostics() {
     messageOutboxCount = mout;
     snapshotAt = snap?.value || null;
   } catch { /* noop */ }
-  try { localStorage.setItem(PWA_LAST_CHECK, new Date().toISOString()); } catch {}
+  try { localStorage.setItem(PWA_LAST_CHECK, new Date().toISOString()); } catch { /* best-effort : ignoré volontairement */ }
   const pushSup = typeof window !== "undefined" && "PushManager" in window && "serviceWorker" in navigator;
   return {
     installed: isStandalone(),

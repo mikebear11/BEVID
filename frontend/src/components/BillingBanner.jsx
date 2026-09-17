@@ -29,6 +29,7 @@ export default function BillingBanner() {
     return () => { alive = false; clearInterval(iv); };
   }, []);
 
+  if (typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() && window.Capacitor.getPlatform() === "ios") return null; // N5 : aucun bandeau d'essai/paiement dans l'app iOS
   if (!b) return null;
 
   const eff = b.effective_status;

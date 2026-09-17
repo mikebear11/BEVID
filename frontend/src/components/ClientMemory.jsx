@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Sparkles, RefreshCw, Loader2, ExternalLink } from "lucide-react";
@@ -15,16 +15,16 @@ export default function ClientMemory({ establishmentId, refreshTrigger = 0 }) {
   const [loading, setLoading] = useState(true);
   const [recomputing, setRecomputing] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get(`/establishments/${establishmentId}/memory`);
       setMemory(data);
     } catch { setMemory({ sections: [] }); }
     finally { setLoading(false); }
-  };
+  }, [establishmentId]);
 
-  useEffect(() => { if (establishmentId) load(); }, [establishmentId, refreshTrigger]);
+  useEffect(() => { if (establishmentId) load(); }, [establishmentId, load, refreshTrigger]);
 
   const recompute = async () => {
     setRecomputing(true);

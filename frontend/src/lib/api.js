@@ -14,6 +14,42 @@ export const API = `${BACKEND_URL}/api`;
  */
 export const api = axios.create({ baseURL: API, withCredentials: true });
 
+// --- Natif (Capacitor, N2/N3) : pas de cookie depuis capacitor://localhost → accès court (Bearer) + refresh rotatif ---
+let nativeToken = null;
+let nativeRefresh = null;
+let refreshing = null;
+export const setNativeToken = (t) => { nativeToken = t || null; };
+export const setNativeRefresh = (t) => { nativeRefresh = t || null; };
+export const getNativeRefresh = () => nativeRefresh;
+api.interceptors.request.use((config) => {
+  if (nativeToken && !config.headers?.Authorization) {
+    config.headers = { ...(config.headers || {}), Authorization: `Bearer ${nativeToken}`, "X-BEVID-Client": "native" };
+  } else if (window.Capacitor?.isNativePlatform?.()) {
+    config.headers = { ...(config.headers || {}), "X-BEVID-Client": "native" };
+  }
+  return config;
+});
+// 401 en natif → un seul rafraîchissement partagé, puis rejeu de la requête ; échec → session close (événement)
+api.interceptors.response.use(undefined, async (error) => {
+  const cfg = error.config || {};
+  if (error.response?.status !== 401 || !nativeRefresh || cfg._retried || (cfg.url || "").includes("/auth/")) throw error;
+  try {
+    refreshing = refreshing || axios.post(`${API}/auth/refresh`, { refresh_token: nativeRefresh }, { headers: { "X-BEVID-Client": "native" } })
+      .then(async (r) => {
+        nativeToken = r.data.token; nativeRefresh = r.data.refresh_token;
+        const { saveTokens } = await import("@/lib/native");
+        await saveTokens(r.data);
+        return r.data;
+      }).finally(() => { refreshing = null; });
+    await refreshing;
+  } catch (e) {
+    nativeToken = null; nativeRefresh = null;
+    window.dispatchEvent(new Event("bevid:session-revoked"));
+    throw error;
+  }
+  return api.request({ ...cfg, _retried: true, headers: { ...(cfg.headers || {}), Authorization: `Bearer ${nativeToken}` } });
+});
+
 // --- Lectures : déduplication des GET identiques en vol + file à concurrence bornée (max 6) ---
 // Cause des 429 relevés par la porte QA : ~25 GET simultanés au montage du tableau de bord
 // (bandeau + widgets), certains en double (/alerts/follow-ups, /inbox…). Le proxy limite les rafales.

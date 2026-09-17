@@ -6,6 +6,7 @@ import SignaturePad from "@/components/SignaturePad";
 import PaymentModal from "@/components/PaymentModal";
 import XlsxIO from "@/components/XlsxIO";
 import { t } from "@/lib/i18n";
+import { uid, stripKeys } from "@/lib/uid";
 import { usePageMeta } from "@/lib/pageMeta";
 
 export default function Orders() {
@@ -60,7 +61,7 @@ export default function Orders() {
   };
   useEffect(() => { load(); }, []);
 
-  const addLine = () => setLines([...lines, { product_id: "", product_name: "", quantity: 1, unit_price: 0 }]);
+  const addLine = () => setLines([...lines, { _k: uid(), product_id: "", product_name: "", quantity: 1, unit_price: 0 }]);
   const updateLine = (i, patch) => setLines(lines.map((l, idx) => idx === i ? { ...l, ...patch } : l));
   const rmLine = (i) => setLines(lines.filter((_, idx) => idx !== i));
 
@@ -76,7 +77,7 @@ export default function Orders() {
     e.preventDefault();
     const client = clients.find(c => c.id === selClient);
     if (!client || lines.length === 0) { toast.error(t("toast.client_et_lignes_requis")); return; }
-    await api.post("/orders", { client_id: client.id, client_name: client.name, lines, notes });
+    await api.post("/orders", { client_id: client.id, client_name: client.name, lines: stripKeys(lines), notes });
     toast.success(t("toast.commande_creee"));
     setShow(false); setSelClient(""); setLines([]); setNotes("");
     load();
@@ -138,7 +139,7 @@ export default function Orders() {
                 <button type="button" onClick={addLine} className="text-xs text-[#4A154B] flex items-center gap-1" data-testid="add-line-btn"><Plus size={12} /> Ajouter</button>
               </div>
               {lines.map((l, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 mb-2 items-center">
+                <div key={l._k} className="grid grid-cols-12 gap-2 mb-2 items-center">
                   <select value={l.product_id} onChange={e => selectProduct(i, e.target.value)} className="input-crm col-span-6 text-sm" required>
                     <option value="">Produit…</option>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.price}€)</option>)}

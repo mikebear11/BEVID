@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, Link, Navigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { ArrowLeft, Sparkles, Plus, Loader2, Trash2, Repeat, TrendingUp } from "lucide-react";
@@ -20,7 +20,7 @@ export default function ClientDetail() {
   const [redirectToEtab, setRedirectToEtab] = useState(false);   // Fix iter21 — fallback establishment_id
 
   const [health, setHealth] = useState(null);
-  const load = async () => {
+  const load = useCallback(async () => {
     // Fix walkthrough iter21 — si l'id est un establishment_id, redirige vers /etab/{id}
     // (fiche copilote complète). Sinon suit la logique legacy.
     try {
@@ -47,8 +47,8 @@ export default function ClientDetail() {
     setActivities(acts);
     setStats(st);
     setHealth(h);
-  };
-  useEffect(() => { load().catch(() => {}); }, [id]);
+  }, [id]);
+  useEffect(() => { load().catch(() => {}); }, [load]);
 
   if (redirectToEtab) return <Navigate to={`/etab/${id}`} replace />;
 

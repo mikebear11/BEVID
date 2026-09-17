@@ -16,7 +16,7 @@ export function ClientPicker({ onPick, autoFocus = true }) {
       try {
         const { data } = await api.get("/establishments");
         setItems(data);
-        db.establishments.bulkPut(data).catch(() => {});
+        db.establishments.bulkPut(data).catch(() => {}); import("@/lib/nativeStore").then((m) => m.mirrorEstablishments(data)).catch(() => {});
       } catch {
         setItems(await db.establishments.toArray().catch(() => []));
       }

@@ -154,6 +154,8 @@ let webpackConfig = {
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);
       }
+      // Plugins Capacitor ESM (imports sans extension) : désactive la résolution « fully specified »
+      webpackConfig.module.rules.push({ test: /\.m?js$/, resolve: { fullySpecified: false } });
       return webpackConfig;
     },
   },
@@ -292,6 +294,7 @@ function wrapWith404AndHeaders(devServerConfig) {
             path.startsWith("/ws") ||
             path.startsWith("/__webpack") ||
             path.includes(".hot-update.") ||
+            path.startsWith("/.well-known/") ||
             /\.[a-zA-Z0-9]{1,8}$/.test(path)
           ) {
             return next();

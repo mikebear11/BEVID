@@ -113,7 +113,7 @@ export default function PushHistoryBell() {
   };
 
   const markOne = async (id) => {
-    try { await api.post(`/notifications/${id}/mark-read`); load(filter); } catch {}
+    try { await api.post(`/notifications/${id}/mark-read`); load(filter); } catch { toast.error("Impossible de marquer comme lu"); }
   };
 
   const enableDnd = async (preset) => {

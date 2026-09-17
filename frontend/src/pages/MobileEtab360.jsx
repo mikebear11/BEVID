@@ -12,11 +12,14 @@ const MOOD = { excellent: "😄", bon: "🙂", neutre: "😐", difficile: "😟"
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—");
 const eur = (n) => `${Math.round(n || 0).toLocaleString("fr-FR")} €`;
 
-function mapsUrl(e) {
-  const q = e.lat != null ? `${e.lat},${e.lng}` : encodeURIComponent(`${e.address || ""} ${e.postal_code || ""} ${e.city || ""}`.trim());
-  const ua = navigator.userAgent || "";
-  if (/iPhone|iPad/.test(ua)) return `maps://?daddr=${q}`;
-  return `https://www.google.com/maps/dir/?api=1&destination=${q}`;
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent || "");
+// Apps d'itinéraire : Plans + Waze sur iPhone, Google Maps + Waze ailleurs (dernier choix mémorisé)
+const NAV_APPS = [
+  ...(IOS ? [{ key: "plans", label: "Plans", url: (q) => `maps://?daddr=${q}` }] : [{ key: "gmaps", label: "Google Maps", url: (q) => `https://www.google.com/maps/dir/?api=1&destination=${q}` }]),
+  { key: "waze", label: "Waze", url: (q) => `https://waze.com/ul?ll=${q}&navigate=yes` },
+];
+function destQuery(e) {
+  return e.lat != null ? `${e.lat},${e.lng}` : encodeURIComponent(`${e.address || ""} ${e.postal_code || ""} ${e.city || ""}`.trim());
 }
 
 function VisitCard({ v }) {
@@ -39,6 +42,16 @@ export default function MobileEtab360() {
   const [d, setD] = useState(null);
   const [tab, setTab] = useState("notes");
   const [callSheet, setCallSheet] = useState(false);
+  const [routeSheet, setRouteSheet] = useState(false);
+  const openRoute = (app, remember) => {
+    if (remember) localStorage.setItem("bevid_nav_app", app.key);
+    setRouteSheet(false);
+    window.open(app.url(destQuery(d.establishment)), "_blank", "noopener");
+  };
+  const route = () => {
+    const saved = NAV_APPS.find((a) => a.key === localStorage.getItem("bevid_nav_app"));
+    if (saved) openRoute(saved, false); else setRouteSheet(true);
+  };
 
   useEffect(() => {
     api.get(`/establishments/${id}/mobile-summary`).then((r) => { setD(r.data); pushRecent(r.data.establishment); }).catch(() => setD({ error: true }));
@@ -88,9 +101,10 @@ export default function MobileEtab360() {
       )}
 
       <div role="tablist" className="grid grid-cols-4 gap-1 bg-stone-200 rounded-xl p-1" data-testid="metab-tabs">
-        {[["notes", "Notes"], ["orders", "Commandes"], ["sales", "Ventes"], ["infos", "Infos"]].map(([k, l]) => (
+        {[["notes", "Notes"], ["orders", "Cmdes"], ["sales", "Ventes"], ["infos", "Infos"]].map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} data-testid={`tab-${k}`}
-            className={`min-h-[48px] rounded-lg text-sm font-semibold px-1 ${tab === k ? "bg-white text-[#4A154B] shadow" : "text-stone-700"}`}>{l}</button>
+            aria-label={k === "orders" ? "Commandes" : l}
+            className={`min-h-[48px] rounded-lg text-base font-semibold ${tab === k ? "bg-white text-[#4A154B] shadow" : "text-stone-700"}`}>{l}</button>
         ))}
       </div>
 
@@ -122,20 +136,32 @@ export default function MobileEtab360() {
           {e.notes && <p className="text-sm text-stone-700 whitespace-pre-wrap">{e.notes}</p>}
           {e.facade_photo && <img src={e.facade_photo} alt="Devanture" className="rounded-xl w-full max-h-48 object-cover" />}
           <Link to={`/etab/${id}/enrichissement`} className="inline-flex min-h-[44px] items-center text-[#4A154B] font-medium">Compléter la fiche (SIRET, TVA…)</Link>
+          <button type="button" onClick={() => { localStorage.removeItem("bevid_nav_app"); setRouteSheet(true); }} className="block min-h-[44px] text-base text-stone-700 underline" data-testid="route-change">Changer d'application d'itinéraire</button>
         </div>
       )}
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 p-2 grid grid-cols-4 gap-2 z-40 pb-safe" data-testid="cta-bar">
         <button type="button" onClick={call} disabled={phones.length === 0} className="min-h-[56px] rounded-xl bg-black text-white text-sm font-medium flex flex-col items-center justify-center gap-0.5 disabled:opacity-40" data-testid="cta-call"><Phone size={20} aria-hidden="true" />Appeler</button>
-        <a href={mapsUrl(e)} target="_blank" rel="noopener" className="min-h-[56px] rounded-xl bg-stone-700 text-white text-sm font-medium flex flex-col items-center justify-center gap-0.5" data-testid="cta-route"><Navigation size={20} aria-hidden="true" />Itinéraire</a>
+        <button type="button" onClick={route} className="min-h-[56px] rounded-xl bg-stone-700 text-white text-sm font-medium flex flex-col items-center justify-center gap-0.5" data-testid="cta-route"><Navigation size={20} aria-hidden="true" />Itinéraire</button>
         <button type="button" onClick={() => nav(`/etab/${id}/visite`)} className="min-h-[56px] rounded-xl bg-[#4A154B] text-white text-sm font-medium flex flex-col items-center justify-center gap-0.5" data-testid="cta-visite"><ClipboardCheck size={20} aria-hidden="true" />Visite</button>
         <button type="button" onClick={() => !blocked && nav(`/etab/${id}/commande`)} disabled={blocked} className="min-h-[56px] rounded-xl bg-[#2D5A4C] text-white text-sm font-medium flex flex-col items-center justify-center gap-0.5 disabled:bg-stone-300" data-testid="cta-commande"><ShoppingCart size={20} aria-hidden="true" />{blocked ? "Bloqué" : "Commande"}</button>
       </div>
 
+      <Sheet open={routeSheet} onClose={() => setRouteSheet(false)} title="Itinéraire avec…" testId="route-sheet">
+        <div className="space-y-2">
+          {NAV_APPS.map((a) => (
+            <div key={a.key} className="flex gap-2">
+              <button type="button" onClick={() => openRoute(a, false)} className="flex-1 min-h-[56px] rounded-xl border border-stone-300 text-base font-medium" data-testid={`route-${a.key}`}>{a.label}</button>
+              <button type="button" onClick={() => openRoute(a, true)} className="min-h-[56px] px-3 rounded-xl bg-[#4A154B] text-white text-sm font-medium" data-testid={`route-${a.key}-always`}>Toujours</button>
+            </div>
+          ))}
+        </div>
+      </Sheet>
+
       <Sheet open={callSheet} onClose={() => setCallSheet(false)} title="Qui appeler ?" testId="call-sheet">
         <div className="space-y-2">
           {phones.map((p, i) => (
-            <a key={i} href={`tel:${p.phone.replace(/\s/g, "")}`} onClick={() => setCallSheet(false)} className="flex items-center justify-between min-h-[56px] rounded-xl border border-stone-200 px-3 text-base" data-testid={`call-${i}`}>
+            <a key={p.phone} href={`tel:${p.phone.replace(/\s/g, "")}`} onClick={() => setCallSheet(false)} className="flex items-center justify-between min-h-[56px] rounded-xl border border-stone-200 px-3 text-base" data-testid={`call-${i}`}>
               <span><span className="font-medium">{p.name}</span> <span className="text-stone-600 text-sm">· {p.role}</span></span><span className="text-[#4A154B] font-medium">{p.phone}</span>
             </a>
           ))}

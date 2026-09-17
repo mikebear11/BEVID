@@ -18,7 +18,7 @@ export default function SyncIndicator() {
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
     const iv = setInterval(async () => {
-      try { setPending(await pendingCount()); } catch (e) {}
+      try { setPending(await pendingCount()); } catch { /* best-effort : ignoré volontairement */ }
     }, 1500);
     return () => {
       window.removeEventListener("online", on);

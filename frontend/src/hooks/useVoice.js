@@ -74,9 +74,9 @@ export function useVoice(lang = "fr-FR") {
     }
 
     return () => {
-      try { recogRef.current?.stop(); } catch {}
-      try { recorderRef.current?.stop(); } catch {}
-      try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
+      try { recogRef.current?.stop(); } catch { /* best-effort : ignoré volontairement */ }
+      try { recorderRef.current?.stop(); } catch { /* best-effort : ignoré volontairement */ }
+      try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch { /* best-effort : ignoré volontairement */ }
     };
   }, [lang]);
 
@@ -101,7 +101,7 @@ export function useVoice(lang = "fr-FR") {
       chunksRef.current = [];
       rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       rec.onstop = async () => {
-        try { stream.getTracks().forEach(t => t.stop()); } catch {}
+        try { stream.getTracks().forEach(t => t.stop()); } catch { /* best-effort : ignoré volontairement */ }
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
         try {
           await enqueueVoiceRecording({ blob, mime: blob.type, lang });
@@ -128,8 +128,8 @@ export function useVoice(lang = "fr-FR") {
   };
 
   const stop = () => {
-    if (mode === "speech") { try { recogRef.current?.stop(); } catch {} }
-    else if (mode === "recorder") { try { recorderRef.current?.stop(); } catch {} }
+    if (mode === "speech") { try { recogRef.current?.stop(); } catch { /* best-effort : ignoré volontairement */ } }
+    else if (mode === "recorder") { try { recorderRef.current?.stop(); } catch { /* best-effort : ignoré volontairement */ } }
     setListening(false);
   };
 

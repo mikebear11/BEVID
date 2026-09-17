@@ -139,7 +139,7 @@ export default function Login() {
                }}>{rateError}</p>
           )}
           <p className="text-sm text-stone-500 text-center flex items-center justify-center gap-3 flex-wrap">
-            <Link to="/register" className="text-[#4A154B] font-medium inline-flex items-center min-h-[44px] px-2">{t("register")}</Link>
+            {!window.Capacitor?.isNativePlatform?.() && <Link to="/register" className="text-[#4A154B] font-medium inline-flex items-center min-h-[44px] px-2">{t("register")}</Link>}
             <span aria-hidden="true">·</span>
             <Link to="/pricing" className="text-[#4A154B] font-medium inline-flex items-center min-h-[44px] px-2" data-testid="login-pricing-link">{t("see_pricing")}</Link>
           </p>

@@ -1,0 +1,6 @@
+"NSLocationWhenInUseUsageDescription" = "BEVID utilise votre position uniquement lorsque l'application est ouverte, pour afficher les clients proches et horodater vos visites. Aucun suivi en arrière-plan.";
+"NSCameraUsageDescription" = "Photographier une devanture, un linéaire ou scanner un fût.";
+"NSMicrophoneUsageDescription" = "Dicter vos notes de visite.";
+"NSSpeechRecognitionUsageDescription" = "Transcrire vos notes de visite dictées.";
+"NSPhotoLibraryAddUsageDescription" = "Enregistrer les photos prises dans BEVID.";
+"NSFaceIDUsageDescription" = "Déverrouiller BEVID avec Face ID (optionnel).";

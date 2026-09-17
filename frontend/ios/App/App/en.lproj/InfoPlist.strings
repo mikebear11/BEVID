@@ -1,0 +1,6 @@
+"NSLocationWhenInUseUsageDescription" = "BEVID uses your location only while the app is open, to show nearby customers and timestamp your visits. No background tracking.";
+"NSCameraUsageDescription" = "Take a photo of a storefront or shelf, or scan a keg.";
+"NSMicrophoneUsageDescription" = "Dictate your visit notes.";
+"NSSpeechRecognitionUsageDescription" = "Transcribe your dictated visit notes.";
+"NSPhotoLibraryAddUsageDescription" = "Save photos taken in BEVID.";
+"NSFaceIDUsageDescription" = "Unlock BEVID with Face ID (optional).";

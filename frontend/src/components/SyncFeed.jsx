@@ -17,7 +17,7 @@ export default function SyncFeed() {
 
   const load = async () => {
     try { const { data } = await api.get("/dashboard/sync-feed?minutes=60"); setFeed(data); }
-    catch {} finally { setLoading(false); }
+    catch { /* best-effort : ignoré volontairement */ } finally { setLoading(false); }
   };
   useEffect(() => { load(); const iv = setInterval(load, 30000); return () => clearInterval(iv); }, []);
 

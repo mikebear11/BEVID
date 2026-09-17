@@ -33,7 +33,7 @@ export default function NotificationBell() {
           }
         });
       }
-    } catch {}
+    } catch { /* best-effort : ignoré volontairement */ }
   };
 
   useEffect(() => {

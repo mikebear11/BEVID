@@ -51,7 +51,7 @@ export default function ImportIntelligent() {
           data.columns = data.columns.map(c => remembered[c.header] ? { ...c, field: remembered[c.header], source: "user", certainty: 1 } : c);
           toast.info("Mappage précédent restauré — corrigez si besoin");
         }
-      } catch {}
+      } catch { /* best-effort : ignoré volontairement */ }
       setColumns(data.columns);
       setSession(data.session_id);
       setStep("mapping");

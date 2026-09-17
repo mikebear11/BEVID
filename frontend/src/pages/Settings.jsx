@@ -36,7 +36,7 @@ export default function SettingsPage() {
         const raw = localStorage.getItem("bevid_sidebar_prefs_v1");
         const cur = raw ? JSON.parse(raw) : {};
         localStorage.setItem("bevid_sidebar_prefs_v1", JSON.stringify({ ...cur, theme: v }));
-      } catch {}
+      } catch { /* best-effort : ignoré volontairement */ }
       toast.success("Thème appliqué — rechargez pour voir");
     } catch { toast.error(t("toast.erreur")); }
   };
@@ -54,7 +54,7 @@ export default function SettingsPage() {
         const raw = localStorage.getItem("bevid_sidebar_prefs_v1");
         const cur = raw ? JSON.parse(raw) : {};
         localStorage.setItem("bevid_sidebar_prefs_v1", JSON.stringify({ ...cur, show_advanced: v }));
-      } catch {}
+      } catch { /* best-effort : ignoré volontairement */ }
       toast.success(v ? "Fonctions avancées affichées" : "Interface simplifiée activée");
     } catch { toast.error(t("toast.erreur")); }
   };
@@ -87,7 +87,7 @@ export default function SettingsPage() {
         const raw = localStorage.getItem("bevid_sidebar_prefs_v1");
         const cur = raw ? JSON.parse(raw) : {};
         localStorage.setItem("bevid_sidebar_prefs_v1", JSON.stringify({ ...cur, pinned_user: [], section_order: {} }));
-      } catch {}
+      } catch { /* best-effort : ignoré volontairement */ }
       toast.success("Menu réinitialisé — rechargez pour voir");
     } catch { toast.error(t("toast.erreur")); }
     finally { setResetting(false); }

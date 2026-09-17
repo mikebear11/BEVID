@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api, API } from "@/lib/api";
 import { Plus, MapPin, Calendar, Locate, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,12 +13,12 @@ export default function Tours() {
   const [selectedTour, setSelectedTour] = useState(null);
   const [geocoding, setGeocoding] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [{ data: t }, { data: c }] = await Promise.all([api.get("/tours"), api.get("/clients")]);
     setTours(t); setClients(c);
-    if (!selectedTour && t.length > 0) setSelectedTour(t[0]);
-  };
-  useEffect(() => { load(); }, []);
+    setSelectedTour(prev => prev ?? (t.length > 0 ? t[0] : null));
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
   const toggle = (id) => setForm(f => ({ ...f, client_ids: f.client_ids.includes(id) ? f.client_ids.filter(x => x!==id) : [...f.client_ids, id] }));
 

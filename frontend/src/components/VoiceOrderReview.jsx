@@ -73,7 +73,7 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
       cancelled = true;
       clearTimeout(hardTimeout);
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-      try { controller.abort(); } catch {}
+      try { controller.abort(); } catch { /* best-effort : ignoré volontairement */ }
     };
   }, [open, transcript, clientId, onFallback, onClose]);
 
@@ -176,7 +176,7 @@ export default function VoiceOrderReview({ open, onClose, transcript, clientId, 
             {elapsedSec >= 10 && (
               <button
                 onClick={() => {
-                  try { abortRef.current?.abort(); } catch {}
+                  try { abortRef.current?.abort(); } catch { /* best-effort : ignoré volontairement */ }
                   onFallback?.(transcript, "user_skipped_slow");
                   onClose?.();
                 }}

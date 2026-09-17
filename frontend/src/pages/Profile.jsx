@@ -1,3 +1,4 @@
+import { DeleteAccountCard } from "@/components/DeleteAccountCard";
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -154,6 +155,7 @@ export default function Profile() {
 
       <NotificationSettings />
       {saving && <p className="text-xs text-stone-500">Enregistrement…</p>}
+      <DeleteAccountCard />
     </div>
   );
 }

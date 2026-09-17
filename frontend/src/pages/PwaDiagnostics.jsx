@@ -46,7 +46,7 @@ export default function PwaDiagnostics() {
 
   const load = async () => {
     setLoading(true);
-    try { setDiag(await pwaDiagnostics()); } catch {}
+    try { setDiag(await pwaDiagnostics()); } catch { /* best-effort : ignoré volontairement */ }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); const iv = setInterval(load, 30000); return () => clearInterval(iv); }, []);
@@ -89,7 +89,7 @@ export default function PwaDiagnostics() {
             toast.error("Sans autorisation notifications, iOS refuse le stockage persistant");
             setBusy(false); return;
           }
-        } catch {}
+        } catch { /* best-effort : ignoré volontairement */ }
       }
       const r = await requestPersistentStorage();
       if (r.ok) toast.success(r.already ? "Stockage persistant déjà accordé" : "Stockage persistant accordé");

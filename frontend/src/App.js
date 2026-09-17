@@ -48,6 +48,8 @@ function VisitRoute() {
   return isMobile() ? <MobileVisit /> : <VisitReport />;
 }
 // Accueil : sur mobile (< 768 px) l'écran par défaut est « Terrain », le tableau de bord reste sur /dashboard (M1)
+const IOS_NATIVE = typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() && window.Capacitor.getPlatform() === "ios";
+const NoBillingOnIOS = ({ children }) => (IOS_NATIVE ? <div className="p-6 text-base" data-testid="billing-ios-blocked">La gestion de l'abonnement se fait depuis le site web BEVID. Contactez votre administrateur.</div> : children);
 function HomeRoute() {
   return isMobile() ? <Navigate to="/terrain" replace /> : <Dashboard />;
 }
@@ -133,13 +135,13 @@ function App() {
                     <Suspense fallback={<LazyFallback />}>
                       <Routes>
                         <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} />
+                        <Route path="/register" element={IOS_NATIVE || window.Capacitor?.isNativePlatform?.() ? <Navigate to="/login" replace /> : <Register />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/reset-password/:token" element={<ResetPassword />} />
                         <Route path="/sign/:token" element={<PublicSignature />} />
-                        <Route path="/pricing" element={<Pricing />} />
-                        <Route path="/tarifs" element={<Pricing />} />
-                        <Route path="/plans" element={<Pricing />} />
+                        <Route path="/pricing" element={<NoBillingOnIOS><Pricing /></NoBillingOnIOS>} />
+                        <Route path="/tarifs" element={<NoBillingOnIOS><Pricing /></NoBillingOnIOS>} />
+                        <Route path="/plans" element={<NoBillingOnIOS><Pricing /></NoBillingOnIOS>} />
                         <Route path="/calculateur-drm" element={<PublicDRMCalculator />} />
                         <Route path="/change-password" element={<Protected><ChangePassword /></Protected>} />
                         <Route path="/admin/users" element={<Protected><AdminUsers /></Protected>} />
@@ -179,7 +181,7 @@ function App() {
                         <Route path="/design-system" element={<Protected><DesignSystem /></Protected>} />
                         <Route path="/profile" element={<Protected><Profile /></Protected>} />
                         <Route path="/org/settings" element={<Protected><OrgSettings /></Protected>} />
-                        <Route path="/billing" element={<Protected><Billing /></Protected>} />
+                        <Route path="/billing" element={<Protected><NoBillingOnIOS><Billing /></NoBillingOnIOS></Protected>} />
                         <Route path="/team" element={<Protected><Team /></Protected>} />
                         <Route path="/documents" element={<Protected><Documents /></Protected>} />
                         <Route path="/pack-legal" element={<Protected><LegalPack /></Protected>} />

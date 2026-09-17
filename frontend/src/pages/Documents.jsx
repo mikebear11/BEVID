@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { api, API } from "@/lib/api";
 import { toast } from "sonner";
 import { FileText, Plus, Send, Download, Filter, ArrowRight, Loader2 } from "lucide-react";
 import { usePageMeta } from "@/lib/pageMeta";
 import { t } from "@/lib/i18n";
+import { uid, stripKeys } from "@/lib/uid";
 
 const TYPE_LABELS = {
   devis: "Devis",
@@ -40,7 +41,7 @@ export default function Documents() {
   const [emitting, setEmitting] = useState(null);
   const [legalDocs, setLegalDocs] = useState([]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const url = filter === "all" ? "/documents" : `/documents?doc_type=${filter}`;
@@ -49,13 +50,13 @@ export default function Documents() {
     } catch (e) {
       toast.error("Chargement impossible");
     } finally { setLoading(false); }
-  };
+  }, [filter]);
 
   useEffect(() => {
     api.get("/documents/types").then(r => setTypes(r.data.types || []));
     api.get("/legal-documents").then(r => setLegalDocs(r.data || [])).catch(() => setLegalDocs([]));
   }, []);
-  useEffect(() => { load(); }, [filter]);
+  useEffect(() => { load(); }, [load]);
 
   const emit = async (id) => {
     setEmitting(id);
@@ -182,7 +183,8 @@ function CreateDocumentModal({ types, legalDocs, onClose, onCreated }) {
   const [docType, setDocType] = useState("devis");
   const [clients, setClients] = useState([]);
   const [clientId, setClientId] = useState("");
-  const [lines, setLines] = useState([{ description: "", quantity: 1, unit_price_ht: 0, vat_rate: 20 }]);
+  const newLine = () => ({ _k: uid(), description: "", quantity: 1, unit_price_ht: 0, vat_rate: 20 });
+  const [lines, setLines] = useState(() => [newLine()]);
   const [notes, setNotes] = useState("");
   const [validityDays, setValidityDays] = useState(30);
   const [busy, setBusy] = useState(false);
@@ -218,7 +220,7 @@ function CreateDocumentModal({ types, legalDocs, onClose, onCreated }) {
       const payload = {
         doc_type: docType,
         client_id: clientId,
-        lines: cleanLines,
+        lines: stripKeys(cleanLines),
         notes,
         validity_days: docType === "devis" ? Number(validityDays) : undefined,
         legal_variants: legalVariants,
@@ -271,11 +273,11 @@ function CreateDocumentModal({ types, legalDocs, onClose, onCreated }) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs text-stone-500 block">Lignes</label>
-              <button onClick={() => setLines([...lines, { description: "", quantity: 1, unit_price_ht: 0, vat_rate: 20 }])} className="text-xs text-[#4A154B]" data-testid="doc-add-line">+ Ajouter</button>
+              <button onClick={() => setLines([...lines, newLine()])} className="text-xs text-[#4A154B]" data-testid="doc-add-line">+ Ajouter</button>
             </div>
             <div className="space-y-2">
               {lines.map((l, i) => (
-                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                <div key={l._k} className="grid grid-cols-12 gap-2 items-center">
                   <input placeholder="Description" value={l.description} onChange={e => { const n = [...lines]; n[i].description = e.target.value; setLines(n); }}
                     className="input-crm col-span-6 min-h-[40px]" data-testid={`doc-line-desc-${i}`} aria-label={`Description ligne ${i + 1}`} />
                   <input type="number" min="0" step="0.01" placeholder="Qté" value={l.quantity} onChange={e => { const n = [...lines]; n[i].quantity = e.target.value; setLines(n); }}

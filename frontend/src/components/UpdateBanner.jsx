@@ -51,7 +51,7 @@ export default function UpdateBanner() {
   if (!waiting) return null;
 
   const reload = () => {
-    try { waiting.postMessage({ type: "SKIP_WAITING" }); } catch {}
+    try { waiting.postMessage({ type: "SKIP_WAITING" }); } catch { /* best-effort : ignoré volontairement */ }
   };
 
   return (

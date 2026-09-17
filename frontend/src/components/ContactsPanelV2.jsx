@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -34,7 +34,7 @@ export default function ContactsPanelV2({ establishmentId, onChange }) {
     api.get("/roles/catalog").then(r => setCatalog(r.data)).catch(() => {});
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [activeR, allR] = await Promise.all([
@@ -46,9 +46,9 @@ export default function ContactsPanelV2({ establishmentId, onChange }) {
     } catch {
       setRoles({ active: [], all: [] });
     } finally { setLoading(false); }
-  };
+  }, [establishmentId]);
 
-  useEffect(() => { if (establishmentId) load(); }, [establishmentId]);
+  useEffect(() => { if (establishmentId) load(); }, [establishmentId, load]);
 
   const roleLabel = (key) => {
     const r = (catalog.roles || []).find(x => x.key === key);

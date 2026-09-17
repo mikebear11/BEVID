@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -151,17 +151,17 @@ function GooglePlacePanel({ eid }) {
   const [loading, setLoading] = useState(false);
   const [placeIdInput, setPlaceIdInput] = useState("");
 
-  const loadRef = () => api.get(`/establishments/${eid}/google-place`).then(r => setRef(r.data)).catch(() => setRef(null));
-  const loadLive = () => {
+  const loadRef = useCallback(() => api.get(`/establishments/${eid}/google-place`).then(r => setRef(r.data)).catch(() => setRef(null)), [eid]);
+  const loadLive = useCallback(() => {
     setLoading(true);
     api.get(`/establishments/${eid}/place-preview`)
       .then(r => setLive(r.data))
       .catch(e => setLive({ _available: false, _reason: e?.response?.data?.detail || "error" }))
       .finally(() => setLoading(false));
-  };
+  }, [eid]);
 
-  useEffect(() => { loadRef(); }, [eid]);
-  useEffect(() => { if (ref?.place_id) loadLive(); /* eslint-disable-next-line */ }, [ref?.place_id]);
+  useEffect(() => { loadRef(); }, [loadRef]);
+  useEffect(() => { if (ref?.place_id) loadLive(); }, [ref?.place_id, loadLive]);
 
   const linkPlace = async () => {
     try {
@@ -255,7 +255,7 @@ export default function Enrichissement() {
   const [runningA, setRunningA] = useState(false);
   const [runningB, setRunningB] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [e, en, cr] = await Promise.all([
       api.get(`/establishments/${id}`).then(r => r.data),
       api.get(`/establishments/${id}/enriched`).then(r => r.data).catch(() => ({ enrichissement: {} })),
@@ -264,9 +264,9 @@ export default function Enrichissement() {
     setEst(e);
     setEnriched(en?.enrichissement || {});
     setCredits(cr);
-  };
+  }, [id]);
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   const runLayerA = async () => {
     setRunningA(true);

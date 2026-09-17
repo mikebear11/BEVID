@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perm_location_rationale">BEVID utilise votre position uniquement lorsque l\'application est ouverte, pour afficher les clients proches et horodater vos visites. Aucun suivi en arrière-plan.</string>
+    <string name="perm_camera_rationale">Photographier une devanture, un linéaire ou scanner un fût.</string>
+    <string name="perm_mic_rationale">Dicter vos notes de visite.</string>
+    <string name="perm_notifications_rationale">Recevoir les relances dues, impayés et confirmations de commande.</string>
+</resources>

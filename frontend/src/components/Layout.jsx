@@ -37,6 +37,7 @@ import {
 import { Sun, Moon, Sunrise, Monitor, MoreHorizontal, Languages } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { BottomNav } from "@/components/mobile/BottomNav";
+import { NativeBoot } from "@/components/NativeBoot";
 import { useIsMobile } from "@/lib/mobile";
 
 /**
@@ -343,11 +344,11 @@ export default function Layout({ children }) {
   const saveTimer = useRef(null);
 
   useEffect(() => {
-    try { localStorage.setItem(OPEN_KEY, JSON.stringify(openSections)); } catch {}
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(openSections)); } catch { /* best-effort : ignoré volontairement */ }
   }, [openSections]);
 
   useEffect(() => {
-    try { localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0"); } catch {}
+    try { localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0"); } catch { /* best-effort : ignoré volontairement */ }
   }, [collapsed]);
 
   // Compteur d'arrêts du jour — via tournées du jour non terminées.
@@ -394,14 +395,14 @@ export default function Layout({ children }) {
           visited_features: Array.isArray(data?.visited_features) ? data.visited_features : [],
         };
         setPrefs(next);
-        try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch {}
+        try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch { /* best-effort : ignoré volontairement */ }
       } catch { /* offline ou 401 : garde le cache */ }
     })();
     return () => { cancelled = true; };
   }, []);
 
   const savePrefs = useCallback((next) => {
-    try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch {}
+    try { localStorage.setItem(PREFS_CACHE_KEY, JSON.stringify(next)); } catch { /* best-effort : ignoré volontairement */ }
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       api.put("/me/sidebar-prefs", next).catch(() => {});
@@ -453,10 +454,11 @@ export default function Layout({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs.pinned_user, has, permsLoading, role, planFeatures]);
 
+  const iosNative = typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() && window.Capacitor.getPlatform() === "ios"; // N5 : pas de facturation dans l'app iOS
   const visibleSections = useMemo(() => {
     return SECTIONS.map(s => {
       const userOrder = prefs.section_order?.[s.key];
-      const ordered = applySectionOrder(s.entries, userOrder);
+      const ordered = applySectionOrder(s.entries.filter(e => !(iosNative && e.key === "billing")), userOrder);
       const withEval = ordered.map(e => {
         const ev = evalEntry(e);
         return { ...e, _visible: ev.visible, _locked: ev.lockedPlan };
@@ -590,7 +592,7 @@ export default function Layout({ children }) {
         draggable={draggable}
         onDragStart={draggable ? (e) => {
           setDragCtx({ sectionKey, fromKey: k });
-          try { e.dataTransfer.setData("text/plain", `${sectionKey}::${k}`); } catch {}
+          try { e.dataTransfer.setData("text/plain", `${sectionKey}::${k}`); } catch { /* best-effort : ignoré volontairement */ }
           e.dataTransfer.effectAllowed = "move";
         } : undefined}
         onDragEnd={draggable ? () => { setDragCtx(null); setDragOver(null); } : undefined}
@@ -992,6 +994,7 @@ export default function Layout({ children }) {
 
         {/* Mobile bottom tab bar — Terrain · Clients · + · Tournée · Plus (M1) */}
         <BottomNav />
+        <NativeBoot />
 
         <CommandPalette items={paletteItems} />
         <VoiceFAB />

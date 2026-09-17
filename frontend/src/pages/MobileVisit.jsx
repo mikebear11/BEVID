@@ -35,6 +35,14 @@ export default function MobileVisit() {
   const [sp] = useSearchParams();
   const nav = useNavigate();
   const { supported, listening, transcript, start, stop } = useVoice("fr-FR");
+  const nativeStopRef = useRef(null);
+  const [nativeText, setNativeText] = useState("");
+  // Dictée : plugin natif en priorité, repli Web Speech API (web) — même bouton, même champ
+  const micStart = async () => {
+    const stopFn = await import("@/lib/nativeFeatures").then((m) => m.nativeSpeechStart(setNativeText)).catch(() => null);
+    if (stopFn) nativeStopRef.current = stopFn; else start();
+  };
+  const micStop = async () => { if (nativeStopRef.current) { await nativeStopRef.current(); nativeStopRef.current = null; } else stop(); };
   const [etab, setEtab] = useState(null);
   const [outcome, setOutcome] = useState(null);
   const [objs, setObjs] = useState([]);
@@ -50,7 +58,7 @@ export default function MobileVisit() {
   useEffect(() => {
     api.get(`/establishments/${id}`).then((r) => setEtab(r.data)).catch(() => setEtab({ name: "Client" }));
     getPosition().then(setGps).catch(() => {});
-    if (sp.get("voice") === "1" && supported) setTimeout(() => start(), 400);
+    if (sp.get("voice") === "1") setTimeout(() => micStart(), 400);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -59,12 +67,14 @@ export default function MobileVisit() {
     setSaving(true);
     const o = OUTCOMES.find((x) => x[0] === outcome)[2];
     const nd = next === "libre" ? nextDate : next ? plusDays(parseInt(next, 10)) : "";
-    const summary = [text.trim() || transcript.trim(), objs.length ? `Objections : ${objs.join(", ")}` : ""].filter(Boolean).join("\n");
+    const summary = [text.trim() || nativeText.trim() || transcript.trim(), objs.length ? `Objections : ${objs.join(", ")}` : ""].filter(Boolean).join("\n");
     const payload = { client_id: id, ...o, next_date: nd || null, summary, voice_transcript: transcript, objections: objs, photo: photo || null,
       gps, checkin_at: checkin.current, client_uuid: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}` };
     try {
       const res = await postOffline("/visits", payload);
       toast.success(res.offline ? "Note enregistrée hors ligne — synchronisée au retour du réseau" : "Note de visite enregistrée", res.offline ? { icon: "📶" } : undefined);
+      sessionStorage.setItem("bevid_visit_saved", "1");
+      import("@/lib/nativeFeatures").then((m) => m.haptic("success")).catch(() => {});
       if (outcome === "commande") nav(`/etab/${id}/commande`); else nav(`/etab/${id}`);
     } catch { toast.error("Erreur à l'enregistrement"); }
     finally { setSaving(false); }
@@ -91,11 +101,11 @@ export default function MobileVisit() {
       </div>
 
       <div className="rounded-xl border border-stone-200 bg-white p-3 space-y-2">
-        <button type="button" onClick={listening ? stop : start} disabled={!supported} data-testid="mvisit-mic"
+        <button type="button" onClick={listening || nativeStopRef.current ? micStop : micStart} disabled={!supported && !window.Capacitor?.isNativePlatform?.()} data-testid="mvisit-mic"
           className={`w-full min-h-[64px] rounded-xl text-white text-lg font-semibold flex items-center justify-center gap-2 ${listening ? "bg-[#8C2A2A] animate-pulse" : "bg-[#4A154B]"} disabled:opacity-40`}>
           {listening ? <MicOff size={26} aria-hidden="true" /> : <Mic size={26} aria-hidden="true" />}{listening ? "Arrêter la dictée" : supported ? "Dicter la note" : "Dictée indisponible"}
         </button>
-        <textarea value={text || transcript} onChange={(e) => setText(e.target.value)} rows={3} placeholder="…ou tapez quelques mots" aria-label="Note"
+        <textarea value={text || nativeText || transcript} onChange={(e) => setText(e.target.value)} rows={3} placeholder="…ou tapez quelques mots" aria-label="Note"
           className="input-crm w-full text-base min-h-[80px]" data-testid="mvisit-text" />
       </div>
 

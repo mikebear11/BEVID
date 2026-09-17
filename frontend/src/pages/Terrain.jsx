@@ -47,7 +47,7 @@ export default function Terrain() {
 
   useEffect(() => {
     (async () => {
-      try { const { data } = await api.get("/establishments"); setItems(data); db.establishments.bulkPut(data).catch(() => {}); }
+      try { const { data } = await api.get("/establishments"); setItems(data); db.establishments.bulkPut(data).catch(() => {}); import("@/lib/nativeStore").then((m) => m.mirrorEstablishments(data)).catch(() => {}); }
       catch { setItems(await db.establishments.toArray().catch(() => [])); }
       let pos = null;
       try { pos = await getPosition(); setGeo("ok"); } catch { setGeo("denied"); }

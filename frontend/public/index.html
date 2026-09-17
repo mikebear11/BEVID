@@ -47,7 +47,7 @@
           // Enregistre le Service Worker (versionné). Le bandeau "Nouvelle version"
           // est géré côté React (composant UpdateBanner) et déclenche SKIP_WAITING
           // sur clic explicite pour ne pas interrompre une saisie.
-          if ("serviceWorker" in navigator) {
+          if ("serviceWorker" in navigator && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
             window.addEventListener("load", function() {
               navigator.serviceWorker.register("/sw.js").catch(function(err) {
                 console.warn("SW registration failed:", err);

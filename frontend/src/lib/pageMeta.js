@@ -60,6 +60,6 @@ export function usePageMeta({ title, canonical, description, noindex } = {}) {
       document.head.appendChild(m);
     }
     m.setAttribute("content", "noindex, nofollow, noarchive, nosnippet");
-    return () => { try { m.remove(); } catch {} };
+    return () => { try { m.remove(); } catch { /* best-effort : ignoré volontairement */ } };
   }, [noindex]);
 }

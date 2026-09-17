@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { AlertOctagon, Check, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -26,16 +26,16 @@ export default function ObjectionsList({ establishmentId }) {
   const [saving, setSaving] = useState(false);
   const [effective, setEffective] = useState(null);    // [{response, uses, successes, rate}]
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get(`/establishments/${establishmentId}/objections`);
       setItems(Array.isArray(data) ? data : []);
     } catch { setItems([]); }
     finally { setLoading(false); }
-  };
+  }, [establishmentId]);
 
-  useEffect(() => { if (establishmentId) load(); }, [establishmentId]);
+  useEffect(() => { if (establishmentId) load(); }, [establishmentId, load]);
 
   const openEdit = (o) => {
     setOpenId(o.id);

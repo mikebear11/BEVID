@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, setNativeToken, setNativeRefresh, getNativeRefresh } from "@/lib/api";
+import { isNative, saveTokens, loadTokens, clearTokens, initNative, biometricLockEnabled, biometricUnlock } from "@/lib/native";
 import { saveSnapshot, db } from "@/lib/db";
 import { startSyncListener, flushQueue } from "@/lib/syncQueue";
 import { requestPersistentStorage, purgeIfQuotaHigh } from "@/lib/pwa";
@@ -34,8 +35,8 @@ async function cacheUser(u) {
 }
 
 const SESSION_FLAG = "bevid_session";
-function markSession()    { try { localStorage.setItem(SESSION_FLAG, "1"); } catch {} }
-function clearSession()   { try { localStorage.removeItem(SESSION_FLAG); } catch {} }
+function markSession()    { try { localStorage.setItem(SESSION_FLAG, "1"); } catch { /* best-effort : ignoré volontairement */ } }
+function clearSession()   { try { localStorage.removeItem(SESSION_FLAG); } catch { /* best-effort : ignoré volontairement */ } }
 function hasSessionFlag() { try { return !!localStorage.getItem(SESSION_FLAG); } catch { return false; } }
 
 export function AuthProvider({ children }) {
@@ -47,6 +48,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const stop = startSyncListener();
     const onOffline = () => setOfflineMode(true);
+    const onRevoked = () => { setUser(null); clearSession(); };
+    window.addEventListener("bevid:session-revoked", onRevoked);
     const onOnline = () => {
       setOfflineMode(false);
       if (hasSessionFlag()) {
@@ -66,7 +69,12 @@ export function AuthProvider({ children }) {
       return () => { stop(); window.removeEventListener("offline", onOffline); window.removeEventListener("online", onOnline); };
     }
 
-    api.get("/auth/me")
+    // Natif (N3) : recharge le jeton porteur avant /auth/me (le cookie HttpOnly n'existe pas dans le WebView)
+    // Natif (N2/N3) : verrou biométrique optionnel, puis jetons rechargés depuis Keychain/Keystore avant /auth/me
+    (isNative()
+      ? initNative().then(async () => { if (await biometricLockEnabled()) await biometricUnlock(); const t = await loadTokens(); setNativeToken(t.token); setNativeRefresh(t.refresh_token); })
+      : Promise.resolve())
+      .then(() => api.get("/auth/me"))
        .then(async (r) => {
          setUser(r.data);
          await cacheUser(r.data);
@@ -99,6 +107,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
+    if (isNative() && data.token) { setNativeToken(data.token); setNativeRefresh(data.refresh_token); await saveTokens(data); }
     markSession();
     setUser(data.user);
     await cacheUser(data.user);
@@ -113,6 +122,7 @@ export function AuthProvider({ children }) {
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
+    if (isNative() && data.token) { setNativeToken(data.token); setNativeRefresh(data.refresh_token); await saveTokens(data); }
     markSession();
     setUser(data.user);
     await cacheUser(data.user);
@@ -129,7 +139,8 @@ export function AuthProvider({ children }) {
       const { unsubscribePush } = await import("@/lib/push");
       await unsubscribePush();
     } catch { /* silencieux */ }
-    try { await api.post("/auth/logout"); } catch { /* silencieux */ }
+    try { await api.post("/auth/logout", getNativeRefresh() ? { refresh_token: getNativeRefresh() } : {}); } catch { /* silencieux */ }
+    setNativeToken(null); setNativeRefresh(null); clearTokens().catch(() => {});
     clearSession();
     db.meta.delete("cached_user").catch(() => {});
     setUser(null);

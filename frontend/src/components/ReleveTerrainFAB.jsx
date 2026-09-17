@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { ClipboardList, X, Plus, Trash2, Loader2, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
+import { uid } from "@/lib/uid";
 
 /**
  * Formulaire relevé terrain < 20 s (PARTIE 14).
@@ -13,11 +14,11 @@ export default function ReleveTerrainFAB({ clientId }) {
   const [form, setForm] = useState({
     marques_presentes: "",
     nb_lignes_totales: "",
-    prix_releves: [{ marque: "", format: "", prix_consommateur: "" }],
+    prix_releves: [{ _k: uid(), marque: "", format: "", prix_consommateur: "" }],
   });
   const [saving, setSaving] = useState(false);
 
-  const addPrix = () => setForm(f => ({ ...f, prix_releves: [...f.prix_releves, { marque: "", format: "", prix_consommateur: "" }] }));
+  const addPrix = () => setForm(f => ({ ...f, prix_releves: [...f.prix_releves, { _k: uid(), marque: "", format: "", prix_consommateur: "" }] }));
   const rmPrix = (i) => setForm(f => ({ ...f, prix_releves: f.prix_releves.filter((_, j) => j !== i) }));
   const updPrix = (i, k, v) => setForm(f => ({
     ...f, prix_releves: f.prix_releves.map((p, j) => j === i ? { ...p, [k]: v } : p)
@@ -31,10 +32,10 @@ export default function ReleveTerrainFAB({ clientId }) {
       try {
         const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { timeout: 3000 }));
         lat = pos.coords.latitude; lng = pos.coords.longitude;
-      } catch {}
+      } catch { /* best-effort : ignoré volontairement */ }
       const marques = form.marques_presentes.split(",").map(s => s.trim()).filter(Boolean);
       const prix = form.prix_releves.filter(p => p.marque && p.prix_consommateur)
-        .map(p => ({ ...p, prix_consommateur: parseFloat(p.prix_consommateur) }));
+        .map(({ _k, ...p }) => ({ ...p, prix_consommateur: parseFloat(p.prix_consommateur) }));
       await api.post("/releves-terrain", {
         client_id: clientId,
         marques_presentes: marques,
@@ -44,7 +45,7 @@ export default function ReleveTerrainFAB({ clientId }) {
       });
       toast.success(t("toast.releve_enregistre_1_pour_l_observat"));
       setOpen(false);
-      setForm({ marques_presentes: "", nb_lignes_totales: "", prix_releves: [{ marque: "", format: "", prix_consommateur: "" }] });
+      setForm({ marques_presentes: "", nb_lignes_totales: "", prix_releves: [{ _k: uid(), marque: "", format: "", prix_consommateur: "" }] });
     } catch { toast.error(t("toast.erreur")); }
     finally { setSaving(false); }
   };
@@ -88,7 +89,7 @@ export default function ReleveTerrainFAB({ clientId }) {
               <button onClick={addPrix} className="text-xs text-[#4A154B]" data-testid="add-price"><Plus size={12} className="inline" /> Ajouter</button>
             </div>
             {form.prix_releves.map((p, i) => (
-              <div key={i} className="grid grid-cols-[1fr_60px_80px_28px] gap-1 mb-1">
+              <div key={p._k} className="grid grid-cols-[1fr_60px_80px_28px] gap-1 mb-1">
                 <input value={p.marque} onChange={e => updPrix(i, "marque", e.target.value)} placeholder="Marque" className="input-crm text-sm h-9" data-testid={`price-brand-${i}`} />
                 <input value={p.format} onChange={e => updPrix(i, "format", e.target.value)} placeholder="25cl" className="input-crm text-sm h-9" />
                 <input type="number" step="0.10" value={p.prix_consommateur} onChange={e => updPrix(i, "prix_consommateur", e.target.value)} placeholder="€" className="input-crm text-sm h-9 font-mono" data-testid={`price-value-${i}`} />

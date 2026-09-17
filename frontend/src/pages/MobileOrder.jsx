@@ -10,6 +10,8 @@ const CREDIT_BG = { vert: "bg-emerald-50 text-emerald-800 border-emerald-200",
                     orange: "bg-amber-50 text-amber-900 border-amber-200",
                     rouge: "bg-red-50 text-red-800 border-red-200" };
 const TVA = 0.20; // TVA par défaut
+const tomorrow = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
+const UNIT_LABEL = { fût: "fût", fut: "fût", carton: "carton", bouteille: "bout.", caisse: "caisse", pack: "pack", unité: "u." };
 
 export default function MobileOrder() {
   const { id } = useParams();
@@ -34,7 +36,7 @@ export default function MobileOrder() {
        .catch(() => toast.error(t("toast.erreur_chargement_catalogue")));
   }, [id]);
 
-  const products = catalog?.products || [];
+  const products = useMemo(() => catalog?.products || [], [catalog]);
   const est = catalog?.establishment;
   const maxDiscount = catalog?.max_discount_pct ?? 15;
   const blocked = est?.credit_status === "rouge";
@@ -44,6 +46,31 @@ export default function MobileOrder() {
     if (!s) return products;
     return products.filter(p => (p.name || "").toLowerCase().includes(s) || (p.sku || "").toLowerCase().includes(s));
   }, [q, products]);
+  const sections = useMemo(() => [
+    ["habituel", "Habituels du client"], ["best", "Meilleures ventes"], ["reste", "Catalogue"],
+  ].map(([k, l]) => [k, l, filtered.filter(p => (p.section || "reste") === k)]).filter(([, , arr]) => arr.length > 0), [filtered]);
+  const clientDiscount = catalog?.client_discount_pct || 0;
+  const lastOrder = catalog?.last_order;
+
+  const reorderLast = () => {
+    if (!lastOrder?.lines?.length) return;
+    const next = {};
+    for (const l of lastOrder.lines) {
+      const p = products.find(x => x.id === l.product_id);
+      next[l.product_id] = { product_id: l.product_id, qty: l.quantity, unit_price: p ? (p.unit_price_client ?? p.price) : l.unit_price, discount_pct: clientDiscount, product_name: l.product_name };
+    }
+    setCart(next);
+    toast.success(`Dernière commande reprise (${lastOrder.lines.length} ligne${lastOrder.lines.length > 1 ? "s" : ""}) — modifiez si besoin`);
+    setDeliveryDate(d => d || tomorrow());
+  };
+  const setQtyDirect = (p, val) => {
+    const n = Math.max(0, parseInt(val, 10) || 0);
+    setCart(prev => {
+      if (n === 0) { const c = { ...prev }; delete c[p.id]; return c; }
+      const cur = prev[p.id] || { product_id: p.id, qty: 0, unit_price: p.unit_price_client ?? p.price, discount_pct: clientDiscount, product_name: p.name };
+      return { ...prev, [p.id]: { ...cur, qty: n } };
+    });
+  };
 
   const cartArr = Object.values(cart);
 
@@ -72,7 +99,7 @@ export default function MobileOrder() {
 
   const setQty = (p, delta) => {
     setCart(prev => {
-      const cur = prev[p.id] || { product_id: p.id, qty: 0, unit_price: p.unit_price_client ?? p.price, discount_pct: 0, product_name: p.name };
+      const cur = prev[p.id] || { product_id: p.id, qty: 0, unit_price: p.unit_price_client ?? p.price, discount_pct: clientDiscount, product_name: p.name };
       const q = Math.max(0, cur.qty + delta);
       if (q === 0) { const c = { ...prev }; delete c[p.id]; return c; }
       return { ...prev, [p.id]: { ...cur, qty: q } };
@@ -158,6 +185,7 @@ export default function MobileOrder() {
         } catch (e) { /* silent : l'utilisateur peut renvoyer manuellement */ }
       }
       nav(`/etab/${id}`);
+      import("@/lib/nativeFeatures").then((m) => m.haptic("success")).catch(() => {});
     } catch (err) {
       toast.error(err.response?.data?.detail || t("toast.erreur_commande"));
     } finally { setCreating(false); }
@@ -195,6 +223,14 @@ export default function MobileOrder() {
         <h1 className="font-display text-2xl mb-1">{est.name}</h1>
         <p className="text-xs text-stone-500 mb-3">Tarifs {catalog.max_discount_pct ? `spécifiques (remise max ${catalog.max_discount_pct}%)` : "par défaut"}</p>
 
+        {/* Refaire la dernière commande — 1 toucher, modifiable ensuite */}
+        {lastOrder?.lines?.length > 0 && (
+          <button onClick={reorderLast} className="w-full min-h-[64px] rounded-2xl bg-[#2D5A4C] text-white text-base font-semibold flex items-center justify-center gap-2 mb-3" data-testid="reorder-last">
+            <RotateCcw size={20} aria-hidden="true" /> Refaire la dernière commande · {new Date(lastOrder.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} · {(lastOrder.total || 0).toFixed(0)} €
+          </button>
+        )}
+        {clientDiscount > 0 && <p className="text-sm text-[#2D5A4C] mb-2" data-testid="client-discount-note">Remise client {clientDiscount} % appliquée automatiquement</p>}
+
         {/* Search */}
         <div className="sticky top-16 md:top-0 z-20 bg-stone-50/95 backdrop-blur-sm py-2 -mx-4 px-4">
           <div className="relative">
@@ -209,28 +245,31 @@ export default function MobileOrder() {
         </div>
 
         <div className="space-y-2 mt-3">
-          {filtered.map(p => {
+          {sections.map(([sk, label, arr]) => (
+            <React.Fragment key={sk}>
+              <p className="overline pt-2" data-testid={`section-${sk}`}>{label} ({arr.length})</p>
+              {arr.map(p => {
             const line = cart[p.id];
             const qty = line?.qty || 0;
             const price = p.unit_price_client ?? p.price;
             const hecto = qty > 0 ? applicableHecto(p.id, qty) : null;
+            const unit = UNIT_LABEL[(p.unit || "").toLowerCase()] || p.unit || "u.";
+            const lowStock = p.stock != null && (p.stock <= 0 || (qty > 0 && qty > p.stock) || (p.low_stock_threshold != null && p.stock <= p.low_stock_threshold));
             return (
               <div key={p.id} className={`bg-white rounded-xl p-3 border ${qty > 0 ? "border-[#4A154B]/50" : "border-stone-200"}`} data-testid={`product-card-${p.id}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{p.name}</p>
-                    <p className="text-xs text-stone-500">{p.sku || p.category} · {price.toFixed(2)} €{p.on_price_list && <span className="ml-1 text-xs text-emerald-700 bg-emerald-50 px-1 rounded">tarif client</span>}{p.volume_liters ? <span className="ml-1 text-xs text-stone-500">{p.volume_liters}L/u</span> : null}</p>
-                    {p.habitual_qty > 0 && <p className="text-xs text-stone-500 mt-1">Habitude : ~{p.habitual_qty} u.</p>}
-                    {(p.hecto_tiers || []).length > 0 && qty === 0 && (
-                      <p className="text-xs text-emerald-700 bg-emerald-50 inline-block px-1.5 py-0.5 rounded mt-1" data-testid={`hecto-badge-${p.id}`}>
-                        Tarif hecto : {p.hecto_tiers.map(t => `${t.min_hl}hL → -${t.discount_pct}%`).join(" · ")}
-                      </p>
-                    )}
+                    <p className="font-medium text-base truncate">{p.name}</p>
+                    <p className="text-sm text-stone-600">{price.toFixed(2)} € / {unit}{p.on_price_list && <span className="ml-1 text-xs text-emerald-700 bg-emerald-50 px-1 rounded">tarif client</span>}</p>
+                    <p className={`text-sm ${lowStock ? "text-[#8C2A2A] font-medium" : "text-stone-600"}`} data-testid={`stock-${p.id}`}>
+                      {p.stock != null ? (p.stock <= 0 ? "Rupture" : `Stock ${p.stock} ${unit}`) : ""}{lowStock && p.stock > 0 ? " · rupture probable" : ""}{p.habitual_qty > 0 ? ` · habitude ~${p.habitual_qty}` : ""}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button onClick={() => setQty(p, -1)} disabled={qty === 0} className="w-11 h-11 rounded-lg bg-stone-100 text-stone-700 disabled:opacity-30 flex items-center justify-center" data-testid={`qty-minus-${p.id}`}><Minus size={16} /></button>
-                    <span className="w-8 text-center font-medium text-base" data-testid={`qty-${p.id}`}>{qty}</span>
-                    <button onClick={() => setQty(p, +1)} className="w-11 h-11 rounded-lg bg-[#4A154B] text-white flex items-center justify-center" data-testid={`qty-plus-${p.id}`}><Plus size={16} /></button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => setQty(p, -1)} disabled={qty === 0} className="w-12 h-12 rounded-lg bg-stone-100 text-stone-700 disabled:opacity-30 flex items-center justify-center" aria-label={`Moins ${p.name}`} data-testid={`qty-minus-${p.id}`}><Minus size={20} /></button>
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" value={qty} onChange={(e) => setQtyDirect(p, e.target.value)} aria-label={`Quantité ${p.name}`}
+                      className="w-12 h-12 text-center font-semibold text-base border border-stone-300 rounded-lg" data-testid={`qty-${p.id}`} />
+                    <button onClick={() => setQty(p, +1)} className="w-12 h-12 rounded-lg bg-[#4A154B] text-white flex items-center justify-center" aria-label={`Plus ${p.name}`} data-testid={`qty-plus-${p.id}`}><Plus size={20} /></button>
                   </div>
                 </div>
                 {qty > 0 && (
@@ -258,17 +297,19 @@ export default function MobileOrder() {
               </div>
             );
           })}
+            </React.Fragment>
+          ))}
           {filtered.length === 0 && <p className="text-center py-10 text-stone-400">Aucun produit</p>}
         </div>
 
-        {/* Bottom sheet cart (thumb-zone) */}
+        {/* Barre fixe : HT + TTC toujours visibles */}
         <div className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-stone-200 p-3 pb-safe" data-testid="cart-summary">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-stone-500">{cartArr.length} produit(s) · {cartArr.reduce((s, l) => s + l.qty, 0)} u.</p>
-              <p className="font-display text-xl truncate">{total.toFixed(2)} € <span className="text-xs text-stone-500">TTC</span></p>
+              <p className="text-sm text-stone-600">{cartArr.length} produit(s) · {cartArr.reduce((s, l) => s + l.qty, 0)} u. · HT <span className="font-medium" data-testid="total-ht">{subtotal.toFixed(2)} €</span></p>
+              <p className="font-display text-xl truncate" data-testid="total-ttc">{total.toFixed(2)} € <span className="text-sm text-stone-600">TTC</span></p>
             </div>
-            <button onClick={() => setStep(2)} disabled={cartArr.length === 0} className="btn-primary min-h-[48px] px-6 flex items-center gap-2 disabled:opacity-40" data-testid="cart-next">
+            <button onClick={() => { setDeliveryDate(d => d || tomorrow()); setStep(2); }} disabled={cartArr.length === 0} className="btn-primary min-h-[56px] px-6 flex items-center gap-2 disabled:opacity-40 text-base" data-testid="cart-next">
               Suite <ShoppingCart size={16} />
             </button>
           </div>
@@ -314,8 +355,8 @@ export default function MobileOrder() {
 
         <div className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-stone-200 p-3 pb-safe">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <div className="flex-1 font-display text-xl">{total.toFixed(2)} €</div>
-            <button onClick={() => deliveryDate ? setStep(3) : toast.error(t("toast.date_obligatoire"))} className="btn-primary min-h-[48px] px-6" data-testid="to-signature">
+            <div className="flex-1 font-display text-xl"><span className="block text-sm text-stone-600 font-sans">HT {subtotal.toFixed(2)} €</span>{total.toFixed(2)} € TTC</div>
+            <button onClick={() => deliveryDate ? setStep(3) : toast.error(t("toast.date_obligatoire"))} className="btn-primary min-h-[56px] px-6 text-base" data-testid="to-signature">
               Signature client →
             </button>
           </div>
@@ -365,8 +406,8 @@ export default function MobileOrder() {
 
       <div className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-stone-200 p-3 pb-safe">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <div className="flex-1 font-display text-xl">{total.toFixed(2)} €</div>
-          <button onClick={finalize} disabled={!signed || creating} className="btn-primary min-h-[48px] px-6 flex items-center gap-2 disabled:opacity-40" data-testid="confirm-order">
+          <div className="flex-1 font-display text-xl"><span className="block text-sm text-stone-600 font-sans">HT {subtotal.toFixed(2)} €</span>{total.toFixed(2)} € TTC</div>
+          <button onClick={finalize} disabled={!signed || creating} className="btn-primary min-h-[56px] px-6 flex items-center gap-2 disabled:opacity-40 text-base" data-testid="confirm-order">
             {creating ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
             Valider
           </button>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { api, API } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -25,15 +25,15 @@ export default function Rapprochement() {
   const [proposals, setProposals] = useState({}); // txId -> {propositions, tx}
   const [propOpen, setPropOpen] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [s, t] = await Promise.all([
       api.get("/banque/summary"),
       api.get(`/banque/transactions?status=${filter}&limit=300`),
     ]);
     setSummary(s.data);
     setTxs(t.data);
-  };
-  useEffect(() => { load(); }, [filter]);
+  }, [filter]);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => txs.filter(t => {
     const q = query.toLowerCase();

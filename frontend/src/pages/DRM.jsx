@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -15,15 +15,15 @@ export default function DRM() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get(`/drm/${year}/${month}`);
       setData(data);
     } catch (err) { toast.error(err.response?.data?.detail || t("toast.erreur")); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { load(); }, [year, month]);
+  }, [year, month]);
+  useEffect(() => { load(); }, [load]);
 
   const exportCSV = () => {
     if (!data) return;

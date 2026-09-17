@@ -1,0 +1,85 @@
+name: BEVID — builds natifs (Android x86_64 / iOS macOS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (ex. 1.0.0)"
+        required: true
+        default: "1.0.0"
+  push:
+    tags: ["v*"]
+
+env:
+  REACT_APP_BACKEND_URL: https://www.bevid-crm.com
+  NODE_VERSION: "22"
+
+jobs:
+  android:
+    name: Android APK debug + AAB release
+    runs-on: ubuntu-latest   # x86_64 : contourne le blocage AAPT2 (hôte ARM64) — BLOCAGES § 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: yarn, cache-dependency-path: frontend/yarn.lock }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: android-actions/setup-android@v3
+      - name: Build web + sync
+        working-directory: frontend
+        run: |
+          yarn install --frozen-lockfile
+          REACT_APP_VERSION=${{ inputs.version || github.ref_name }} GENERATE_SOURCEMAP=false yarn build
+          npx cap sync android
+      - name: APK debug
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Keystore release (secret ANDROID_KEYSTORE_B64 — BLOCAGES § 5)
+        if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
+        working-directory: frontend/android
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > app/release.keystore
+          cat >> gradle.properties <<EOF
+          BEVID_STORE_FILE=release.keystore
+          BEVID_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BEVID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
+          BEVID_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+          ./gradlew bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bevid-android
+          path: |
+            frontend/android/app/build/outputs/apk/debug/*.apk
+            frontend/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
+
+  ios:
+    name: iOS archive (TestFlight)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: yarn, cache-dependency-path: frontend/yarn.lock }
+      - name: Build web + sync
+        working-directory: frontend
+        run: |
+          yarn install --frozen-lockfile
+          REACT_APP_VERSION=${{ inputs.version || github.ref_name }} GENERATE_SOURCEMAP=false yarn build
+          npx cap sync ios
+      - name: Certificats & profil (secrets IOS_* — BLOCAGES § 5)
+        if: ${{ secrets.IOS_P12_B64 != '' }}
+        uses: apple-actions/import-codesign-certs@v3
+        with: { p12-filepath: "", p12-file-base64: ${{ secrets.IOS_P12_B64 }}, p12-password: ${{ secrets.IOS_P12_PASSWORD }} }
+      - name: Archive (sans signature si secrets absents)
+        working-directory: frontend/ios/App
+        run: |
+          pod install
+          if [ -z "${{ secrets.IOS_P12_B64 }}" ]; then
+            xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos CODE_SIGNING_ALLOWED=NO build
+          else
+            xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -archivePath build/App.xcarchive archive DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}
+            xcodebuild -exportArchive -archivePath build/App.xcarchive -exportPath build/ipa -exportOptionsPlist ../../../.github/exportOptions.plist
+          fi
+      - uses: actions/upload-artifact@v4
+        with: { name: bevid-ios, path: frontend/ios/App/build/ipa/*.ipa, if-no-files-found: warn }
