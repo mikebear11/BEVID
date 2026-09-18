@@ -1876,3 +1876,24 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 - **Catch vides** : 0 restant. Actions utilisateur (marquer comme lu Inbox / PushHistory) → toast d'erreur ; best-effort annotés explicitement.
 - Vérification : lint hooks 0 warning, porte QA Playwright verte (15 métriques), testing agent `iteration_25.json` GREEN (aucune boucle de requêtes, aucun warning React).
 - **Non traité (décision économie)** : refactoring `Layout.jsx` (690 l.), `MobileOrder.jsx`, complexité `bank/importers.py`, `bank/reconciliation.py`, `analytics/runout.py`.
+
+## Lot 4 · Encaissement réel + Lecture seule + Découpage Layout (livré 18 septembre 2026)
+
+**Stripe Checkout (Flow A — sandbox réclamable, compte FR, mode « Stripe gère tout » incl. TVA)**
+- Catalogue synchronisé (`setup_stripe.py`) : `bevid_{terrain|pro|entreprise}_{monthly|yearly}`.
+- `POST /api/payments/checkout` (owner only) → session abonnement, quantité = sièges actifs, `success_url=/payment/success`. Exempt du paywall (un client bloqué doit pouvoir payer).
+- `GET /api/payments/status/{id}` (public, fallback Stripe si webhook lent) + `POST /api/stripe/webhook` (checkout.session.*, charge.refunded, customer.subscription.*, invoice.paid / invoice.payment_failed → `billing_status_stripe`).
+- `_apply_payment_side_effects` : active l'org (plan, billing_mode, `stripe_customer_id`, `stripe_subscription_id`), marque factures et **commandes** payées (les 2 handlers doublons `/stripe/webhook` et `/payments/status` morts ont été supprimés).
+- `POST /api/billing/portal` → portail client Stripe (CB, factures, résiliation). `POST /api/billing/upgrade` → **409** quand Stripe est configuré (plus d'activation sans paiement).
+- `GET /api/billing/current` expose `billing_exempt`, `is_owner`, `portal_available`, `billing_provider`.
+- Frontend `Billing.jsx` : ConfirmDialog (plus de `window.confirm`), redirection Checkout, bouton « Gérer mon abonnement » (portail), bandeau blocage, note « paiement sécurisé Stripe », toggle mensuel/annuel responsive.
+- **Preuve E2E (Playwright, 18/09)** : org read_only → Choisir Terrain → Stripe (carte 4242, TVA 21 % calculée) → `/payment/success` « Paiement confirmé » → `plan=terrain, effective_status=active, portal_available=true` → POST /clients 200 → portail Stripe URL OK. Abonnement test annulé ensuite, org de test remise en read_only.
+
+**Blocage lecture seule (`billing_guard.py`)**
+- Middleware 402 `billing_blocked` sur POST/PUT/DELETE/PATCH quand `read_only`/`suspended` ; GET (dont exports CSV/XLSX/PDF) toujours 200.
+- Court-circuit `billing_exempt` ajouté. Exemptions : auth, billing, stripe, `payments/(checkout|status|pay-link)`, `me/(profile|sidebar-prefs|visit-feature)`, errors, sync/push, rgpd, cron, public, webhook, config, audit.
+- Frontend : intercepteur axios 402 → toast avec action « Facturation » + événement `bevid:billing-blocked` (BillingBanner se rafraîchit). Bandeau `banner-read-only` déjà en place.
+- Compte de test : `readonly.test@bevidcrm.fr` (voir test_credentials.md). Test `test_iter21_paywall.py` corrigé (dates relatives au lieu de dates fixes périmées) — 9/9 verts.
+
+**Découpage `Layout.jsx` (1005 → 130 lignes)** — `components/layout/` :
+`navConfig.js` (données + helpers purs), `useSidebarPrefs.js` (persistance + épingles/DnD/visited), `useNavVisibility.js` (RBAC + forfait + palette), `SidebarContext.js`, `NavEntry.jsx`, `SidebarSections.jsx` (home / épinglé / sections), `SidebarIdentity.jsx`, `SidebarUserMenu.jsx`, `Sidebar.jsx`, `MobileTopBar.jsx`. Tous les `data-testid` conservés ; `MOBILE_NAV_LEGACY` (mort) supprimé. Non-régression validée par testing agent (iteration_26) + porte QA verte.

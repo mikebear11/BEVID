@@ -33,7 +33,8 @@ EXEMPT_PATH_PATTERNS = [
     re.compile(r"^/api/auth(/|$)"),
     re.compile(r"^/api/billing(/|$)"),
     re.compile(r"^/api/stripe(/|$)"),
-    re.compile(r"^/api/me/profile$"),
+    re.compile(r"^/api/payments/(checkout|status|pay-link)(/|$)"),  # un client bloqué doit pouvoir payer
+    re.compile(r"^/api/me/(profile|sidebar-prefs|visit-feature)$"),  # préférences perso, pas des données métier
     re.compile(r"^/api/errors$"),
     re.compile(r"^/api/sync/push$"),
     re.compile(r"^/api/rgpd(/|$)"),
