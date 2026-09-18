@@ -26,7 +26,8 @@ export default function BillingBanner() {
     };
     load();
     const iv = setInterval(load, 60_000);
-    return () => { alive = false; clearInterval(iv); };
+    window.addEventListener("bevid:billing-blocked", load);
+    return () => { alive = false; clearInterval(iv); window.removeEventListener("bevid:billing-blocked", load); };
   }, []);
 
   if (typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() && window.Capacitor.getPlatform() === "ios") return null; // N5 : aucun bandeau d'essai/paiement dans l'app iOS

@@ -88,6 +88,8 @@ def _effective_status_from_org(org: dict) -> str:
     - `read_only` = essai expiré depuis < READ_ONLY_DAYS_AFTER_TRIAL jours OU past_due depuis > 3 jours
     - `suspended` = essai expiré depuis > READ_ONLY_DAYS_AFTER_TRIAL jours
     """
+    if org.get("billing_exempt") is True:
+        return "active"
     stripe_status = (org.get("billing_status_stripe") or "").lower()
     if stripe_status == "past_due":
         return "past_due"

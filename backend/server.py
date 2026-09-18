@@ -2934,6 +2934,10 @@ async def billing_current(user=Depends(get_current_user)):
         "first_seat_free": FIRST_SEAT_FREE,
         "billing_mode": org.get("billing_mode", "monthly"),
         "stripe_configured": bool(os.environ.get("STRIPE_SECRET_KEY", "").strip()),
+        "billing_exempt": bool(org.get("billing_exempt")),
+        "is_owner": org.get("owner_user_id") == user["id"],
+        "portal_available": bool(org.get("stripe_customer_id")),
+        "billing_provider": org.get("billing_provider"),
     }
 
 
@@ -2981,6 +2985,8 @@ async def billing_upgrade(data: UpgradeRequest, user=Depends(get_current_user)):
     if org.get("owner_user_id") != user["id"]:
         raise HTTPException(403, "Seul l'owner peut modifier l'abonnement")
     stripe_key = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    if stripe_key and not org.get("billing_exempt"):
+        raise HTTPException(409, "Le changement de forfait passe par le paiement Stripe (POST /payments/checkout)")
     seats = await _active_seats(org_id)
     updates = {
         "plan": data.plan_id,
@@ -3242,11 +3248,13 @@ async def get_payment_status(session_id: str):
                     {"session_id": session_id, "payment_status": {"$ne": "paid"}},
                     {"$set": {"status": "completed", "payment_status": "paid",
                               "stripe_subscription_id": s.subscription,
+                              "stripe_customer_id": s.customer,
                               "stripe_payment_intent_id": s.payment_intent,
                               "updated_at": now_iso()}},
                 )
                 await _apply_payment_side_effects({**record, "payment_status": "paid",
-                                                    "stripe_subscription_id": s.subscription})
+                                                    "stripe_subscription_id": s.subscription,
+                                                    "stripe_customer_id": s.customer})
                 record = await db_raw.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
         except Exception as e:
             logger.warning("[stripe] status fallback error: %s", str(e)[:120])
@@ -3278,6 +3286,7 @@ async def _apply_payment_side_effects(record: dict):
                 {"$set": {"plan": plan_id, "billing_mode": mode, "status": "active",
                           "trial_ends_at": None,
                           "stripe_subscription_id": record.get("stripe_subscription_id"),
+                          "stripe_customer_id": record.get("stripe_customer_id"),
                           "billing_provider": "stripe",
                           "billing_status_stripe": "active",
                           "upgraded_at": now_iso()}},
@@ -3288,6 +3297,11 @@ async def _apply_payment_side_effects(record: dict):
             {"$set": {"paid_at": now_iso(), "status": "paye",
                        "payment_method": "stripe",
                        "payment_session_id": record["session_id"]}},
+        )
+    elif record.get("order_id"):
+        await db_raw.orders.update_one(
+            {"payment_session_id": record["session_id"], "payment_status": {"$ne": "paid"}},
+            {"$set": {"payment_status": "paid", "paid_at": now_iso()}},
         )
 
 
@@ -3318,6 +3332,7 @@ async def stripe_webhook_new(request: Request):
                 {"$set": {"status": "completed",
                            "payment_status": obj.get("payment_status", "paid"),
                            "stripe_subscription_id": obj.get("subscription"),
+                           "stripe_customer_id": obj.get("customer"),
                            "stripe_payment_intent_id": obj.get("payment_intent"),
                            "updated_at": now_iso()}},
             )
@@ -3353,7 +3368,38 @@ async def stripe_webhook_new(request: Request):
                 {"stripe_subscription_id": sub_id},
                 {"$set": {"billing_status_stripe": status_str, "updated_at": now_iso()}},
             )
+    elif t in ("invoice.payment_failed", "invoice.paid"):
+        sub_id = obj.get("subscription")
+        if sub_id:
+            await db_raw.organizations.update_one(
+                {"stripe_subscription_id": sub_id},
+                {"$set": {"billing_status_stripe": "past_due" if t == "invoice.payment_failed" else "active",
+                           "updated_at": now_iso()}},
+            )
     return {"received": True}
+
+
+class PortalRequest(BaseModel):
+    origin_url: str
+
+
+@api_router.post("/billing/portal")
+async def billing_portal(data: PortalRequest, user=Depends(get_current_user)):
+    """Portail client Stripe (moyen de paiement, factures, résiliation). Owner only."""
+    if not _stripe_key:
+        raise HTTPException(503, "Stripe non configuré")
+    org = await db_raw.organizations.find_one({"id": user.get("org_id")}, {"_id": 0})
+    if not org or org.get("owner_user_id") != user["id"]:
+        raise HTTPException(403, "Seul l'owner peut gérer l'abonnement")
+    if not org.get("stripe_customer_id"):
+        raise HTTPException(409, "Aucun abonnement Stripe actif pour cette organisation")
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=org["stripe_customer_id"], return_url=f"{data.origin_url}/billing",
+        )
+    except stripe.error.StripeError as e:
+        raise HTTPException(502, str(e.user_message or e)[:200])
+    return {"portal_url": session.url}
 
 
 @api_router.get("/billing/checkout-lookup-keys")
@@ -6532,47 +6578,7 @@ async def create_payment_link(oid: str, request: Request, user=Depends(get_curre
     except Exception as e:
         raise HTTPException(500, f"Erreur Stripe: {str(e)}")
 
-@api_router.get("/payments/status/{session_id}")
-async def payment_status(session_id: str):
-    record = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
-    if not record:
-        raise HTTPException(404, "Transaction introuvable")
-    if record.get("payment_status") != "paid":
-        try:
-            s = stripe.checkout.Session.retrieve(session_id)
-            if s.payment_status == "paid" or s.status == "complete":
-                await db.payment_transactions.update_one(
-                    {"session_id": session_id, "payment_status": {"$ne": "paid"}},
-                    {"$set": {"status": "completed", "payment_status": "paid",
-                              "stripe_payment_intent_id": s.payment_intent, "updated_at": now_iso()}})
-                await db.orders.update_one(
-                    {"payment_session_id": session_id, "payment_status": {"$ne": "paid"}},
-                    {"$set": {"payment_status": "paid", "paid_at": now_iso()}})
-                record["payment_status"] = "paid"
-                record["status"] = "completed"
-        except Exception:
-            pass
-    return {"session_id": record["session_id"], "status": record["status"], "payment_status": record["payment_status"], "amount": record.get("amount")}
-
-@api_router.post("/stripe/webhook")
-async def stripe_webhook(request: Request):
-    payload = await request.body()
-    sig = request.headers.get("stripe-signature", "")
-    try:
-        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
-    except Exception:
-        raise HTTPException(400, "Signature invalide")
-    obj = event["data"]["object"]
-    t = event["type"]
-    if t == "checkout.session.completed":
-        await db.payment_transactions.update_one(
-            {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
-            {"$set": {"status": "completed", "payment_status": obj.get("payment_status", "paid"),
-                      "stripe_payment_intent_id": obj.get("payment_intent"), "updated_at": now_iso()}})
-        await db.orders.update_one(
-            {"payment_session_id": obj["id"], "payment_status": {"$ne": "paid"}},
-            {"$set": {"payment_status": "paid", "paid_at": now_iso()}})
-    return {"status": "ok"}
+# (statut paiement + webhook Stripe : voir handlers uniques plus haut — Lot Paiement CB)
 
 # ---------- OVERDUE PAYMENTS ----------
 @api_router.get("/alerts/overdue-payments")

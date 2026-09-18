@@ -1,4 +1,5 @@
 import axios from "axios";
+import { toast } from "sonner";
 import { enqueueMutation, pendingCount } from "./db";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -81,6 +82,14 @@ api.interceptors.response.use(
       const isPublic = p === "/login" || p === "/register" || p === "/forgot-password"
         || p.startsWith("/reset-password") || p.startsWith("/sign/");
       if (!isPublic) window.location.href = "/login";
+    }
+    if (err.response?.status === 402) {
+      const d = err.response.data || {};
+      toast.error(d.detail || "Abonnement en lecture seule — modification bloquée.", {
+        id: "billing-blocked",
+        action: { label: "Facturation", onClick: () => { window.location.href = "/billing"; } },
+      });
+      window.dispatchEvent(new CustomEvent("bevid:billing-blocked", { detail: d }));
     }
     if (!err.response && typeof navigator !== "undefined" && !navigator.onLine) {
       err.__offline = true;

@@ -9,6 +9,8 @@ Vérifie :
 - PUT et DELETE sont aussi bloqués en read_only (pas seulement POST)
 """
 import os, time, subprocess, sys
+from datetime import datetime, timezone, timedelta
+_DAYS_AGO = lambda d: (datetime.now(timezone.utc) - timedelta(days=d)).isoformat()
 from pathlib import Path
 import httpx
 import pytest
@@ -57,7 +59,7 @@ async def test_paywall_full_cycle():
         # 2. Force read_only
         await db.organizations.update_one(
             {"id": org_id},
-            {"$set": {"trial_ends_at": "2026-08-16T00:00:00+00:00", "status": "trial"}},
+            {"$set": {"trial_ends_at": _DAYS_AGO(2), "status": "trial"}},
         )
         bg.invalidate_status(org_id)
         r = await cli.post("/api/clients", json={"name": "X", "status": "actif"}, headers=h)
@@ -72,7 +74,7 @@ async def test_paywall_full_cycle():
 
         # 4. Suspended
         await db.organizations.update_one(
-            {"id": org_id}, {"$set": {"trial_ends_at": "2026-07-15T00:00:00+00:00"}},
+            {"id": org_id}, {"$set": {"trial_ends_at": _DAYS_AGO(40)}},
         )
         bg.invalidate_status(org_id)
         r = await cli.post("/api/clients", json={"name": "S", "status": "actif"}, headers=h)
@@ -92,7 +94,7 @@ async def test_paywall_full_cycle():
         # 6. Re-read_only : PUT et DELETE bloqués
         await db.organizations.update_one(
             {"id": org_id},
-            {"$set": {"status": "trial", "trial_ends_at": "2026-08-16T00:00:00+00:00"}},
+            {"$set": {"status": "trial", "trial_ends_at": _DAYS_AGO(2)}},
         )
         bg.invalidate_status(org_id)
         r = await cli.put(f"/api/clients/{cid}", json={"name": "H"}, headers=h)
