@@ -123,7 +123,14 @@ async def _get_effective_status(org_id: str) -> str | None:
     org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
     if not org:
         return None
-    return _effective_status_from_org(org)
+    eff = _effective_status_from_org(org)
+    if eff == "read_only" and read_only_hook is not None:
+        read_only_hook(org)
+    return eff
+
+
+# Callback (org) -> None, posé par server.py : email owner au premier passage en lecture seule.
+read_only_hook = None
 
 
 def invalidate_status(org_id: str) -> None:

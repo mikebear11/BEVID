@@ -4,7 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, uuid, jwt, bcrypt, io, csv, base64
+import os, logging, uuid, jwt, bcrypt, io, csv, base64, asyncio
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import List, Optional, Literal, Dict
@@ -2919,6 +2919,8 @@ async def billing_current(user=Depends(get_current_user)):
     total_month = total_price_cents(plan_id, seats_paid, "monthly")
     total_year = total_price_cents(plan_id, seats_paid, "annual")
     effective = _compute_effective_status(org)
+    if effective == "read_only":
+        billing_emails.fire_read_only(org)
     return {
         "org_id": org_id,
         "plan": plan_id,
@@ -3291,6 +3293,9 @@ async def _apply_payment_side_effects(record: dict):
                           "billing_status_stripe": "active",
                           "upgraded_at": now_iso()}},
             )
+            asyncio.get_running_loop().create_task(billing_emails.notify_payment_confirmed(
+                record["org_id"], record["session_id"], PLANS[plan_id].get("name", plan_id),
+                int(record.get("amount") or 0), int(record.get("quantity") or 1), mode))
     elif kind in ("invoice", "invoice_pay_link") and record.get("document_id"):
         await db_raw.documents.update_one(
             {"id": record["document_id"], "org_id": record.get("org_id")},
@@ -3376,6 +3381,9 @@ async def stripe_webhook_new(request: Request):
                 {"$set": {"billing_status_stripe": "past_due" if t == "invoice.payment_failed" else "active",
                            "updated_at": now_iso()}},
             )
+            if t == "invoice.payment_failed":
+                asyncio.get_running_loop().create_task(billing_emails.notify_payment_failed(
+                    sub_id, obj.get("id") or "", obj.get("amount_due")))
     return {"received": True}
 
 
@@ -10844,6 +10852,10 @@ async def _seed_integrations_on_startup():
 @app.on_event("startup")
 async def _integrations_startup():
     try:
+        await db_raw.billing_emails.create_index([("org_id", 1), ("kind", 1), ("ref", 1)], unique=True)
+    except Exception as e:
+        logging.error(f"billing_emails index failed: {e}")
+    try:
         await _seed_integrations_on_startup()
     except Exception as e:
         logging.error(f"integrations seed failed: {e}")
@@ -11743,6 +11755,10 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Paywall — bloque les mutations quand l'abonnement est en read_only/suspended.
 # S'applique après CORS pour ne pas casser les preflight OPTIONS.
 from billing_guard import BillingGuardMiddleware, invalidate_status as _invalidate_billing_cache
+import billing_guard as _billing_guard
+import billing_emails
+billing_emails.configure(db_raw, send_email)
+_billing_guard.read_only_hook = billing_emails.fire_read_only
 app.add_middleware(BillingGuardMiddleware)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

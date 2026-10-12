@@ -1897,3 +1897,11 @@ Installer via Partager → Sur l'écran d'accueil, se connecter, activer notific
 
 **Découpage `Layout.jsx` (1005 → 130 lignes)** — `components/layout/` :
 `navConfig.js` (données + helpers purs), `useSidebarPrefs.js` (persistance + épingles/DnD/visited), `useNavVisibility.js` (RBAC + forfait + palette), `SidebarContext.js`, `NavEntry.jsx`, `SidebarSections.jsx` (home / épinglé / sections), `SidebarIdentity.jsx`, `SidebarUserMenu.jsx`, `Sidebar.jsx`, `MobileTopBar.jsx`. Tous les `data-testid` conservés ; `MOBILE_NAV_LEGACY` (mort) supprimé. Non-régression validée par testing agent (iteration_26) + porte QA verte.
+
+## Emails de facturation (livré — suite Lot 4)
+- Module `backend/billing_emails.py` (Resend via `send_email`, destinataire = owner de l'org, gabarit BEVID sans formulaire ni demande d'identifiants) :
+  1. **Paiement confirmé** — déclenché par `_apply_payment_side_effects` (checkout Stripe `saas` payé) : plan, montant HT, sièges, période, lien /billing.
+  2. **Échec de prélèvement** — webhook `invoice.payment_failed` : montant dû, consigne « Gérer mon abonnement » (portail Stripe), avertissement lecture seule.
+  3. **Passage en lecture seule** — hook `billing_guard.read_only_hook` + `GET /billing/current` : envoyé dès la première observation du statut `read_only` (fin d'essai ou abonnement non renouvelé). Pas de cron nécessaire (limite 5 crons déjà atteinte).
+- Idempotence et concurrence : collection `billing_emails` (index unique `org_id+kind+ref`, réservation `$setOnInsert` avant envoi, suppression si l'envoi échoue). Référence = session Stripe / facture / `trial_ends_at`.
+- Vérification : `tests/test_billing_emails_live.py` (3 envois réels vers `delivered@resend.dev`, doublon ignoré, 3 déclencheurs concurrents → 1 email) PASS ; déclenchement E2E via API sur `readonly.test` (6 requêtes parallèles → 1 email) ; paywall 9/9.
